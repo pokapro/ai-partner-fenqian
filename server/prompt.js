@@ -11,7 +11,7 @@ function buildSystemPrompt() {
 4. 所有建议必须说明依据，避免空话。
 5. 若信息不足，必须列出需要补充的信息。
 
-报告必须包含以下10个模块，每个模块用 ## 标题 分隔：
+报告必须包含以下8个模块，每个模块用 ## 标题 分隔：
 
 一、现状诊断
 二、主要风险点
@@ -46,7 +46,7 @@ ${partnerDesc}
 亏损承担担忧：${lossConcern || '无'}
 退出机制需求：${exitConcern || '无'}
 
-请按系统指令中要求的10个模块生成完整Markdown报告。`;
+请按系统指令中要求的8个模块生成完整Markdown报告。`;
 }
 
 module.exports = { buildSystemPrompt, buildUserPrompt };

@@ -38,7 +38,7 @@
         <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
             <label class="block text-xs text-gray-600 mb-1">出资金额（元） <span class="text-red-500">*</span></label>
-            <input type="number" name="capital_${i}" min="1" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="例如 100000" required>
+            <input type="number" name="capital_${i}" min="0" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="例如 100000" required>
           </div>
           <div>
             <label class="block text-xs text-gray-600 mb-1">出力类型 <span class="text-red-500">*</span></label>
@@ -77,7 +77,14 @@
 
     for (let i = 0; i < currentPartnerCount; i++) {
       const capital = form.querySelector(`[name="capital_${i}"]`)?.value;
-      if (!capital || parseFloat(capital) <= 0) return `合伙人 ${String.fromCharCode(65 + i)} 的出资金额必须为正数`;
+      const capNum = parseFloat(capital);
+      if (capital === '' || isNaN(capNum) || capNum < 0) return `合伙人 ${String.fromCharCode(65 + i)} 的出资金额不能为负数`;
+      if (capNum === 0) {
+        const effort = form.querySelector(`[name="effortType_${i}"]`)?.value;
+        if (!effort) return `出资 0 元的合伙人 ${String.fromCharCode(65 + i)} 必须选择出力类型`;
+        const resp = form.querySelector(`[name="responsibility_${i}"]`)?.value?.trim();
+        if (!resp || resp.length < 2) return `出资 0 元的合伙人 ${String.fromCharCode(65 + i)} 必须填写职责描述`;
+      }
 
       const effort = form.querySelector(`[name="effortType_${i}"]`)?.value;
       if (!effort) return `请选择合伙人 ${String.fromCharCode(65 + i)} 的出力类型`;
@@ -187,47 +194,22 @@
     reportPreview.classList.remove('hidden');
   }
 
-  // Simple markdown to HTML converter (lightweight, no dependencies)
+  // Use marked library for markdown rendering
   function simpleMarkdownToHtml(md) {
     if (!md) return '';
+    if (typeof marked !== 'undefined' && marked.parse) {
+      return marked.parse(md, { breaks: true, gfm: true });
+    }
+    // Fallback: if marked CDN hasn't loaded, use simple converter
     let html = md
-      // Escape HTML
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
-      // Headers
       .replace(/^### (.+)$/gm, '<h3>$1</h3>')
       .replace(/^## (.+)$/gm, '<h2>$1</h2>')
       .replace(/^# (.+)$/gm, '<h1>$1</h1>')
-      // Bold & italic
       .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*(.+?)\*/g, '<em>$1</em>')
-      // Horizontal rule
-      .replace(/^---$/gm, '<hr>')
-      // Blockquotes
-      .replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>')
-      // Tables
-      .replace(/\|(.+)\|/g, function(match) {
-        if (match.includes('---')) return '';
-        const cells = match.split('|').filter(c => c.trim());
-        const row = cells.map(c => `<td>${c.trim()}</td>`).join('');
-        return `<tr>${row}</tr>`;
-      })
-      // Wrap table rows
-      .replace(/(<tr>.*<\/tr>\n?)+/g, '<table>$&</table>')
-      // Unordered lists
-      .replace(/^- (.+)$/gm, '<li>$1</li>')
-      .replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>')
-      // Ordered lists
-      .replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
-      .replace(/(?<!\<ul\>)(<li>.*<\/li>\n?)+/g, '<ol>$&</ol>')
-      // Paragraphs
-      .replace(/\n\n/g, '</p><p>')
-      // Code blocks
-      .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
-      // Inline code
-      .replace(/`(.+?)`/g, '<code>$1</code>');
-
+      .replace(/\*(.+?)\*/g, '<em>$1</em>');
     return '<p>' + html + '</p>';
   }
 
@@ -328,7 +310,7 @@
         data: {
           partners: [
             { capital: 100000, effort: '全职运营', resp: '负责选品、运营、客服' },
-            { capital: 100000, effort: '兼职供应链', resp: '负责供应链和物流对接' }
+            { capital: 100000, effort: '兼职', resp: '负责供应链和物流对接' }
           ],
           profit: '10-20万',
           contact: 'test_wechat_003'

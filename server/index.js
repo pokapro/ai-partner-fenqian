@@ -26,10 +26,21 @@ function validateInput(body) {
     errors.push('合伙信息缺失');
   } else {
     body.partners.forEach((p, i) => {
-      if (!p.capital || isNaN(Number(p.capital)) || Number(p.capital) <= 0) {
+      const capital = Number(p.capital);
+      if (isNaN(capital) || capital < 0) {
+        errors.push(`合伙人 ${p.name || String.fromCharCode(65 + i)} 的出资金额不能为负数`);
+      } else if (capital === 0) {
+        // 0元出资：必须给出力类型和职责描述
+        if (!p.effortType || p.effortType.trim().length === 0) {
+          errors.push(`出资 0 元的合伙人 ${p.name || String.fromCharCode(65 + i)} 必须选择出力类型`);
+        }
+        if (!p.responsibility || p.responsibility.trim().length < 2) {
+          errors.push(`出资 0 元的合伙人 ${p.name || String.fromCharCode(65 + i)} 必须填写职责描述`);
+        }
+      } else if (capital <= 0) {
         errors.push(`合伙人 ${p.name || String.fromCharCode(65 + i)} 的出资金额必须为正数`);
       }
-      if (!p.responsibility || p.responsibility.trim().length < 2) {
+      if (capital > 0 && (!p.responsibility || p.responsibility.trim().length < 2)) {
         errors.push(`合伙人 ${p.name || String.fromCharCode(65 + i)} 的职责描述不能为空`);
       }
     });
@@ -53,6 +64,26 @@ function validateInput(body) {
 
 // Store db reference after init
 let db = null;
+
+// Admin token middleware (protects sensitive routes)
+const ADMIN_TOKEN = process.env.ADMIN_TOKEN;
+function requireAdminToken(req, res, next) {
+  // If ADMIN_TOKEN is not set, block access in production only
+  if (!ADMIN_TOKEN) {
+    // Allow localhost access without token for debugging
+    const ip = req.ip || req.connection?.remoteAddress || '';
+    if (ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1' || ip === 'localhost') {
+      return next();
+    }
+    // No token configured, block all remote access
+    return res.status(403).json({ error: 'forbidden', message: '接口未开放远程访问。请配置 ADMIN_TOKEN 后通过 ?token=xxx 访问。' });
+  }
+  const token = req.query.token;
+  if (!token || token !== ADMIN_TOKEN) {
+    return res.status(403).json({ error: 'forbidden', message: '无效的访问令牌（token）' });
+  }
+  next();
+}
 
 // === API Routes ===
 
@@ -110,7 +141,7 @@ app.post('/api/generate', async (req, res) => {
   }
 });
 
-app.get('/api/cases', (req, res) => {
+app.get('/api/cases', requireAdminToken, (req, res) => {
   try {
     const cases = db.getAllCases();
     res.json(cases);
@@ -119,7 +150,7 @@ app.get('/api/cases', (req, res) => {
   }
 });
 
-app.get('/api/cases/:id', (req, res) => {
+app.get('/api/cases/:id', requireAdminToken, (req, res) => {
   try {
     const c = db.getCase(req.params.id);
     if (!c) return res.status(404).json({ error: 'not_found', message: '案例不存在' });
@@ -137,6 +168,23 @@ app.put('/api/cases/:id/payment', (req, res) => {
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'server_error', message: '记录付款意向失败' });
+  }
+});
+
+// Review endpoint (requires ADMIN_TOKEN)
+app.put('/api/cases/:id/review', requireAdminToken, (req, res) => {
+  try {
+    const { reviewStatus, reviewNote } = req.body;
+    const validStatuses = ['reviewed', 'delivered', 'rejected'];
+    if (!reviewStatus || !validStatuses.includes(reviewStatus)) {
+      return res.status(400).json({ error: 'validation', message: `reviewStatus 必须为: ${validStatuses.join('、')}` });
+    }
+    const existing = db.getCase(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'not_found', message: '案例不存在' });
+    db.updateReviewStatus(req.params.id, reviewStatus, reviewNote || '');
+    res.json({ success: true, status: reviewStatus, note: reviewNote || '' });
+  } catch (err) {
+    res.status(500).json({ error: 'server_error', message: '更新审核状态失败' });
   }
 });
 
