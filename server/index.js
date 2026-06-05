@@ -111,7 +111,7 @@ app.post('/api/generate', async (req, res) => {
     });
 
     try {
-      const reportMarkdown = await generateReport(req.body);
+      const reportMarkdown = await generateReport(req.body, db);
       const profitTable = generateProfitTable(partners);
       const fullReport = reportMarkdown + '\n\n---\n\n## 利润模拟表（系统计算）\n\n' + profitTable;
 

@@ -22,6 +22,16 @@ function buildSystemPrompt() {
 七、沟通话术
 八、免责声明
 
+### 历史案例参考
+
+在用户信息之后，我会提供一些**历史类似案例**作为参考。这些案例与当前合伙场景（出资模式、出力类型）相近，你可以参考它们在分配方案选择上的实践经验。
+
+重要规则：
+1. **历史数据仅供参考**：每个合伙情况都是独特的，不能直接套用历史案例的分配比例。
+2. **必须说明依据**：推荐某方案时，可以引用历史案例中提到的大致分配比例范围作为行业参考。
+3. **禁止泄露隐私**：不可以输出具体的案例 ID 或任何用户个人信息。
+4. **保持独立思考**：即使历史案例都采用同一种分配方案，你仍需要根据当前案例具体情况判断是否合适。
+
 请以 Markdown 格式输出完整报告。`;
 }
 
@@ -49,4 +59,61 @@ ${partnerDesc}
 请按系统指令中要求的8个模块生成完整Markdown报告。`;
 }
 
-module.exports = { buildSystemPrompt, buildUserPrompt };
+/**
+ * Build the reference context block with similar cases and system stats.
+ * This is attached to the AI messages as additional context.
+ * @param {Array} similarCases - Array of de-identified case objects
+ * @param {Object} stats - Aggregate case statistics
+ * @returns {string} Formatted reference context
+ */
+function buildReferenceContext(similarCases, stats) {
+  const lines = [];
+
+  lines.push('---');
+  lines.push('## 历史案例参考数据');
+  lines.push('');
+  lines.push('> ⚠️ 以下数据仅供参考。每个合伙情况都是独特的，请结合当前案例具体分析，切勿直接套用。');
+  lines.push('');
+
+  // System statistics
+  lines.push('### 平台统计数据');
+  lines.push(`- 平台已有案例总数：${stats.totalCases} 个`);
+  lines.push(`- 已完成报告的案例：${stats.totalWithReport} 个`);
+
+  if (Object.keys(stats.schemeAdoption).length > 0) {
+    lines.push('- 各分配方案在已完成报告中的采纳情况：');
+    for (const [scheme, count] of Object.entries(stats.schemeAdoption)) {
+      const pct = Math.round(count / stats.totalWithReport * 100);
+      lines.push(`  - ${scheme}：${count} 次（${pct}%）`);
+    }
+  }
+
+  lines.push('');
+
+  // Similar cases
+  if (similarCases && similarCases.length > 0) {
+    lines.push(`### 相似案例（${similarCases.length} 个）`);
+    lines.push('');
+
+    similarCases.forEach((c, i) => {
+      lines.push(`**案例 ${i + 1}**：`);
+      lines.push(`- 合伙人数：${c.partnerCount} 人`);
+      lines.push(`- 出资金额：${c.totalCapital.toLocaleString()} 元`);
+      lines.push(`- 出资模式：${c.fundingMode}`);
+      lines.push(`- 出力类型：${c.effortTypes.filter(Boolean).join('、')}`);
+      lines.push(`- 采用的分配方案：${c.allocationScheme}`);
+      lines.push('');
+    });
+  } else {
+    lines.push('### 相似案例');
+    lines.push('暂未找到高度相似的过往案例。您可以根据自己的具体情况选择分配方案。');
+    lines.push('');
+  }
+
+  lines.push('---');
+  lines.push('');
+
+  return lines.join('\n');
+}
+
+module.exports = { buildSystemPrompt, buildUserPrompt, buildReferenceContext };

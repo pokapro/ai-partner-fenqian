@@ -1,14 +1,22 @@
 // AI provider abstraction
-// Supports: ollama (local), glm (智谱), qwen (通义千问), mock (development only)
+// Supports: ollama (local), glm (智谱), qwen (通义千问), deepseek, mock (development only)
 
-const { buildSystemPrompt, buildUserPrompt } = require('./prompt');
+const { buildSystemPrompt, buildUserPrompt, buildReferenceContext } = require('./prompt');
 
 const PROVIDERS = {
   // Mock provider for development without AI API
-  mock: async (input) => {
+  mock: async (input, referenceContext) => {
     const { partnerCount, partners, expectedProfit, oralAgreement, lossConcern, exitConcern } = input;
     const names = partners.map(p => p.name).join('、');
     const caps = partners.map(p => `${p.name}（${p.capital}元，${p.effortType}）`).join('、');
+
+    // Build a summary of reference data insights
+    let refInsight = '';
+    if (referenceContext) {
+      const lines = referenceContext.trim().split('\n');
+      const refLines = lines.filter(l => l.includes('方案') || l.includes('案例') || l.includes('统计')).slice(0, 5);
+      refInsight = refLines.length > 0 ? '\n\n> 📊 参考数据摘要：' + refLines.join('；') : '';
+    }
 
     return `## 一、现状诊断
 
@@ -40,7 +48,7 @@ ${exitConcern ? `关于退出机制方面：${exitConcern}` : ''}
 
 ## 四、方案二：平衡型
 
-**核心逻辑**：50% 按出资比例 + 50% 按出力贡献分配。
+**核心逻辑**：50% 按出资比例 + 50% 按出力贡献分配。${refInsight}
 
 - 出资部分：按出资比例分配 50% 利润
 - 出力部分：按全职/兼职/资源等贡献分配 50% 利润
@@ -78,18 +86,16 @@ ${exitConcern ? `关于退出机制方面：${exitConcern}` : ''}
 本报告由 AI 生成，仅供参考。不构成正式法律意见。建议签署正式合伙协议前咨询专业律师。`;
   },
 
-  ollama: async (input) => {
+  ollama: async (input, referenceContext) => {
     const baseUrl = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
     const model = process.env.OLLAMA_MODEL || 'qwen2.5:7b';
+    const messages = buildMessages(input, referenceContext);
     const res = await fetch(`${baseUrl}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model,
-        messages: [
-          { role: 'system', content: buildSystemPrompt() },
-          { role: 'user', content: buildUserPrompt(input) }
-        ],
+        messages,
         stream: false,
         options: { temperature: 0.7 }
       })
@@ -99,10 +105,11 @@ ${exitConcern ? `关于退出机制方面：${exitConcern}` : ''}
     return data.message?.content || data.response || '';
   },
 
-  glm: async (input) => {
+  glm: async (input, referenceContext) => {
     const apiKey = process.env.GLM_API_KEY;
     if (!apiKey) throw new Error('GLM_API_KEY not set');
     const model = process.env.GLM_MODEL || 'glm-4-flash';
+    const messages = buildMessages(input, referenceContext);
     const res = await fetch('https://open.bigmodel.cn/api/paas/v4/chat/completions', {
       method: 'POST',
       headers: {
@@ -111,10 +118,7 @@ ${exitConcern ? `关于退出机制方面：${exitConcern}` : ''}
       },
       body: JSON.stringify({
         model,
-        messages: [
-          { role: 'system', content: buildSystemPrompt() },
-          { role: 'user', content: buildUserPrompt(input) }
-        ],
+        messages,
         temperature: 0.7
       })
     });
@@ -123,10 +127,11 @@ ${exitConcern ? `关于退出机制方面：${exitConcern}` : ''}
     return data.choices?.[0]?.message?.content || '';
   },
 
-  deepseek: async (input) => {
+  deepseek: async (input, referenceContext) => {
     const apiKey = process.env.DEEPSEEK_API_KEY;
     if (!apiKey) throw new Error('DEEPSEEK_API_KEY not set');
     const model = process.env.DEEPSEEK_MODEL || 'deepseek-chat';
+    const messages = buildMessages(input, referenceContext);
     const res = await fetch('https://api.deepseek.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -135,10 +140,7 @@ ${exitConcern ? `关于退出机制方面：${exitConcern}` : ''}
       },
       body: JSON.stringify({
         model,
-        messages: [
-          { role: 'system', content: buildSystemPrompt() },
-          { role: 'user', content: buildUserPrompt(input) }
-        ],
+        messages,
         temperature: 0.7
       })
     });
@@ -147,10 +149,11 @@ ${exitConcern ? `关于退出机制方面：${exitConcern}` : ''}
     return data.choices?.[0]?.message?.content || '';
   },
 
-  qwen: async (input) => {
+  qwen: async (input, referenceContext) => {
     const apiKey = process.env.QWEN_API_KEY;
     if (!apiKey) throw new Error('QWEN_API_KEY not set');
     const model = process.env.QWEN_MODEL || 'qwen-turbo';
+    const messages = buildMessages(input, referenceContext);
     const res = await fetch('https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation', {
       method: 'POST',
       headers: {
@@ -160,10 +163,7 @@ ${exitConcern ? `关于退出机制方面：${exitConcern}` : ''}
       body: JSON.stringify({
         model,
         input: {
-          messages: [
-            { role: 'system', content: buildSystemPrompt() },
-            { role: 'user', content: buildUserPrompt(input) }
-          ]
+          messages
         },
         parameters: {
           temperature: 0.7,
@@ -177,12 +177,53 @@ ${exitConcern ? `关于退出机制方面：${exitConcern}` : ''}
   }
 };
 
-async function generateReport(input) {
+/**
+ * Build the messages array for all real AI providers.
+ * Adds reference context as a separate system message for clarity.
+ */
+function buildMessages(input, referenceContext) {
+  const messages = [
+    { role: 'system', content: buildSystemPrompt() }
+  ];
+
+  // Add reference context if available
+  if (referenceContext) {
+    messages.push({
+      role: 'system',
+      content: `以下是来自平台数据库的参考信息，请参考这些数据给出更贴合实际的建议：
+
+${referenceContext}
+
+注意：这些数据仅作为背景参考，每个合伙情况都是独特的，切勿直接套用历史案例的分配比例。`
+    });
+  }
+
+  messages.push({ role: 'user', content: buildUserPrompt(input) });
+
+  return messages;
+}
+
+async function generateReport(input, dbRef = null) {
   const provider = process.env.AI_PROVIDER || 'mock';
   const fn = PROVIDERS[provider];
   if (!fn) throw new Error(`Unknown AI provider: ${provider}. Supported: ${Object.keys(PROVIDERS).join(', ')}`);
 
-  const markdown = await fn(input);
+  // Fetch reference data from database if available
+  let referenceContext = null;
+  if (dbRef && input.partners) {
+    try {
+      const similarCases = dbRef.findSimilarCases(input.partners, 5);
+      const stats = dbRef.getCaseStats();
+      if (similarCases.length > 0 || (stats && stats.totalCases > 0)) {
+        referenceContext = buildReferenceContext(similarCases, stats);
+      }
+    } catch (dbErr) {
+      console.error('Failed to fetch reference data from DB:', dbErr.message);
+      // Continue without reference data - non-fatal
+    }
+  }
+
+  const markdown = await fn(input, referenceContext);
 
   // validate: must contain at least some required sections
   const requiredSections = ['现状诊断', '主要风险点', '利润模拟', '免责声明'];
