@@ -161,7 +161,7 @@
       }
 
       currentCaseId = result.caseId;
-      renderReport(result.previewMarkdown);
+      renderReport(result.previewMarkdown, true);
       showPaymentSection();
       setLoading(false);
 
@@ -175,7 +175,7 @@
   });
 
   // Render markdown report preview
-  function renderReport(markdown) {
+  function renderReport(markdown, hasKnowledgeBase = false) {
     reportPreview.innerHTML = '';
     const container = document.createElement('div');
     container.className = 'bg-white rounded-xl shadow-sm border border-gray-200 p-5';
@@ -189,6 +189,14 @@
     content.id = 'reportContent';
     content.innerHTML = simpleMarkdownToHtml(markdown);
     container.appendChild(content);
+
+    // V0.2: Add notice about knowledge base reference
+    if (hasKnowledgeBase) {
+      const notice = document.createElement('div');
+      notice.className = 'mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700';
+      notice.textContent = '📋 本报告已参考系统内相似案例和规则库生成，完整版本需人工审核后交付。';
+      container.appendChild(notice);
+    }
 
     reportPreview.appendChild(container);
     reportPreview.classList.remove('hidden');

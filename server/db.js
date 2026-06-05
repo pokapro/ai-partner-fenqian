@@ -2,6 +2,7 @@
 // Initialized synchronously at startup
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const initSqlJs = require('sql.js');
 
 const DB_PATH = path.join(__dirname, '..', 'data', 'app.db');
@@ -43,6 +44,56 @@ async function initDb() {
       payment_intent TEXT DEFAULT '',
       review_status TEXT NOT NULL DEFAULT 'pending_review',
       review_note TEXT DEFAULT ''
+    );
+  `);
+
+  // Knowledge cases table (curated, reusable cases)
+  database.run(`
+    CREATE TABLE IF NOT EXISTS knowledge_cases (
+      id TEXT PRIMARY KEY,
+      created_at TEXT NOT NULL DEFAULT (datetime('now', '+8 hours')),
+      title TEXT NOT NULL,
+      partner_count INTEGER NOT NULL,
+      scene_type TEXT NOT NULL,
+      funding_pattern TEXT NOT NULL,
+      effort_pattern TEXT NOT NULL,
+      profit_range TEXT,
+      oral_agreement TEXT,
+      core_conflict TEXT,
+      recommended_scheme TEXT NOT NULL,
+      allocation_summary TEXT NOT NULL,
+      risk_points TEXT NOT NULL,
+      clause_templates TEXT NOT NULL,
+      negotiation_tips TEXT,
+      source TEXT DEFAULT 'manual',
+      status TEXT DEFAULT 'active'
+    );
+  `);
+
+  // Rules table
+  database.run(`
+    CREATE TABLE IF NOT EXISTS rules (
+      id TEXT PRIMARY KEY,
+      created_at TEXT NOT NULL DEFAULT (datetime('now', '+8 hours')),
+      rule_name TEXT NOT NULL,
+      trigger_conditions TEXT NOT NULL,
+      recommendation TEXT NOT NULL,
+      risk_level TEXT DEFAULT 'medium',
+      priority INTEGER DEFAULT 50,
+      status TEXT DEFAULT 'active'
+    );
+  `);
+
+  // Templates table
+  database.run(`
+    CREATE TABLE IF NOT EXISTS templates (
+      id TEXT PRIMARY KEY,
+      created_at TEXT NOT NULL DEFAULT (datetime('now', '+8 hours')),
+      template_type TEXT NOT NULL,
+      title TEXT NOT NULL,
+      content TEXT NOT NULL,
+      tags TEXT,
+      status TEXT DEFAULT 'active'
     );
   `);
 
@@ -180,6 +231,148 @@ async function initDb() {
     return '未知';
   }
 
+  /**
+   * Knowledge Cases CRUD
+   */
+  function getKnowledgeCases() {
+    const results = [];
+    const stmt = database.prepare("SELECT * FROM knowledge_cases WHERE status = 'active' ORDER BY created_at DESC");
+    while (stmt.step()) {
+      results.push(stmt.getAsObject());
+    }
+    stmt.free();
+    return results;
+  }
+
+  function createKnowledgeCase(data) {
+    const id = data.id || 'kc_' + crypto.randomBytes(8).toString('hex');
+    database.run(
+      `INSERT INTO knowledge_cases (id, created_at, title, partner_count, scene_type, funding_pattern, effort_pattern, profit_range, oral_agreement, core_conflict, recommended_scheme, allocation_summary, risk_points, clause_templates, negotiation_tips, source, status)
+       VALUES (?, datetime('now', '+8 hours'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, data.title, data.partner_count, data.scene_type, data.funding_pattern, data.effort_pattern,
+       data.profit_range || '', data.oral_agreement || '', data.core_conflict || '',
+       data.recommended_scheme, data.allocation_summary, data.risk_points, data.clause_templates,
+       data.negotiation_tips || '', data.source || 'manual', data.status || 'active']
+    );
+    persist();
+    return id;
+  }
+
+  function updateKnowledgeCase(id, data) {
+    const fields = [];
+    const values = [];
+    for (const [key, val] of Object.entries(data)) {
+      if (['id', 'created_at'].includes(key)) continue;
+      // Convert camelCase keys to snake_case for DB column names
+      const col = key.replace(/[A-Z]/g, m => '_' + m.toLowerCase());
+      fields.push(`${col} = ?`);
+      values.push(val);
+    }
+    if (fields.length === 0) return;
+    values.push(id);
+    database.run(`UPDATE knowledge_cases SET ${fields.join(', ')} WHERE id = ?`, values);
+    persist();
+  }
+
+  /**
+   * Rules CRUD
+   */
+  function getRules() {
+    const results = [];
+    const stmt = database.prepare("SELECT * FROM rules WHERE status = 'active' ORDER BY priority DESC, created_at DESC");
+    while (stmt.step()) {
+      results.push(stmt.getAsObject());
+    }
+    stmt.free();
+    return results;
+  }
+
+  function createRule(data) {
+    const id = data.id || 'rule_' + crypto.randomBytes(8).toString('hex');
+    database.run(
+      `INSERT INTO rules (id, created_at, rule_name, trigger_conditions, recommendation, risk_level, priority, status)
+       VALUES (?, datetime('now', '+8 hours'), ?, ?, ?, ?, ?, ?)`,
+      [id, data.rule_name, data.trigger_conditions, data.recommendation,
+       data.risk_level || 'medium', data.priority || 50, data.status || 'active']
+    );
+    persist();
+    return id;
+  }
+
+  function updateRule(id, data) {
+    const fields = [];
+    const values = [];
+    for (const [key, val] of Object.entries(data)) {
+      if (['id', 'created_at'].includes(key)) continue;
+      const col = key.replace(/[A-Z]/g, m => '_' + m.toLowerCase());
+      fields.push(`${col} = ?`);
+      values.push(val);
+    }
+    if (fields.length === 0) return;
+    values.push(id);
+    database.run(`UPDATE rules SET ${fields.join(', ')} WHERE id = ?`, values);
+    persist();
+  }
+
+  /**
+   * Templates CRUD
+   */
+  function getTemplates() {
+    const results = [];
+    const stmt = database.prepare("SELECT * FROM templates WHERE status = 'active' ORDER BY created_at DESC");
+    while (stmt.step()) {
+      results.push(stmt.getAsObject());
+    }
+    stmt.free();
+    return results;
+  }
+
+  function createTemplate(data) {
+    const id = data.id || 'tpl_' + crypto.randomBytes(8).toString('hex');
+    database.run(
+      `INSERT INTO templates (id, created_at, template_type, title, content, tags, status)
+       VALUES (?, datetime('now', '+8 hours'), ?, ?, ?, ?, ?)`,
+      [id, data.template_type, data.title, data.content, data.tags || '', data.status || 'active']
+    );
+    persist();
+    return id;
+  }
+
+  function updateTemplate(id, data) {
+    const fields = [];
+    const values = [];
+    for (const [key, val] of Object.entries(data)) {
+      if (['id', 'created_at'].includes(key)) continue;
+      const col = key.replace(/[A-Z]/g, m => '_' + m.toLowerCase());
+      fields.push(`${col} = ?`);
+      values.push(val);
+    }
+    if (fields.length === 0) return;
+    values.push(id);
+    database.run(`UPDATE templates SET ${fields.join(', ')} WHERE id = ?`, values);
+    persist();
+  }
+
+  /**
+   * Promote a case from cases table to knowledge_cases
+   */
+  function promoteCaseToKnowledge(caseId, data) {
+    const existingCase = db.getCase(caseId);
+    if (!existingCase) throw new Error(`Case not found: ${caseId}`);
+
+    const id = 'kc_' + crypto.randomBytes(8).toString('hex');
+    database.run(
+      `INSERT INTO knowledge_cases (id, created_at, title, partner_count, scene_type, funding_pattern, effort_pattern, profit_range, oral_agreement, core_conflict, recommended_scheme, allocation_summary, risk_points, clause_templates, negotiation_tips, source, status)
+       VALUES (?, datetime('now', '+8 hours'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'promoted', 'active')`,
+      [id, data.title, data.partner_count, data.scene_type, data.funding_pattern, data.effort_pattern,
+       data.profit_range || '', data.oral_agreement || '', data.core_conflict || '',
+       data.recommended_scheme, data.allocation_summary, data.risk_points, data.clause_templates,
+       data.negotiation_tips || '']
+    );
+    persist();
+    return id;
+  }
+
   db = {
     createCase({ id, partnerCount, contact, inputJson }) {
       database.run(
@@ -244,6 +437,18 @@ async function initDb() {
       stmt.free();
       return results;
     },
+
+    // New CRUD methods
+    getKnowledgeCases,
+    createKnowledgeCase,
+    updateKnowledgeCase,
+    getRules,
+    createRule,
+    updateRule,
+    getTemplates,
+    createTemplate,
+    updateTemplate,
+    promoteCaseToKnowledge,
 
     /**
      * Find up to `limit` similar cases (de-identified) based on funding mode and effort type matching.

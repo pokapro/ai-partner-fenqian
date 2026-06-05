@@ -1,4 +1,4 @@
-// AI 合伙分钱方案生成器 - V0 Server
+// AI 合伙分钱方案生成器 - V0.2 Server (案例库+规则库驱动)
 const path = require('path');
 const fs = require('fs');
 // 强制从项目根目录加载 .env，不依赖启动 cwd
@@ -28,6 +28,7 @@ const crypto = require('crypto');
 const { initDb } = require('./db');
 const { generateReport } = require('./ai');
 const { generateProfitTable } = require('./report');
+const { seedData } = require('./seed');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -89,14 +90,12 @@ let db = null;
 // Admin token middleware (protects sensitive routes)
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN;
 function requireAdminToken(req, res, next) {
-  // If ADMIN_TOKEN is not set, block access in production only
+  // If ADMIN_TOKEN is not set, allow localhost access without token for debugging
   if (!ADMIN_TOKEN) {
-    // Allow localhost access without token for debugging
     const ip = req.ip || req.connection?.remoteAddress || '';
     if (ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1' || ip === 'localhost') {
       return next();
     }
-    // No token configured, block all remote access
     return res.status(403).json({ error: 'forbidden', message: '接口未开放远程访问。请配置 ADMIN_TOKEN 后通过 ?token=xxx 访问。' });
   }
   // 支持 ?token=xxx 和 Authorization: Bearer xxx 两种方式
@@ -107,7 +106,7 @@ function requireAdminToken(req, res, next) {
   next();
 }
 
-// === API Routes ===
+// === Public API Routes ===
 
 app.post('/api/generate', async (req, res) => {
   try {
@@ -209,19 +208,120 @@ app.put('/api/cases/:id/review', requireAdminToken, (req, res) => {
   }
 });
 
+// === Admin API Routes (knowledge_cases) ===
+
+app.get('/api/admin/knowledge-cases', requireAdminToken, (req, res) => {
+  try {
+    const cases = db.getKnowledgeCases();
+    res.json(cases);
+  } catch (err) {
+    res.status(500).json({ error: 'server_error', message: '获取知识案例失败' });
+  }
+});
+
+app.post('/api/admin/knowledge-cases', requireAdminToken, (req, res) => {
+  try {
+    const id = db.createKnowledgeCase(req.body);
+    res.json({ success: true, id });
+  } catch (err) {
+    res.status(500).json({ error: 'server_error', message: '创建知识案例失败' });
+  }
+});
+
+app.put('/api/admin/knowledge-cases/:id', requireAdminToken, (req, res) => {
+  try {
+    db.updateKnowledgeCase(req.params.id, req.body);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'server_error', message: '更新知识案例失败' });
+  }
+});
+
+// === Admin API Routes (rules) ===
+
+app.get('/api/admin/rules', requireAdminToken, (req, res) => {
+  try {
+    const rules = db.getRules();
+    res.json(rules);
+  } catch (err) {
+    res.status(500).json({ error: 'server_error', message: '获取规则失败' });
+  }
+});
+
+app.post('/api/admin/rules', requireAdminToken, (req, res) => {
+  try {
+    const id = db.createRule(req.body);
+    res.json({ success: true, id });
+  } catch (err) {
+    res.status(500).json({ error: 'server_error', message: '创建规则失败' });
+  }
+});
+
+app.put('/api/admin/rules/:id', requireAdminToken, (req, res) => {
+  try {
+    db.updateRule(req.params.id, req.body);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'server_error', message: '更新规则失败' });
+  }
+});
+
+// === Admin API Routes (templates) ===
+
+app.get('/api/admin/templates', requireAdminToken, (req, res) => {
+  try {
+    const templates = db.getTemplates();
+    res.json(templates);
+  } catch (err) {
+    res.status(500).json({ error: 'server_error', message: '获取模板失败' });
+  }
+});
+
+app.post('/api/admin/templates', requireAdminToken, (req, res) => {
+  try {
+    const id = db.createTemplate(req.body);
+    res.json({ success: true, id });
+  } catch (err) {
+    res.status(500).json({ error: 'server_error', message: '创建模板失败' });
+  }
+});
+
+app.put('/api/admin/templates/:id', requireAdminToken, (req, res) => {
+  try {
+    db.updateTemplate(req.params.id, req.body);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'server_error', message: '更新模板失败' });
+  }
+});
+
+// === Admin: Promote case to knowledge ===
+
+app.post('/api/admin/cases/:id/promote', requireAdminToken, (req, res) => {
+  try {
+    const id = db.promoteCaseToKnowledge(req.params.id, req.body);
+    res.json({ success: true, id });
+  } catch (err) {
+    res.status(500).json({ error: 'server_error', message: err.message || '提升为知识案例失败' });
+  }
+});
+
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', time: new Date().toISOString(), provider: process.env.AI_PROVIDER || 'ollama' });
+  res.json({ status: 'ok', time: new Date().toISOString(), provider: process.env.AI_PROVIDER || 'ollama', version: '0.2.0' });
 });
 
 // Start server after DB init
 initDb().then(database => {
   db = database;
+  // Run seed data on first start
+  seedData(db);
   app.listen(PORT, () => {
     console.log(`\n========================================`);
-    console.log(`   AI 合伙分钱方案生成器 V0`);
+    console.log(`   AI 合伙分钱方案生成器 V0.2`);
     console.log(`   服务已启动: http://localhost:${PORT}`);
     console.log(`   AI Provider: ${process.env.AI_PROVIDER || 'ollama'}`);
     console.log(`   数据目录: ${path.join(__dirname, '..', 'data')}`);
+    console.log(`   后台管理: http://localhost:${PORT}/api/cases?token=${ADMIN_TOKEN || '(未配置)'}`);
     console.log(`========================================\n`);
   });
 }).catch(err => {
