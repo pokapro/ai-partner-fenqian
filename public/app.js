@@ -2,7 +2,14 @@
 (function() {
   'use strict';
 
-  const form = document.getElementById('partnerForm');
+  function init() {
+    const form = document.getElementById('partnerForm');
+    if (!form) {
+      // DOM not ready yet, retry
+      setTimeout(init, 100);
+      return;
+    }
+
   const partnerFields = document.getElementById('partnerFields');
   const submitBtn = document.getElementById('submitBtn');
   const loading = document.getElementById('loading');
@@ -16,6 +23,8 @@
 
   // Partner count selection
   document.querySelectorAll('.partner-count-btn').forEach(btn => {
+    if (btn._listenerAttached) return;
+    btn._listenerAttached = true;
     btn.addEventListener('click', function() {
       document.querySelectorAll('.partner-count-btn').forEach(b => b.classList.remove('active'));
       this.classList.add('active');
@@ -353,7 +362,20 @@
     }, 100);
   };
 
+  // Wait for partner count buttons to be selectable
+  setTimeout(() => {
+    // 确保至少有一个按钮可点击
+    const firstBtn = document.querySelector('.partner-count-btn');
+    if (firstBtn && typeof firstBtn.click === 'function') {
+      console.log('✅ 按钮已就绪');
+    }
+  }, 500);
+
   console.log('AI 合伙分钱方案生成器 V0 已加载');
   console.log('测试用例：fillTestCase(1), fillTestCase(2), fillTestCase(3)');
+  }
+
+  // Start init
+  init();
 
 })();
