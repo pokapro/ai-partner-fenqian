@@ -1,7 +1,16 @@
 // AI 合伙分钱方案生成器 - V0 Server
 require('dotenv').config();
-const express = require('express');
+const fs = require('fs');
 const path = require('path');
+
+// Render Secret Files fallback
+const secretEnvPath = '/etc/secrets/.env';
+if (!process.env.AI_PROVIDER && fs.existsSync(secretEnvPath)) {
+  require('dotenv').config({ path: secretEnvPath });
+  console.log('[env] Fallback: loaded from', secretEnvPath);
+}
+
+const express = require('express');
 const cors = require('cors');
 const crypto = require('crypto');
 const { initDb } = require('./db');
