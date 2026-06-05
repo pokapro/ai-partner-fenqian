@@ -3,12 +3,23 @@ require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 
-// Render Secret Files fallback
-const secretEnvPath = '/etc/secrets/.env';
-if (!process.env.AI_PROVIDER && fs.existsSync(secretEnvPath)) {
-  require('dotenv').config({ path: secretEnvPath });
-  console.log('[env] Fallback: loaded from', secretEnvPath);
+// Render Secret Files fallback - 尝试多个路径
+const secretPaths = [
+  '/etc/secrets/.env',
+  '/etc/secrets/env',
+  '/etc/secret/.env',
+];
+for (const sp of secretPaths) {
+  if (fs.existsSync(sp)) {
+    console.log('[env] Found secret file at', sp);
+    require('dotenv').config({ path: sp });
+    if (process.env.AI_PROVIDER) {
+      console.log('[env] AI_PROVIDER loaded from', sp);
+      break;
+    }
+  }
 }
+console.log('[env] AI_PROVIDER =', process.env.AI_PROVIDER || '(not set, using ollama)');
 
 const express = require('express');
 const cors = require('cors');
