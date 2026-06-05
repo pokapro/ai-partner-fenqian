@@ -1,7 +1,8 @@
 // AI 合伙分钱方案生成器 - V0 Server
-require('dotenv').config();
-const fs = require('fs');
 const path = require('path');
+const fs = require('fs');
+// 强制从项目根目录加载 .env，不依赖启动 cwd
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
 // Render Secret Files fallback - 尝试多个路径
 const secretPaths = [
@@ -98,7 +99,8 @@ function requireAdminToken(req, res, next) {
     // No token configured, block all remote access
     return res.status(403).json({ error: 'forbidden', message: '接口未开放远程访问。请配置 ADMIN_TOKEN 后通过 ?token=xxx 访问。' });
   }
-  const token = req.query.token;
+  // 支持 ?token=xxx 和 Authorization: Bearer xxx 两种方式
+  const token = req.query.token || (req.headers.authorization && req.headers.authorization.startsWith('Bearer ') ? req.headers.authorization.slice(7) : null);
   if (!token || token !== ADMIN_TOKEN) {
     return res.status(403).json({ error: 'forbidden', message: '无效的访问令牌（token）' });
   }
@@ -144,7 +146,6 @@ app.post('/api/generate', async (req, res) => {
       res.json({
         caseId,
         previewMarkdown,
-        reportMarkdown: fullReport,
         status: 'pending_review'
       });
     } catch (aiErr) {
