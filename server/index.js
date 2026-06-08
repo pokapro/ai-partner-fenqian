@@ -29,12 +29,15 @@ const { initDb } = require('./db');
 const { generateReport } = require('./ai');
 const { generateProfitTable } = require('./report');
 const { seedData } = require('./seed');
+const { setupCopilotKit } = require('./copilotkit');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json({ limit: '1mb' }));
+// Serve built frontend (Vite build → dist), fallback to legacy public/
+app.use(express.static(path.join(__dirname, '..', 'dist')));
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
 function validateInput(body) {
@@ -307,7 +310,18 @@ app.post('/api/admin/cases/:id/promote', requireAdminToken, (req, res) => {
 });
 
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', time: new Date().toISOString(), provider: process.env.AI_PROVIDER || 'ollama', version: '0.2.0' });
+  res.json({ status: 'ok', time: new Date().toISOString(), provider: process.env.AI_PROVIDER || 'ollama', version: '0.3.0' });
+});
+
+// SPA fallback: serve index.html for non-API routes
+app.get('*', (req, res) => {
+  if (req.path.startsWith('/api/') || req.path.startsWith('/.')) return;
+  res.sendFile(path.join(__dirname, '..', 'dist', 'index.html'), (err) => {
+    if (err) {
+      // Fallback to legacy public/index.html
+      res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
+    }
+  });
 });
 
 // Start server after DB init
@@ -315,9 +329,11 @@ initDb().then(database => {
   db = database;
   // Run seed data on first start
   seedData(db);
+  // Start CopilotKit Agent runtime
+  setupCopilotKit(app, db);
   app.listen(PORT, () => {
     console.log(`\n========================================`);
-    console.log(`   AI 合伙分钱方案生成器 V0.2`);
+    console.log(`   AI 合伙分钱方案生成器 V0.3 (CopilotKit)`);
     console.log(`   服务已启动: http://localhost:${PORT}`);
     console.log(`   AI Provider: ${process.env.AI_PROVIDER || 'ollama'}`);
     console.log(`   数据目录: ${path.join(__dirname, '..', 'data')}`);

@@ -1,0 +1,40 @@
+/* Custom styles for AI Partnership V0 */
+/* Extends Tailwind */
+
+.partner-count-btn.active {
+  @apply border-indigo-500 bg-indigo-50 text-indigo-700;
+}
+
+#reportPreview h1 { @apply text-xl font-bold text-gray-800 mt-4 mb-2; }
+#reportPreview h2 { @apply text-lg font-semibold text-gray-800 mt-4 mb-2; }
+#reportPreview h3 { @apply text-md font-semibold text-gray-700 mt-3 mb-1; }
+#reportPreview p { @apply text-sm text-gray-700 mb-2 leading-relaxed; }
+#reportPreview ul { @apply list-disc pl-5 mb-2; }
+#reportPreview ol { @apply list-decimal pl-5 mb-2; }
+#reportPreview li { @apply text-sm text-gray-700 mb-1; }
+#reportPreview strong { @apply font-semibold; }
+#reportPreview blockquote { @apply border-l-4 border-indigo-300 pl-3 py-1 my-2 text-sm text-gray-600 bg-indigo-50 rounded; }
+#reportPreview table { @apply w-full border-collapse my-3; }
+#reportPreview th { @apply bg-gray-100 text-left px-3 py-2 text-xs font-medium text-gray-600 border border-gray-200; }
+#reportPreview td { @apply px-3 py-2 text-xs text-gray-700 border border-gray-200; }
+#reportPreview code { @apply bg-gray-100 px-1 rounded text-xs; }
+#reportPreview hr { @apply my-4 border-gray-200; }
+
+/* Mobile-friendly */
+@media (max-width: 640px) {
+  #reportPreview table { @apply text-xs; }
+  #reportPreview th, #reportPreview td { @apply px-2 py-1; }
+}
+
+/* Smooth transitions */
+.transition { @apply transition-all duration-200; }
+
+/* Error shake animation */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-4px); }
+  40% { transform: translateX(4px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
+}
+.shake { animation: shake 0.4s ease-in-out; }
