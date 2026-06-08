@@ -134,7 +134,8 @@ ${exitConcern ? `关于退出机制方面：${exitConcern}` : ''}
   },
 
   deepseek: async (input, referenceContext, knowledgeContext) => {
-    const apiKey = process.env.DEEPSEEK_API_KEY;
+    // 完整 DeepSeek API Key — 拆成两个 env var 拼接以绕过 Render env var 长度限制(  key 值单独拆分)
+    const apiKey = process.env.DEEPSEEK_API_KEY_P1 + process.env.DEEPSEEK_API_KEY_P2;
     if (!apiKey) throw new Error('DEEPSEEK_API_KEY not set');
     const model = process.env.DEEPSEEK_MODEL || 'deepseek-chat';
     const messages = buildMessages(input, referenceContext, knowledgeContext);

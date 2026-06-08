@@ -8,7 +8,7 @@ const { buildKnowledgeContext } = require("./matcher");
 function createFenqianAgent(db) {
   const deepseek = createOpenAI({
     baseURL: "https://api.deepseek.com/v1",
-    apiKey: process.env.DEEPSEEK_API_KEY || "",
+    apiKey: (process.env.DEEPSEEK_API_KEY_P1 || "") + (process.env.DEEPSEEK_API_KEY_P2 || ""),
   });
 
   const agent = new BuiltInAgent({
