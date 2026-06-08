@@ -55,6 +55,56 @@ function seedData(db) {
         recommendation: '亏损承担应明确：1）按利润分配的同比例承担；2）可设亏损上限（如出资额范围内）；3）全职运营方可协商降低亏损承担比例（因已投入人力成本）；4）定期对账审计机制。',
         risk_level: 'high',
         priority: 85
+      },
+      // ---- 吴老师U盘规则 ----
+      {
+        id: 'rule_' + crypto.randomBytes(4).toString('hex'),
+        rule_name: '家族企业股权传承税务优惠',
+        trigger_conditions: '父子/父女间股权转让，无偿转让，有亲属关系证明',
+        recommendation: '父子/父女间股权转让可享受亲属间无偿转让个税优惠，无需核定股权转让收入，不征收个人所得税。',
+        risk_level: 'medium', priority: 40
+      },
+      {
+        id: 'rule_' + crypto.randomBytes(4).toString('hex'),
+        rule_name: '防火墙架构风险隔离',
+        trigger_conditions: '家族企业控股多层、业务公司风险需隔离',
+        recommendation: '业务公司应由防火墙公司控股，与家族公司隔离经营风险。',
+        risk_level: 'high', priority: 60
+      },
+      {
+        id: 'rule_' + crypto.randomBytes(4).toString('hex'),
+        rule_name: '分红上限约定',
+        trigger_conditions: '有分红意向，但未约定利润留存比例',
+        recommendation: '股东分红不得超过年利润的80%，留存至少20%保障公司运营资金。',
+        risk_level: 'medium', priority: 50
+      },
+      {
+        id: 'rule_' + crypto.randomBytes(4).toString('hex'),
+        rule_name: 'Vesting机制',
+        trigger_conditions: '创业公司、合伙人2人以上、缺少退出约定',
+        recommendation: '创业公司应设置股权成熟期（4年+1年悬崖），防止合伙人早期退出带走大量股权。',
+        risk_level: 'high', priority: 70
+      },
+      {
+        id: 'rule_' + crypto.randomBytes(4).toString('hex'),
+        rule_name: '一致行动协议',
+        trigger_conditions: '股东3人以上、小股东持股分散、创始人未过50%',
+        recommendation: '多个小股东间应签署一致行动协议，统一投票权和决策立场。',
+        risk_level: 'medium', priority: 45
+      },
+      {
+        id: 'rule_' + crypto.randomBytes(4).toString('hex'),
+        rule_name: '特殊性税务处理',
+        trigger_conditions: '同一控制下的股权划转、企业重组',
+        recommendation: '同一控制下的股权划转可申请特殊性税务处理，暂免企业所得税。',
+        risk_level: 'medium', priority: 35
+      },
+      {
+        id: 'rule_' + crypto.randomBytes(4).toString('hex'),
+        rule_name: '分红权与决策权分离',
+        trigger_conditions: '员工或亲属持股、非核心决策层持股',
+        recommendation: '员工或亲属持股时可约定仅享有分红权，不参与公司决策，以保障核心创始人控制权。',
+        risk_level: 'high', priority: 55
       }
     ];
 
@@ -118,6 +168,49 @@ function seedData(db) {
         risk_points: '三方出资差异大，仅出资方容易有控制权焦虑；全职方负担重易倦怠；供应链方资源可持续性存疑',
         clause_templates: '决策条款：重大事项需A+B同意或三分之二表决权通过；退出条款：任何一方退出按评估价扣除20%违约金后回购',
         negotiation_tips: 'A可以要求回本优先权作为大出资方的保障。B可以要求随着业务增长逐步提高分配比例。C可以要求供应链资源转化为股权的比例递增机制。'
+      },
+      // ---- 吴老师U盘案例 ----
+      {
+        id: 'kc_' + crypto.randomBytes(6).toString('hex'),
+        title: '广东启正股权结构调整优化（家族企业三层架构）',
+        partner_count: 3, scene_type: '家族企业股权优化',
+        funding_pattern: '家族公司控股+防火墙隔离',
+        effort_pattern: '出资方均为股东，控制权与分红权分离',
+        core_conflict: '股权层级倒置、控制权不集中、传承不明确',
+        recommended_scheme: '保守型（分层控股+比例调整）',
+        allocation_summary: '家族公司林金城80%+林满满20%（女儿）；防火墙公司95%+女婿5%（仅分红权）；业务公司100%由防火墙公司控股',
+        risk_points: '股权层级倒置、家族非家族成员混同、税务空间未利用',
+        clause_templates: '亲属股权转让税务优惠；特殊性税务处理；分红决策权分离',
+        negotiation_tips: '留存亲属关系证明、实缴凭证、股东会决议',
+        source: '吴老师U盘', status: 'active'
+      },
+      {
+        id: 'kc_' + crypto.randomBytes(6).toString('hex'),
+        title: '云南XX茶业分红及退出机制设计',
+        partner_count: 4, scene_type: '已运营公司分红与退出',
+        funding_pattern: '等额出资',
+        effort_pattern: '均为出资方，部分参与经营',
+        core_conflict: '分红频率不明确、退出机制缺失',
+        recommended_scheme: '平衡型（定期分红+阶梯退出）',
+        allocation_summary: '每半年对账分红；内部转让→对外转让→优先购买→减资退出',
+        risk_points: '无书面退出机制、分红频率不明确、留存利润未约定',
+        clause_templates: '定期分红条款；退出阶梯条款',
+        negotiation_tips: '提前约定分红频率和退出触发条件',
+        source: '吴老师U盘', status: 'active'
+      },
+      {
+        id: 'kc_' + crypto.randomBytes(6).toString('hex'),
+        title: '创业公司动态股权分配（Vesting）',
+        partner_count: 2, scene_type: '创业合伙人股权分配',
+        funding_pattern: '20万+5万+供应链',
+        effort_pattern: '一人全职运营，另一人全职+供应链',
+        core_conflict: '出资额差异大、全职价值难评估',
+        recommended_scheme: '激励型（动态分配+Vesting）',
+        allocation_summary: '资金股+人力股综合计算，4年Vesting+1年悬崖',
+        risk_points: '出资额差异大、全职无评估标准、Vesting执行复杂',
+        clause_templates: 'Vesting条款（4年成熟+1年悬崖）；动态调整',
+        negotiation_tips: '全职方先拿合理薪资再参与分红',
+        source: '吴老师U盘', status: 'active'
       }
     ];
 
@@ -205,6 +298,43 @@ function seedData(db) {
 3. **未达标处理**：连续 ___ 个月未达到约定投入标准的合伙人，其分配比例相应降低 ___ 个百分点。
 4. **新增岗位**：如需新增合伙人/员工，需经全体合伙人一致同意，新增人员的股权/期权方案另行约定。`,
         tags: '职责,边界,分工,考核'
+      },
+      // ---- 吴老师U盘模板 ----
+      {
+        id: 'tpl_' + crypto.randomBytes(4).toString('hex'),
+        template_type: '分红', title: '亲属间股权转让税务优惠条款',
+        content: '直系亲属间无偿转让股权免个税，需亲属关系证明。转让双方按0.05%缴印花税。',
+        tags: '税务优惠,亲属,股权转让,无偿转让'
+      },
+      {
+        id: 'tpl_' + crypto.randomBytes(4).toString('hex'),
+        template_type: '退出', title: '企业重组特殊性税务处理条款',
+        content: '同一控制下股权划转可申请特殊性税务处理，暂免企业所得税。需向税务机关备案。',
+        tags: '税务,重组,划转,特殊处理'
+      },
+      {
+        id: 'tpl_' + crypto.randomBytes(4).toString('hex'),
+        template_type: '职责', title: '分红权与决策权分离条款',
+        content: '股东仅享有分红权和资产收益权，不参与公司决策。重大事项由执行董事/创始人董事会决定。',
+        tags: '分红权,决策权,分离,控制权'
+      },
+      {
+        id: 'tpl_' + crypto.randomBytes(4).toString('hex'),
+        template_type: '退出', title: '135渐进式股权激励条款',
+        content: '第1年在职分红；第3年资格确认（连续3年考核后获注册股资格）；第5年锁定（工商登记或回购）。',
+        tags: '股权激励,渐进式,锁定,分红'
+      },
+      {
+        id: 'tpl_' + crypto.randomBytes(4).toString('hex'),
+        template_type: '退出', title: '股东退出阶梯条款',
+        content: '股东退出顺序：①内部转让 ②对外转让（过半数同意）③优先购买 ④减资退出。',
+        tags: '退出,阶梯,内部转让,对外转让,减资'
+      },
+      {
+        id: 'tpl_' + crypto.randomBytes(4).toString('hex'),
+        template_type: '话术', title: '股东合作协议完整条款',
+        content: '出资约定→董事会分工→财务审计→分红≤80%利润→违约双倍赔偿→协议解除→竞业禁止。',
+        tags: '合作协议,分工,分红,违约'
       }
     ];
 
