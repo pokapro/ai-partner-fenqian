@@ -46,11 +46,11 @@ function createFenqianAgent(db) {
         parameters: z.object({
           partners: z.array(z.object({
             name: z.string().describe("合伙人姓名"),
-            capital: z.number().describe("出资金额（万元）"),
+            capital: z.number().describe("出资金额（元）"),
             effortType: z.string().describe("出力类型：全职运营/兼职/不出力/仅出资/技术"),
             responsibility: z.string().describe("职责描述"),
           })).describe("合伙人列表"),
-          annualProfit: z.number().describe("预计年利润（万元）").optional(),
+          annualProfit: z.number().describe("预计年利润（元）").optional(),
           oralAgreement: z.string().describe("口头约定内容").optional(),
         }),
         execute: async ({ partners, annualProfit, oralAgreement }) => {

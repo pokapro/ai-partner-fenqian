@@ -10,11 +10,11 @@ export default function App() {
       agent="fenqian"
     >
       <CopilotSidebar
-        defaultOpen={true}
-        clickOutsideToClose={false}
+        defaultOpen={false}
+        clickOutsideToClose={true}
         labels={{
-          title: "🤝 合伙算钱",
-          initial: "描述你的合伙情况，我来帮你生成分钱方案！",
+          title: "🤖 AI 顾问",
+          initial: "我是你的合伙分钱 AI 顾问。可以帮你：\n\n• 分析合伙情况\n• 解释分钱方案\n• 对比相似案例\n• 回答关于股权的问题\n\n需要我帮忙吗？",
         }}
       >
         <ChatApp />

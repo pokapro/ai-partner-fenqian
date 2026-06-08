@@ -1,111 +1,93 @@
-# AI 合伙分钱方案生成器 V0
+# 🤝 AI 合伙分钱方案生成器 V0.3
 
-一个用于验证"合伙分钱方案"付费意愿的最小可行产品。
+> 输入合伙人出资、出力、利润预期，AI 自动生成分钱方案、风险提示和条款草稿。
 
-## 快速启动
+**线上地址**：https://ai-partner-fenqian.onrender.com
 
-```bash
-# 1. 安装依赖
-npm install
+## 技术栈
 
-# 2. 配置环境变量（可选，默认使用 Ollama 本地）
-cp .env.example .env
-# 编辑 .env 文件设置 AI provider
-
-# 3. 启动
-npm start
-
-# 4. 打开浏览器
-open http://localhost:3000
-```
-
-## 环境变量
-
-参见 `.env.example`。
-
-支持的 AI Provider：
-- `ollama`（默认）- 本地模型，无需 API Key
-- `glm` - 智谱 GLM Flash
-- `qwen` - 通义千问
+| 层 | 技术 |
+|---|---|
+| 前端 | React 19 + Vite + CopilotKit UI |
+| 后端 | Express + SQLite (sql.js) |
+| AI | DeepSeek Chat（兼容 OpenAI SDK） |
+| Agent | CopilotKit BuiltInAgent + AG-UI Protocol |
+| 部署 | Render（Free Plan） |
 
 ## 项目结构
 
 ```
-├── package.json
-├── README.md
-├── .env / .env.example
-├── data/
-│   ├── app.db          # SQLite 数据库
-│   └── exports/        # 导出目录
-├── public/
-│   ├── index.html      # 前端首页
-│   ├── styles.css      # 样式
-│   └── app.js          # 前端交互
-├── server/
-│   ├── index.js        # Express 服务入口
-│   ├── db.js           # SQLite 数据库操作
-│   ├── ai.js           # AI 模型抽象
-│   ├── prompt.js       # Prompt 模板
-│   └── report.js       # 报告工具函数
-└── docs/
-    ├── test-cases.md   # 测试案例
-    └── review-checklist.md
+ai-partner-fenqian/
+├── src/                      # React 前端
+│   ├── main.jsx              # 入口
+│   ├── App.jsx               # CopilotKit Provider + Sidebar
+│   ├── ChatApp.jsx           # 主业务界面（表单+报告+付款）
+│   └── index.css             # 样式
+├── public/                   # 旧前端（fallback）
+├── server/                   # Express 后端
+│   ├── index.js              # 路由+认证+启动
+│   ├── db.js                 # SQLite 数据库
+│   ├── ai.js                 # AI Provider 抽象
+│   ├── prompt.js             # 系统/用户 Prompt
+│   ├── report.js             # 利润模拟表
+│   ├── matcher.js            # 知识库匹配引擎
+│   ├── seed.js               # 种子数据（6案例+12规则+11模板）
+│   └── copilotkit.js         # CopilotKit Agent runtime
+├── data/                     # SQLite 数据文件（gitignored）
+├── dist/                     # Vite 构建产物
+├── .env                      # 环境变量（gitignored）
+├── vite.config.js            # Vite 配置
+├── start.sh                  # 启动脚本
+└── package.json
 ```
 
-## API
+## 核心 API
 
-### POST /api/generate
-提交合伙信息，生成分钱方案报告。
+| 端点 | 用途 |
+|---|---|
+| `POST /api/generate` | **主生成接口** — 提交合伙信息，返回报告预览 |
+| `POST /api/copilotkit` | **AI 顾问接口** — CopilotKit AG-UI 协议 |
+| `PUT /api/cases/:id/payment` | 记录付款意向 |
+| `GET /api/admin/knowledge-cases` | 后台查看知识案例（需 ADMIN_TOKEN） |
+| `GET /api/health` | 健康检查 |
 
-### GET /api/cases
-查看所有案例列表。
+## 架构说明
 
-### GET /api/cases/:id
-查看单个案例详情。
+### 双模式设计
+- **主流程**：用户通过结构化表单提交 → `/api/generate` → 知识库自动匹配 → AI 生成方案 → 预览+付款转化
+- **AI 顾问**：右侧 CopilotKit 聊天界面，辅助用户填写、解释方案、查询类似案例
 
-### PUT /api/cases/:id/payment
-记录用户付款意向。
+### 知识库
+- 6 条真实股权案例（含 3 条吴老师U盘数据）
+- 12 条规则（Vesting、一致行动、分红上限、特殊性税务处理等）
+- 11 条条款模板
+- 通过 `matcher.js` 自动匹配，注入 AI 上下文
 
-## 测试
+## 关键坑（CopilotKit 集成）
 
-浏览器控制台输入以下命令快速填充测试案例：
+1. BuiltInAgent + defineTool 在 `@copilotkit/runtime/v2` 子路径
+2. `COPILOTKIT_TELEMETRY_DISABLED=true` 必须设置
+3. Express 用 `.use(router)` 而非 `.use("/api/...", handler)`
+4. single-route 模式：`createCopilotExpressHandler({ runtime, basePath, mode: "single-route", cors: true })`
 
-```js
-fillTestCase(1)  // 案例1：一人出钱，一人全职
-fillTestCase(2)  // 案例2：三人合伙
-fillTestCase(3)  // 案例3：双方出钱，一方全职
+## 本地开发
+
+```bash
+cd ai-partner-fenqian
+cp .env.example .env        # 填写 DEEPSEEK_API_KEY
+npm install                 # 安装依赖
+node server/index.js        # 启动后端（端口 3000）
+npx vite build              # 构建前端
 ```
 
-## 预算控制
+## 部署
 
-- 开发调试：Ollama 本地模型（免费）
-- 线上：GLM Flash / 通义千问（低价 API）
-- 数据库：SQLite（免费）
-- 前端：Tailwind CDN（免费）
-- 部署：可选 Vercel / Cloudflare Pages
-- 预算上限：4000 元
+Render 自动部署：push 到 `main` 分支即可触发。
 
-## V0 范围
+启动命令（`./start.sh`）：
+1. `npx vite build` — 构建前端
+2. `node server/index.js` — 启动后端
 
-### 必须实现
-- 移动端落地页
-- 合伙信息表单
-- AI 生成报告
-- 报告预览
-- 利润模拟表
-- 付款意向记录
-- SQLite 数据存储
-- 人工审核状态
+## 法律声明
 
-### 暂不实现
-- 账号登录
-- 正式微信支付
-- 复杂后台权限
-- 自动 Word 导出
-- 多人协作
-- 电商平台数据接入
-- 法律咨询
-
-## 免责声明
-
-本工具仅提供参考性分钱方案建议，不构成正式法律意见。所有分配方案建议您在使用前咨询专业律师，并签署正式合伙协议。
+本系统生成的报告仅供参考，不构成正式法律意见。建议签署正式合伙协议前咨询专业律师。
