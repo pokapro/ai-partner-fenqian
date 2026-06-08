@@ -1,6 +1,7 @@
+# 项目文件
 node_modules/
+data/
 .env
-data/app.db
-data/exports/
-server.log
-*.log
+
+# 吴老师U盘原始文件（只保留结构化后的seed数据）
+吴老师U盘资料/
