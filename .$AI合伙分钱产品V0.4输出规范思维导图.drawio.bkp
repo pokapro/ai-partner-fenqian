@@ -1,0 +1,140 @@
+<mxfile host="app.diagrams.net" modified="2026-06-08T00:00:00.000Z" agent="Codex" version="24.7.17" type="device">
+  <diagram id="v04-output-standard-map-connected-tree" name="AI合伙分钱V0.4输出规范">
+    <mxGraphModel dx="2800" dy="2700" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2800" pageHeight="2700" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <mxCell id="center" value="AI合伙分钱 V0.4&#xa;输出内容规范" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#111827;strokeColor=#030712;fontColor=#FFFFFF;fontSize=30;fontStyle=1;align=center;verticalAlign=middle;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="80" y="1190" width="360" height="150" as="geometry"/>
+        </mxCell>
+
+        <!-- Main spine is a real shape, not a loose line. Branches connect to visible junction dots. -->
+        <mxCell id="spine" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#64748B;strokeColor=#475569;arcSize=50;" vertex="1" parent="1">
+          <mxGeometry x="555" y="185" width="12" height="2230" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="joint_mid" value="" style="ellipse;whiteSpace=wrap;html=1;fillColor=#475569;strokeColor=#334155;" vertex="1" parent="1">
+          <mxGeometry x="546" y="1251" width="30" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="joint_report" value="" style="ellipse;whiteSpace=wrap;html=1;fillColor=#2563EB;strokeColor=#1D4ED8;" vertex="1" parent="1">
+          <mxGeometry x="546" y="170" width="30" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="joint_rights" value="" style="ellipse;whiteSpace=wrap;html=1;fillColor=#16A34A;strokeColor=#15803D;" vertex="1" parent="1">
+          <mxGeometry x="546" y="490" width="30" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="joint_contract" value="" style="ellipse;whiteSpace=wrap;html=1;fillColor=#D97706;strokeColor=#B45309;" vertex="1" parent="1">
+          <mxGeometry x="546" y="810" width="30" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="joint_clauses" value="" style="ellipse;whiteSpace=wrap;html=1;fillColor=#DB2777;strokeColor=#BE185D;" vertex="1" parent="1">
+          <mxGeometry x="546" y="1130" width="30" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="joint_database" value="" style="ellipse;whiteSpace=wrap;html=1;fillColor=#4F46E5;strokeColor=#4338CA;" vertex="1" parent="1">
+          <mxGeometry x="546" y="1450" width="30" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="joint_paid" value="" style="ellipse;whiteSpace=wrap;html=1;fillColor=#0D9488;strokeColor=#0F766E;" vertex="1" parent="1">
+          <mxGeometry x="546" y="1770" width="30" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="joint_boundary" value="" style="ellipse;whiteSpace=wrap;html=1;fillColor=#DC2626;strokeColor=#B91C1C;" vertex="1" parent="1">
+          <mxGeometry x="546" y="2090" width="30" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="joint_testing" value="" style="ellipse;whiteSpace=wrap;html=1;fillColor=#7C3AED;strokeColor=#6D28D9;" vertex="1" parent="1">
+          <mxGeometry x="546" y="2400" width="30" height="30" as="geometry"/>
+        </mxCell>
+
+        <!-- Connected edges -->
+        <mxCell id="root_to_mid" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=5;strokeColor=#475569;endArrow=block;endFill=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="center" target="joint_mid">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="edge_report" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=4;strokeColor=#2563EB;endArrow=block;endFill=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="joint_report" target="report_h">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="edge_rights" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=4;strokeColor=#16A34A;endArrow=block;endFill=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="joint_rights" target="rights_h">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="edge_contract" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=4;strokeColor=#D97706;endArrow=block;endFill=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="joint_contract" target="contract_h">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="edge_clauses" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=4;strokeColor=#DB2777;endArrow=block;endFill=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="joint_clauses" target="clauses_h">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="edge_database" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=4;strokeColor=#4F46E5;endArrow=block;endFill=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="joint_database" target="database_h">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="edge_paid" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=4;strokeColor=#0D9488;endArrow=block;endFill=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="joint_paid" target="paid_h">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="edge_boundary" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=4;strokeColor=#DC2626;endArrow=block;endFill=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="joint_boundary" target="boundary_h">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="edge_testing" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=4;strokeColor=#7C3AED;endArrow=block;endFill=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="joint_testing" target="testing_h">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- 1 -->
+        <mxCell id="report_h" value="一、报告输出结构" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DBEAFE;strokeColor=#2563EB;fontColor=#111827;fontSize=22;fontStyle=1;align=center;verticalAlign=middle;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="690" y="150" width="360" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="report_b" value="1. 合伙关系摘要&#xa;2. 核心矛盾诊断&#xa;3. 贡献估值表&#xa;4. 五权结构诊断&#xa;5. 三套分钱方案&#xa;6. 利润模拟表&#xa;7. 推荐方案与调整条件&#xa;8. 风险清单&#xa;9. 协议条款草稿&#xa;10. 沟通话术与下一步行动" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EFF6FF;strokeColor=#93C5FD;fontColor=#111827;fontSize=18;align=left;verticalAlign=top;spacing=16;arcSize=6;" vertex="1" parent="1">
+          <mxGeometry x="1100" y="75" width="1400" height="220" as="geometry"/>
+        </mxCell>
+
+        <!-- 2 -->
+        <mxCell id="rights_h" value="二、五权诊断标准" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DCFCE7;strokeColor=#16A34A;fontColor=#111827;fontSize=22;fontStyle=1;align=center;verticalAlign=middle;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="690" y="470" width="360" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="rights_b" value="所有权：谁持股、谁登记、是否代持&#xa;分红权：利润如何分，是否等同股权&#xa;经营权：谁负责日常经营和岗位职责&#xa;决策权：一般事项和重大事项谁拍板&#xa;退出权：主动、被动、法定退出如何处理&#xa;&#xa;要求：必须区分“股权比例”和“实际控制/经营/分红安排”。" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F0FDF4;strokeColor=#86EFAC;fontColor=#111827;fontSize=18;align=left;verticalAlign=top;spacing=16;arcSize=6;" vertex="1" parent="1">
+          <mxGeometry x="1100" y="400" width="1400" height="210" as="geometry"/>
+        </mxCell>
+
+        <!-- 3 -->
+        <mxCell id="contract_h" value="三、合同格式规范" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEF3C7;strokeColor=#D97706;fontColor=#111827;fontSize=22;fontStyle=1;align=center;verticalAlign=middle;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="690" y="790" width="360" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="contract_b" value="标题：股东合作协议书 / 合伙分钱约定书&#xa;主体：甲方、乙方、丙方信息占位&#xa;前言：订立背景、适用范围、章程关系&#xa;章节：公司信息、出资股权、权利义务、分红亏损、组织架构、议事规则、考核、行为规范、转让、退出、竞业、终止、签署页&#xa;编号：一、1、（1）、a&#xa;签署：签字/盖章、身份证号、日期" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFBEB;strokeColor=#FBBF24;fontColor=#111827;fontSize=18;align=left;verticalAlign=top;spacing=16;arcSize=6;" vertex="1" parent="1">
+          <mxGeometry x="1100" y="715" width="1400" height="230" as="geometry"/>
+        </mxCell>
+
+        <!-- 4 -->
+        <mxCell id="clauses_h" value="四、条款草稿范围" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FCE7F3;strokeColor=#DB2777;fontColor=#111827;fontSize=22;fontStyle=1;align=center;verticalAlign=middle;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="690" y="1110" width="360" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="clauses_b" value="基础必出：分红条款、职责条款、亏损承担、账目公开、退出条款、沟通话术&#xa;&#xa;进阶触发：代持协议提示、重大事项表决、任职股东考核、红线行为、竞业限制、增资入股、清算终止&#xa;&#xa;要求：每条包含触发条件、执行方式、后果。" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FDF2F8;strokeColor=#F9A8D4;fontColor=#111827;fontSize=18;align=left;verticalAlign=top;spacing=16;arcSize=6;" vertex="1" parent="1">
+          <mxGeometry x="1100" y="1045" width="1400" height="200" as="geometry"/>
+        </mxCell>
+
+        <!-- 5 -->
+        <mxCell id="database_h" value="五、数据库收录规范" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E0E7FF;strokeColor=#4F46E5;fontColor=#111827;fontSize=22;fontStyle=1;align=center;verticalAlign=middle;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="690" y="1430" width="360" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="database_b" value="knowledge_cases：成熟协议案例、场景、矛盾、推荐机制&#xa;rules：触发条件、建议、风险等级、优先级&#xa;templates：条款模板、合同格式、标签&#xa;&#xa;入库原则：脱敏、结构化、固定 ID、幂等插入、不全文塞 prompt、不泄露来源。" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF2FF;strokeColor=#A5B4FC;fontColor=#111827;fontSize=18;align=left;verticalAlign=top;spacing=16;arcSize=6;" vertex="1" parent="1">
+          <mxGeometry x="1100" y="1370" width="1400" height="190" as="geometry"/>
+        </mxCell>
+
+        <!-- 6 -->
+        <mxCell id="paid_h" value="六、付费交付标准" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#CCFBF1;strokeColor=#0D9488;fontColor=#111827;fontSize=22;fontStyle=1;align=center;verticalAlign=middle;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="690" y="1750" width="360" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="paid_b" value="29.9 元体验版：完整 AI 报告、三套分钱方案、利润模拟、基础风险提示、基础条款草稿&#xa;&#xa;99 元标准版：完整报告、五权诊断、协议文件清单、重点条款草稿、人工快速审核一次、可补充一次信息重生成。" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F0FDFA;strokeColor=#5EEAD4;fontColor=#111827;fontSize=18;align=left;verticalAlign=top;spacing=16;arcSize=6;" vertex="1" parent="1">
+          <mxGeometry x="1100" y="1695" width="1400" height="180" as="geometry"/>
+        </mxCell>
+
+        <!-- 7 -->
+        <mxCell id="boundary_h" value="七、输出边界与风格" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEE2E2;strokeColor=#DC2626;fontColor=#111827;fontSize=22;fontStyle=1;align=center;verticalAlign=middle;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="690" y="2070" width="360" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="boundary_b" value="必须做到：正式、克制、结构化、可执行&#xa;不得出现：AI 建议你、模型判断、知识库来源、法律效力承诺&#xa;敏感信息：身份证、地址、真实公司信息用空白占位&#xa;法律边界：不审查合同，不承诺协议有效，提示律师确认&#xa;表达要求：明确触发条件、执行方式、违约后果。" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEF2F2;strokeColor=#FCA5A5;fontColor=#111827;fontSize=18;align=left;verticalAlign=top;spacing=16;arcSize=6;" vertex="1" parent="1">
+          <mxGeometry x="1100" y="2010" width="1400" height="200" as="geometry"/>
+        </mxCell>
+
+        <!-- 8 -->
+        <mxCell id="testing_h" value="八、验收与对比" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EDE9FE;strokeColor=#7C3AED;fontColor=#111827;fontSize=22;fontStyle=1;align=center;verticalAlign=middle;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="690" y="2380" width="360" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="testing_b" value="测试场景：两人普通合伙、三人资金+运营+资源、四人已注册且有代持、用户要求合同审查&#xa;&#xa;对比对象：豆包、通义、ChatGPT&#xa;通过标准：至少 6 个维度明显更强&#xa;维度：追问、五权、贡献估值、三套方案、利润模拟、文件清单、条款草稿、代持/退出提示。" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F3FF;strokeColor=#C4B5FD;fontColor=#111827;fontSize=18;align=left;verticalAlign=top;spacing=16;arcSize=6;" vertex="1" parent="1">
+          <mxGeometry x="1100" y="2325" width="1400" height="190" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

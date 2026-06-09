@@ -5,3 +5,8 @@ data/
 
 # 吴老师U盘原始文件（只保留结构化后的seed数据）
 吴老师U盘资料/
+.DS_Store
+*.drawio
+*.drawio.bkp
+*.drawio.png
+V0.4升级执行方案.md

@@ -29,6 +29,7 @@ const { initDb } = require('./db');
 const { generateReport } = require('./ai');
 const { generateProfitTable } = require('./report');
 const { seedData } = require('./seed');
+const { seedAdewoAgreement } = require('../scripts/seed_adewo_agreement');
 const { setupCopilotKit } = require('./copilotkit');
 
 const app = express();
@@ -329,6 +330,7 @@ initDb().then(database => {
   db = database;
   // Run seed data on first start
   seedData(db);
+  seedAdewoAgreement(db);
   // Start CopilotKit Agent runtime
   setupCopilotKit(app, db);
   app.listen(PORT, () => {

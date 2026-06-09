@@ -244,6 +244,18 @@ async function initDb() {
     return results;
   }
 
+  function getKnowledgeCaseById(id) {
+    const stmt = database.prepare("SELECT * FROM knowledge_cases WHERE id = ?");
+    stmt.bind([id]);
+    if (stmt.step()) {
+      const row = stmt.getAsObject();
+      stmt.free();
+      return row;
+    }
+    stmt.free();
+    return null;
+  }
+
   function createKnowledgeCase(data) {
     const id = data.id || 'kc_' + crypto.randomBytes(8).toString('hex');
     database.run(
@@ -287,6 +299,18 @@ async function initDb() {
     return results;
   }
 
+  function getRuleById(id) {
+    const stmt = database.prepare("SELECT * FROM rules WHERE id = ?");
+    stmt.bind([id]);
+    if (stmt.step()) {
+      const row = stmt.getAsObject();
+      stmt.free();
+      return row;
+    }
+    stmt.free();
+    return null;
+  }
+
   function createRule(data) {
     const id = data.id || 'rule_' + crypto.randomBytes(8).toString('hex');
     database.run(
@@ -325,6 +349,18 @@ async function initDb() {
     }
     stmt.free();
     return results;
+  }
+
+  function getTemplateById(id) {
+    const stmt = database.prepare("SELECT * FROM templates WHERE id = ?");
+    stmt.bind([id]);
+    if (stmt.step()) {
+      const row = stmt.getAsObject();
+      stmt.free();
+      return row;
+    }
+    stmt.free();
+    return null;
   }
 
   function createTemplate(data) {
@@ -440,12 +476,15 @@ async function initDb() {
 
     // New CRUD methods
     getKnowledgeCases,
+    getKnowledgeCaseById,
     createKnowledgeCase,
     updateKnowledgeCase,
     getRules,
+    getRuleById,
     createRule,
     updateRule,
     getTemplates,
+    getTemplateById,
     createTemplate,
     updateTemplate,
     promoteCaseToKnowledge,
