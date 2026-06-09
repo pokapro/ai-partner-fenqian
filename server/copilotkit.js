@@ -111,10 +111,7 @@ function createFenqianAgent(db) {
 function createFenqianRuntime(db) {
   const agent = createFenqianAgent(db);
   const runtime = new CopilotRuntime({
-    remoteEndpoints: [{
-      url: "/api/copilotkit",
-      agent,
-    }],
+    agents: { fenqian: agent },
   });
   return runtime;
 }
