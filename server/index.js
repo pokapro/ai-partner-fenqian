@@ -131,7 +131,7 @@ app.post('/api/suggest-form', async (req, res) => {
     const sysPrompt = '你是AI填表助手。用户会用口语描述他们的合伙创业情况，你需要提取结构化的表单数据并返回JSON。' +
       '返回格式（只返回JSON，不要其他内容）：' +
       '{"partnerCount":2,"partners":[{"name":"张三","capital":200000,"effortType":"全职运营","responsibility":"日常管理"},{"name":"李四","capital":100000,"effortType":"不出力","responsibility":"仅出资"}],"annualProfit":500000}' +
-      '规则：partnerCount必须是2/3/4；effortType取值：全职运营/兼职/不出力/技术/资源；capital是数字（元）；无法推断的字段填null；只输出JSON，不要任何其他文字';
+      '规则：partnerCount必须是2/3/4；effortType取值(对应前端下拉选项)："全职运营"、"兼职"、"仅出资不出力"、"技术/开发"、"资源/渠道"；capital是数字（元）；annualProfit是数字（元）；无法推断的字段填null；只输出JSON，不要任何其他文字';
 
     const res2 = await fetch('https://api.deepseek.com/v1/chat/completions', {
       method: 'POST',
