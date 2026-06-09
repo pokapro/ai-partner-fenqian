@@ -142,8 +142,8 @@ app.post('/api/generate', async (req, res) => {
 
       db.updateReport(caseId, fullReport);
 
-      const previewMarkdown = fullReport.length > 2000
-        ? fullReport.substring(0, 2000) + '\n\n> ...（完整报告请联系客服获取）'
+      const previewMarkdown = fullReport.length > 6000
+        ? fullReport.substring(0, 6000) + '\n\n> ...（完整报告请联系客服获取）'
         : fullReport;
 
       res.json({
