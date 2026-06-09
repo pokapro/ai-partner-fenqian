@@ -30,7 +30,7 @@ const { generateReport } = require('./ai');
 const { generateProfitTable } = require('./report');
 const { seedData } = require('./seed');
 const { seedAdewoAgreement } = require('../scripts/seed_adewo_agreement');
-const { setupCopilotKit } = require('./copilotkit');
+const { createCopilotKitHandler: setupCopilotKit } = require('./copilotkit');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
