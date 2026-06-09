@@ -255,7 +255,7 @@ async function generateReport(input, dbRef = null) {
   const markdown = await fn(input, referenceContext, knowledgeContext);
 
   // validate: must contain at least some required sections
-  const requiredSections = ['现状诊断', '主要风险点', '利润模拟', '免责声明'];
+  const requiredSections = ['合伙关系摘要', '核心矛盾诊断', '贡献估值表', '五权结构诊断', '三套分钱方案', '利润模拟表', '推荐方案', '风险清单', '协议条款草稿', '沟通话术'];
   const missing = requiredSections.filter(s => !markdown.includes(s));
   if (missing.length > 0) {
     throw new Error(`AI 报告缺失必要模块: ${missing.join('、')}，请重试`);

@@ -44,7 +44,7 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 function validateInput(body) {
   const errors = [];
 
-  if (!body.partnerCount || ![2, 3].includes(Number(body.partnerCount))) {
+  if (!body.partnerCount || ![2, 3, 4].includes(Number(body.partnerCount))) {
     errors.push('合伙人数必须是 2 或 3');
   }
 
