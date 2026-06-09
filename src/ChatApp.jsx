@@ -54,7 +54,7 @@ function QArea({ label, current, setter }) {
       <label style={{ fontSize: "0.8rem", color: "#777", minWidth: 120 }}>{label}</label>
       {["是", "否"].map((v) => (
         <button key={v} onClick={() => setter(v)}
-          style={{ padding: "6px 16px", fontSize: "0.8rem", borderRadius: 6, border: current === v ? "2px solid #667eea" : "1px solid #ddd", background: current === v ? "#f0f4ff" : "white", cursor: "pointer", color: current === v ? "#667eea" : "#555" }}
+          style={{ padding: "6px 16px", fontSize: "0.8rem", borderRadius: 6, border: current === v ? "2px solid #059669" : "1px solid #ddd", background: current === v ? "#f0fdf4" : "white", cursor: "pointer", color: current === v ? "#059669" : "#555" }}
         >{v}</button>
       ))}
     </div>
@@ -311,7 +311,7 @@ export default function ChatApp() {
 
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
-      <header style={{ background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)", color: "white", padding: "40px 20px 30px", textAlign: "center" }}>
+      <header style={{ background: "#1e293b", color: "white", padding: "40px 20px 30px", textAlign: "center" }}>
         <h1 style={{ fontSize: "1.8rem", fontWeight: 700, marginBottom: 8 }}>🤝 AI 合伙分钱诊断</h1>
         <p style={{ fontSize: "0.95rem", opacity: 0.9, maxWidth: 500, margin: "0 auto", lineHeight: 1.6 }}>
           输入合伙人的出资、出力、利润预期，生成<strong>分钱方案 + 五权结构诊断 + 贡献估值 + 协议草稿</strong>。
@@ -321,11 +321,11 @@ export default function ChatApp() {
       <main style={{ flex: 1, maxWidth: 720, margin: "0 auto", padding: "20px 16px 80px", width: "100%" }}>
         {/* 合伙人数 + 场景 */}
         <section style={{ marginBottom: 24 }}>
-          <h2 style={{ fontSize: "0.85rem", fontWeight: 600, color: "#666", marginBottom: 8, textTransform: "uppercase", letterSpacing: 1 }}>选择合伙人数</h2>
+          <h2 style={{ fontSize: "0.85rem", fontWeight: 600, color: "#475569", marginBottom: 8, textTransform: "uppercase", letterSpacing: 1 }}>选择合伙人数</h2>
           <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
             {[2, 3, 4].map((n) => (
               <button key={n} onClick={() => handlePartnerCountChange(n)}
-                style={{ flex: 1, padding: "12px 0", fontSize: "1rem", fontWeight: 600, border: partnerCount === n ? "2px solid #667eea" : "1px solid #ddd", borderRadius: 10, background: partnerCount === n ? "#f0f4ff" : "white", cursor: "pointer", color: partnerCount === n ? "#667eea" : "#555" }}
+                style={{ flex: 1, padding: "12px 0", fontSize: "1rem", fontWeight: 600, border: partnerCount === n ? "2px solid #059669" : "1px solid #ddd", borderRadius: 10, background: partnerCount === n ? "#f0fdf4" : "white", cursor: "pointer", color: partnerCount === n ? "#059669" : "#555" }}
               >{n} 人合伙</button>
             ))}
           </div>
@@ -333,9 +333,9 @@ export default function ChatApp() {
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {SCENARIOS.map((s, i) => (
               <button key={i} onClick={() => applyScenario(s)}
-                style={{ padding: "8px 14px", fontSize: "0.8rem", background: "#f0f4ff", border: "1px solid #d0d9f0", borderRadius: 8, cursor: "pointer", color: "#444", whiteSpace: "nowrap" }}
-                onMouseEnter={(e) => e.target.style.background = "#e0e8ff"}
-                onMouseLeave={(e) => e.target.style.background = "#f0f4ff"}
+                style={{ padding: "8px 14px", fontSize: "0.8rem", background: "#f0fdf4", border: "1px solid #d1d5db", borderRadius: 8, cursor: "pointer", color: "#444", whiteSpace: "nowrap" }}
+                onMouseEnter={(e) => e.target.style.background = "#f1f5f9"}
+                onMouseLeave={(e) => e.target.style.background = "#f0fdf4"}
               >{s.label}</button>
             ))}
           </div>
@@ -343,7 +343,7 @@ export default function ChatApp() {
           <button onClick={() => setShowAiFillDialog(true)} disabled={aiFilling}
             style={{
               width: "100%", padding: "10px 0", fontSize: "0.85rem", fontWeight: 600,
-              background: aiFilling ? "#999" : "linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)",
+              background: aiFilling ? "#94a3b8" : "#059669",
               color: "white", border: "none", borderRadius: 10, cursor: aiFilling ? "not-allowed" : "pointer",
               marginTop: 8, display: "flex", alignItems: "center", justifyContent: "center", gap: 6
             }}
@@ -386,7 +386,7 @@ export default function ChatApp() {
                   <button onClick={() => handleAiFill(aiFillInput)} disabled={aiFilling || !aiFillInput.trim()}
                     style={{
                       flex: 2, padding: "10px 0", fontSize: "0.85rem", fontWeight: 600,
-                      color: "white", background: aiFilling || !aiFillInput.trim() ? "#999" : "#667eea",
+                      color: "white", background: aiFilling || !aiFillInput.trim() ? "#999" : "#059669",
                       border: "none", borderRadius: 8, cursor: aiFilling || !aiFillInput.trim() ? "not-allowed" : "pointer",
                     }}
                   >{aiFilling ? "⏳ 分析中..." : "🚀 自动填写"}</button>
@@ -398,10 +398,10 @@ export default function ChatApp() {
 
         {/* 合伙人信息 */}
         <section style={{ marginBottom: 24 }}>
-          <h2 style={{ fontSize: "0.85rem", fontWeight: 600, color: "#666", marginBottom: 12, textTransform: "uppercase", letterSpacing: 1 }}>合伙人信息</h2>
+          <h2 style={{ fontSize: "0.85rem", fontWeight: 600, color: "#475569", marginBottom: 12, textTransform: "uppercase", letterSpacing: 1 }}>合伙人信息</h2>
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             {PARTNER_CONFIGS[partnerCount].map((cfg, idx) => (
-              <div key={cfg.id} style={{ background: "white", border: "1px solid #e8ecf2", borderRadius: 12, padding: 16 }}>
+              <div key={cfg.id} style={{ background: "white", border: "1px solid #e2e8f0", borderRadius: 12, padding: 16 }}>
                 <div style={{ fontWeight: 600, marginBottom: 10, color: "#444", fontSize: "0.9rem" }}>{cfg.label}</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   <div style={{ display: "grid", gridTemplateColumns: "100px 1fr", alignItems: "center", gap: 8 }}>
@@ -435,8 +435,8 @@ export default function ChatApp() {
 
         {/* 经营预期 */}
         <section style={{ marginBottom: 24 }}>
-          <h2 style={{ fontSize: "0.85rem", fontWeight: 600, color: "#666", marginBottom: 12, textTransform: "uppercase", letterSpacing: 1 }}>经营预期与顾虑</h2>
-          <div style={{ background: "white", border: "1px solid #e8ecf2", borderRadius: 12, padding: 16 }}>
+          <h2 style={{ fontSize: "0.85rem", fontWeight: 600, color: "#475569", marginBottom: 12, textTransform: "uppercase", letterSpacing: 1 }}>经营预期与顾虑</h2>
+          <div style={{ background: "white", border: "1px solid #e2e8f0", borderRadius: 12, padding: 16 }}>
             <div style={{ display: "grid", gridTemplateColumns: "100px 1fr", alignItems: "center", gap: 10, marginBottom: 12 }}>
               <label style={{ fontSize: "0.8rem", color: "#777" }}>年利润</label>
               <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
@@ -459,11 +459,11 @@ export default function ChatApp() {
         {/* 进阶诊断 */}
         <section style={{ marginBottom: 24 }}>
           <button onClick={() => setShowAdvanced(!showAdvanced)}
-            style={{ width: "100%", padding: "12px 16px", fontSize: "0.9rem", fontWeight: 600, background: showAdvanced ? "#667eea" : "#f5f7ff", color: showAdvanced ? "white" : "#667eea", border: showAdvanced ? "2px solid #667eea" : "2px dashed #c8d4f0", borderRadius: 12, cursor: "pointer" }}>
+            style={{ width: "100%", padding: "12px 16px", fontSize: "0.9rem", fontWeight: 600, background: showAdvanced ? "#059669" : "#f5f7ff", color: showAdvanced ? "white" : "#059669", border: showAdvanced ? "2px solid #059669" : "1px dashed #9ca3af", borderRadius: 12, cursor: "pointer" }}>
             {showAdvanced ? "△ 收起进阶诊断" : "▽ 打开进阶诊断：股权、决策权、退出机制"}
           </button>
           {showAdvanced && (
-            <div style={{ background: "#fafbff", border: "1px solid #d0d9f0", borderRadius: 12, padding: 16, marginTop: 8 }}>
+            <div style={{ background: "#f8fafc", border: "1px solid #d1d5db", borderRadius: 12, padding: 16, marginTop: 8 }}>
               <p style={{ fontSize: "0.8rem", color: "#777", marginBottom: 14, lineHeight: 1.4 }}>
                 填写后报告将包含<strong>五权结构诊断</strong>和<strong>完善协议草稿</strong>。
               </p>
@@ -494,8 +494,8 @@ export default function ChatApp() {
 
         {/* 联系方式 */}
         <section style={{ marginBottom: 24 }}>
-          <h2 style={{ fontSize: "0.85rem", fontWeight: 600, color: "#666", marginBottom: 12, textTransform: "uppercase", letterSpacing: 1 }}>联系方式</h2>
-          <div style={{ background: "white", border: "1px solid #e8ecf2", borderRadius: 12, padding: 16 }}>
+          <h2 style={{ fontSize: "0.85rem", fontWeight: 600, color: "#475569", marginBottom: 12, textTransform: "uppercase", letterSpacing: 1 }}>联系方式</h2>
+          <div style={{ background: "white", border: "1px solid #e2e8f0", borderRadius: 12, padding: 16 }}>
             <div style={{ display: "grid", gridTemplateColumns: "100px 1fr", alignItems: "center", gap: 10 }}>
               <label style={{ fontSize: "0.8rem", color: "#777" }}>微信/手机</label>
               <input type="text" placeholder="用于获取完整报告" value={contact} onChange={(e) => setContact(e.target.value)} style={inputStyle} />
@@ -505,12 +505,12 @@ export default function ChatApp() {
 
         {/* 生成按钮 */}
         <button onClick={handleSubmit} disabled={loading}
-          style={{ width: "100%", padding: "14px 0", fontSize: "1.05rem", fontWeight: 700, color: "white", background: loading ? "#999" : "linear-gradient(135deg, #667eea 0%, #764ba2 100%)", border: "none", borderRadius: 12, cursor: loading ? "not-allowed" : "pointer", marginBottom: 16 }}
+          style={{ width: "100%", padding: "14px 0", fontSize: "1.05rem", fontWeight: 700, color: "white", background: loading ? "#94a3b8" : "#334155", border: "none", borderRadius: 12, cursor: loading ? "not-allowed" : "pointer", marginBottom: 16 }}
         >{loading ? "⏳ 正在生成方案..." : "✨ 生成分钱方案"}</button>
 
         {/* 错误提示 */}
         {error && (
-          <div style={{ padding: 14, background: "#fff0f0", border: "1px solid #ffd4d4", borderRadius: 10, color: "#c00", fontSize: "0.85rem", marginBottom: 16 }}>
+          <div style={{ padding: 14, background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10, color: "#dc2626", fontSize: "0.85rem", marginBottom: 16 }}>
             ⚠️ {error}
           </div>
         )}
@@ -518,24 +518,24 @@ export default function ChatApp() {
         {/* 报告区域 */}
         {showResult && result && (
           <div ref={reportRef} id="result-section">
-            <div style={{ background: "#f8ffed", border: "1px solid #c8e6a0", borderRadius: 10, padding: "12px 16px", marginBottom: 16, fontSize: "0.85rem", color: "#2e7d32" }}>
+            <div style={{ background: "#f0fdf4", border: "1px solid #a7f3d0", borderRadius: 10, padding: "12px 16px", marginBottom: 16, fontSize: "0.85rem", color: "#166534" }}>
               ✅ 方案已生成
               {editHistory.length > 0 && <span style={{ marginLeft: 8, fontSize: "0.75rem", color: "#ff9800" }}>已修改 {editHistory.length} 次</span>}
               {result.caseId && <span style={{ fontSize: "0.75rem", color: "#888", marginLeft: 8 }}>ID: {result.caseId.slice(0, 8)}...</span>}
             </div>
 
-            <div style={{ background: "white", border: "1px solid #e8ecf2", borderRadius: 12, padding: 20, marginBottom: 16, lineHeight: 1.6, fontSize: "0.9rem" }}>
+            <div style={{ background: "white", border: "1px solid #e2e8f0", borderRadius: 12, padding: 20, marginBottom: 16, lineHeight: 1.6, fontSize: "0.9rem" }}>
               {result.previewMarkdown ? renderPreview(result.previewMarkdown) : <p style={{ color: "#888" }}>报告内容加载中...</p>}
             </div>
 
             {/* 修改报告区 */}
             <div style={{ marginBottom: 16 }}>
               <button onClick={() => setShowEditDialog(!showEditDialog)}
-                style={{ width: "100%", padding: "10px 0", fontSize: "0.85rem", fontWeight: 600, background: showEditDialog ? "#667eea" : "#f5f7ff", color: showEditDialog ? "white" : "#667eea", border: showEditDialog ? "1px solid #667eea" : "1px dashed #667eea", borderRadius: 10, cursor: "pointer" }}
+                style={{ width: "100%", padding: "10px 0", fontSize: "0.85rem", fontWeight: 600, background: showEditDialog ? "#059669" : "#f5f7ff", color: showEditDialog ? "white" : "#059669", border: showEditDialog ? "1px solid #334155" : "1px dashed #94a3b8", borderRadius: 10, cursor: "pointer" }}
               >{showEditDialog ? "▲ 收起修改面板" : "✏️ 让 AI 修改报告（支持局部调整）"}</button>
 
               {showEditDialog && (
-                <div style={{ background: "#fafbff", border: "1px solid #d0d9f0", borderRadius: 12, padding: 16, marginTop: 8 }}>
+                <div style={{ background: "#f8fafc", border: "1px solid #d1d5db", borderRadius: 12, padding: 16, marginTop: 8 }}>
                   <p style={{ fontSize: "0.8rem", color: "#777", marginBottom: 12, lineHeight: 1.4 }}>
                     告诉 AI 你想怎么改——可以<strong>只改某一部分</strong>（如"把方案三的A改成6，B改成4"），也可以<strong>全部重做</strong>。
                   </p>
@@ -559,7 +559,7 @@ export default function ChatApp() {
                       <option value="全部">全部重做</option>
                     </select>
                     <button onClick={handleEditReport} disabled={editLoading || !editPrompt.trim()}
-                      style={{ flex: 1, padding: "10px 0", fontSize: "0.85rem", fontWeight: 600, color: "white", background: editLoading || !editPrompt.trim() ? "#999" : "#667eea", border: "none", borderRadius: 8, cursor: editLoading || !editPrompt.trim() ? "not-allowed" : "pointer" }}
+                      style={{ flex: 1, padding: "10px 0", fontSize: "0.85rem", fontWeight: 600, color: "white", background: editLoading || !editPrompt.trim() ? "#999" : "#059669", border: "none", borderRadius: 8, cursor: editLoading || !editPrompt.trim() ? "not-allowed" : "pointer" }}
                     >{editLoading ? "⏳ 修改中..." : "🚀 应用修改"}</button>
                   </div>
                 </div>
@@ -570,9 +570,9 @@ export default function ChatApp() {
                   <div style={{ fontSize: "0.75rem", color: "#888", marginBottom: 6, fontWeight: 600 }}>修改记录</div>
                   {editHistory.map((h, i) => (
                     <div key={i} style={{ padding: "8px 12px", marginBottom: 4, borderRadius: 6,
-                      background: h.status === "success" ? "#f0faf0" : "#fff5f5",
-                      border: "1px solid", borderColor: h.status === "success" ? "#c8e6c8" : "#ffd4d4",
-                      fontSize: "0.8rem", color: h.status === "success" ? "#2e7d32" : "#c00" }}>
+                      background: h.status === "success" ? "#f0fdf4" : "#fef2f2",
+                      border: "1px solid", borderColor: h.status === "success" ? "#a7f3d0" : "#fecaca",
+                      fontSize: "0.8rem", color: h.status === "success" ? "#166534" : "#dc2626" }}>
                       <strong>第{i+1}次：</strong>{h.prompt}
                       <span style={{ float: "right", fontSize: "0.75rem" }}>{h.status === "success" ? "✅" : "❌"}</span>
                     </div>
@@ -582,7 +582,7 @@ export default function ChatApp() {
             </div>
 
             {/* 付款转化 */}
-            <div style={{ background: "linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)", borderRadius: 12, padding: 20, textAlign: "center" }}>
+            <div style={{ background: "white", border: "1px solid #e2e8f0", borderRadius: 12, padding: 20, textAlign: "center" }}>
               <h3 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: 6 }}>📋 获取完整报告</h3>
               <p style={{ fontSize: "0.85rem", color: "#555", marginBottom: 16, lineHeight: 1.5 }}>
                 预览版只展示了部分内容。<br />完整版含人工审核和完整协议草稿。
@@ -599,14 +599,14 @@ export default function ChatApp() {
                       </ul>
                     </div>
                     <button onClick={() => handlePayment("full_report_29_9")}
-                      style={{ padding: "10px 20px", fontSize: "0.85rem", fontWeight: 600, color: "white", background: "#667eea", border: "none", borderRadius: 8, cursor: "pointer", whiteSpace: "nowrap" }}
+                      style={{ padding: "10px 20px", fontSize: "0.85rem", fontWeight: 600, color: "white", background: "#059669", border: "none", borderRadius: 8, cursor: "pointer", whiteSpace: "nowrap" }}
                     >解锁</button>
                   </div>
                 </div>
-                <div style={{ background: "#fff8e1", borderRadius: 10, padding: 12, border: "2px solid #ffb300", textAlign: "left" }}>
+                <div style={{ background: "#fff8e1", borderRadius: 10, padding: 12, border: "2px solid #059669", textAlign: "left" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                     <div>
-                      <div style={{ fontWeight: 600, fontSize: "0.95rem" }}>99 元 · 人工审核版 <span style={{ fontSize: "0.7rem", background: "#ffb300", color: "white", padding: "2px 6px", borderRadius: 4, marginLeft: 6 }}>推荐</span></div>
+                      <div style={{ fontWeight: 600, fontSize: "0.95rem" }}>99 元 · 人工审核版 <span style={{ fontSize: "0.7rem", background: "#059669", color: "white", padding: "2px 6px", borderRadius: 4, marginLeft: 6 }}>推荐</span></div>
                       <ul style={{ fontSize: "0.78rem", color: "#666", margin: "6px 0 0", paddingLeft: 16, lineHeight: 1.6 }}>
                         <li>全部体验版权益</li>
                         <li>人工快速审核一次</li>
@@ -615,14 +615,14 @@ export default function ChatApp() {
                       </ul>
                     </div>
                     <button onClick={() => handlePayment("reviewed_draft_99")}
-                      style={{ padding: "10px 20px", fontSize: "0.85rem", fontWeight: 600, color: "#ff8f00", background: "white", border: "2px solid #ffb300", borderRadius: 8, cursor: "pointer", whiteSpace: "nowrap" }}
+                      style={{ padding: "10px 20px", fontSize: "0.85rem", fontWeight: 600, color: "#059669", background: "white", border: "2px solid #059669", borderRadius: 8, cursor: "pointer", whiteSpace: "nowrap" }}
                     >解锁</button>
                   </div>
                 </div>
                 <p style={{ fontSize: "0.75rem", color: "#888", marginTop: 8 }}>付款意向已记录，客服会通过微信/手机联系您</p>
               </div>
               {result.paymentRecorded && (
-                <div style={{ marginTop: 12, padding: "8px 12px", background: "rgba(255,255,255,0.7)", borderRadius: 8, fontSize: "0.8rem", color: "#2e7d32" }}>
+                <div style={{ marginTop: 12, padding: "8px 12px", background: "rgba(255,255,255,0.7)", borderRadius: 8, fontSize: "0.8rem", color: "#166534" }}>
                   ✅ 已记录您的选择
                 </div>
               )}
