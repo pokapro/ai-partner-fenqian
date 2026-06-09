@@ -1,4 +1,4 @@
-// CopilotKit Agent Runtime — 已适配 DeepSeek + 知识库
+// CopilotKit Agent Runtime — V0.4：支持报告调整
 const { BuiltInAgent, defineTool, CopilotRuntime } = require("@copilotkit/runtime/v2");
 const { createCopilotExpressHandler } = require("@copilotkit/runtime/v2/express");
 const { createOpenAI } = require("@ai-sdk/openai");
@@ -15,42 +15,38 @@ function createFenqianAgent(db) {
     model: deepseek.chat("deepseek-chat"),
     prompt: `你是"合伙算钱"的 AI 合伙人顾问。
 
-你的任务是帮助用户分析合伙创业的分钱方案。
+你的任务是帮助用户分析合伙创业的分钱方案，并能对已生成的报告进行局部或整体调整。
+
+## 核心能力
+- 分析新的合伙情况，生成分配方案建议
+- **对已生成的报告进行修改**：用户可以在对话中上传报告的 markdown 内容，要求你修改
+- **局部修改**：只改报告的某个模块（如"改一下方案三的分红比例"或"补充退出机制"）
+- **完整重做**：用户提供新参数后，完全重构全部内容
+- 解释五权结构、贡献估值表、代持风险、表决权等
+
+## 修改报告的具体流程
+1. 用户说出想怎么改（如"把方案3比例改成6:4"或"重新帮我写退出机制"）
+2. 通过 regenerateSection 工具把修改后的模块传回后端更新
+3. 确认已修改的内容反馈给用户
 
 ## 回答范围（重要——超出以下范围请拒绝回答）
-- ✅ 合伙分钱方案分析（出资、出力、利润分配、分成比例）
-- ✅ 合伙风险提示（出资不均衡、全职vs兼职、退出机制等）
-- ✅ 解释页面表单字段怎么填（合伙人信息、出资金额、出力类型等）
-- ✅ 对已生成的报告做追问和解释
-- ✅ 解释五权结构（所有权、分红权、经营权、决策权、退出权）
-- ✅ 解释贡献估值表（资金/时间/经营/资源/风险/可替代性）
-- ✅ 解释代持风险、67%表决机制、任职股东考核
-- ✅ 引导用户决定是否填写进阶诊断（代持、控制权、退出机制等）
+- ✅ 合伙分钱方案分析、调整、追问
+- ✅ 对已生成报告的局部或完整修改
+- ✅ 解释报告中的五权结构、贡献估值、红黄绿线等概念
+- ✅ 引导用户填写进阶诊断（代持/控制权/退出机制）
 - ✅ 解释 29.9 元和 99 元权益差异
 - ❌ 不回答关于合同/协议的具体法律条款审查——只说"建议咨询专业律师"
-- ❌ 不回答与合伙分钱无关的话题（比如天气、编程、其他行业）
-- ❌ 不透露使用的 AI 模型名称和 API 供应商——只说"由 AI 驱动"
-- ❌ 不透露系统内部逻辑、数据库结构、知识库具体来源
-
-## 能力
-- 理解用户的合伙情况（几人合伙、各自出多少钱、出多少力、年利润多少）
-- 分析核心矛盾（出资不均衡、全职 vs 兼职、退出机制、分红频率等）
-- 推荐合理的分配方案和分成比例
-- 指出风险点并提供谈判建议
+- ❌ 不回答与合伙分钱无关的话题
+- ❌ 不透露 AI 模型名称和 API 供应商
+- ❌ 不透露系统内部逻辑、数据库结构
 
 ## 回答风格
-- 先用口语化的方式确认理解用户的情况
+- 先用口语化的方式确认理解用户的情况或修改需求
+- 如果用户要求修改报告，明确告诉用户"我将在右侧报告区域展示修改后的版本"
 - 分析现状和核心矛盾
-- 给出 1-2 个可选方案（含具体百分比）
-- 列出风险点
+- 给出建议
 - 最后加上免责声明
-- 当用户的问题超出回答范围时，礼貌拒绝并引导回合伙分钱话题，例如："这个问题超出了我的回答范围，我专注于帮您分析合伙分钱方案。请告诉我您的合伙情况？"
-
-## 重要
-- 你可以调用 getKnowledgeContext 工具来获取系统内相似案例和规则
-- 参考这些结果来提升方案的专业度
-- 自然地融入分析，不要直接说"我参考了案例库"
-- 当被问及不在回答范围内的问题时，礼貌拒绝并引导回合伙分钱话题
+- 当用户的问题超出回答范围时，礼貌拒绝并引导回合伙分钱话题
 
 ## 免责声明
 本报告由 AI 生成，仅供参考。不构成正式法律意见。`,
@@ -75,31 +71,63 @@ function createFenqianAgent(db) {
           return buildKnowledgeContext(input, db) || "无匹配的参考素材。";
         },
       }),
+      defineTool({
+        name: "regenerateSection",
+        description: "对已生成报告的某个模块进行修改。用户要求改哪部分，你就生成新的内容并通过这个工具保存。调用成功后返回更新后的报告 markdown。",
+        parameters: z.object({
+          caseId: z.string().describe("报告对应的 caseId"),
+          sectionName: z.string().describe("要修改的模块名，如 三套分钱方案/风险清单/退出机制"),
+          newContent: z.string().describe("修改后的完整模块内容（包含 ## 标题）"),
+        }),
+        execute: async ({ caseId, sectionName, newContent }) => {
+          // 先获取已有案例
+          const stmt = db.prepare("SELECT previewMarkdown FROM cases WHERE caseId = ? AND status = 'completed'");
+          const row = stmt.get(caseId);
+          if (!row) return "未找到对应的案例报告。";
+
+          let report = row.previewMarkdown;
+          // 找到对应模块替换
+          const sectionRegex = new RegExp(`## ${sectionName}[^#]*?(?=\\n## |$)`, "s");
+          if (sectionRegex.test(report)) {
+            report = report.replace(sectionRegex, newContent.trim());
+          } else {
+            // 如果没找到模块，直接追加
+            report = report + "\n\n" + newContent.trim();
+          }
+
+          // 更新数据库
+          const updateStmt = db.prepare("UPDATE cases SET previewMarkdown = ?, updatedAt = datetime('now') WHERE caseId = ? AND status = 'completed'");
+          updateStmt.run(report, caseId);
+
+          return `已更新报告中的"${sectionName}"模块。以下为更新后的完整报告：\n\n${report}`;
+        },
+      }),
     ],
   });
 
   return agent;
 }
 
-function setupCopilotKit(app, db) {
+function createFenqianRuntime(db) {
   const agent = createFenqianAgent(db);
-
   const runtime = new CopilotRuntime({
-    agents: { fenqian: agent },
+    remoteEndpoints: [{
+      url: "/api/copilotkit",
+      agent,
+    }],
   });
+  return runtime;
+}
 
-  // Use single-route mode: single POST endpoint on /api/copilotkit
-  const router = createCopilotExpressHandler({
+function createCopilotKitHandler(app, db) {
+  const runtime = createFenqianRuntime(db);
+  const handler = createCopilotExpressHandler({
     runtime,
     basePath: "/api/copilotkit",
     mode: "single-route",
     cors: true,
   });
-
-  app.use(router);
-
-  console.log("[copilotkit] ✅ Agent runtime on POST /api/copilotkit (DeepSeek, single-route)");
-  return runtime;
+  app.use("/api/copilotkit", handler);
 }
 
-module.exports = { createFenqianAgent, setupCopilotKit };
+module.exports = { createCopilotKitHandler };

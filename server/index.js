@@ -184,6 +184,44 @@ app.get('/api/cases/:id', requireAdminToken, (req, res) => {
   }
 });
 
+// 修改报告端点：局部或全部重做
+app.post('/api/regenerate', async (req, res) => {
+  try {
+    const { caseId, target, instruction, partners, hasAdvanced, advancedFields } = req.body;
+    if (!caseId || !instruction) {
+      return res.status(400).json({ error: 'validation', message: 'caseId 和 instruction 必填' });
+    }
+
+    const stmt = db.db ? db.db.prepare("SELECT previewMarkdown, fullReport FROM cases WHERE caseId = ? AND status = 'completed'") : null;
+    if (!stmt) return res.status(500).json({ error: 'server_error', message: '数据库不可用' });
+
+    const row = stmt.get(caseId);
+    if (!row) return res.status(404).json({ error: 'not_found', message: '未找到该案例' });
+
+    const input = {
+      partners: partners || [],
+      partnerCount: (partners || []).length,
+      annualProfit: 0,
+      instruction,
+      target: target || 'auto',
+      originalReport: row.previewMarkdown || '',
+      hasAdvanced,
+      advancedFields,
+    };
+
+    const { regenerateReport } = require('./ai');
+    const updatedReport = await regenerateReport(input);
+
+    const updateStmt = db.db.prepare("UPDATE cases SET previewMarkdown = ?, fullReport = ?, updatedAt = datetime('now') WHERE caseId = ?");
+    updateStmt.run(updatedReport, updatedReport, caseId);
+
+    res.json({ success: true, updatedReport });
+  } catch (err) {
+    console.error('[regenerate]', err);
+    res.status(500).json({ error: 'server_error', message: err.message || '修改失败' });
+  }
+});
+
 app.put('/api/cases/:id/payment', (req, res) => {
   try {
     const { paymentIntent } = req.body;

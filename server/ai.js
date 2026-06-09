@@ -133,12 +133,19 @@ ${exitConcern ? `关于退出机制方面：${exitConcern}` : ''}
     return data.choices?.[0]?.message?.content || '';
   },
 
-  deepseek: async (input, referenceContext, knowledgeContext) => {
-    // 完整 DeepSeek API Key — 拆成两个 env var 拼接以绕过 Render env var 长度限制(  key 值单独拆分)
+  deepseek: async (input, referenceContext, knowledgeContext, customSystem, customUser) => {
     const apiKey = process.env.DEEPSEEK_API_KEY_P1 + process.env.DEEPSEEK_API_KEY_P2;
     if (!apiKey) throw new Error('DEEPSEEK_API_KEY not set');
     const model = process.env.DEEPSEEK_MODEL || 'deepseek-chat';
-    const messages = buildMessages(input, referenceContext, knowledgeContext);
+    let messages;
+    if (customSystem && customUser) {
+      messages = [
+        { role: 'system', content: customSystem },
+        { role: 'user', content: customUser }
+      ];
+    } else {
+      messages = buildMessages(input, referenceContext, knowledgeContext);
+    }
     const res = await fetch('https://api.deepseek.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -265,3 +272,71 @@ async function generateReport(input, dbRef = null) {
 }
 
 module.exports = { generateReport };
+
+// 修改/重做报告
+async function regenerateReport(input) {
+  const { partners, partnerCount, instruction, target, originalReport, hasAdvanced, advancedFields } = input;
+
+  let partnerDesc = partners.map((p, i) => {
+    return `合伙人${p.name || String.fromCharCode(65 + i)}：出资 ${p.capital} 元，出力：${p.effortType}，职责：${p.responsibility}`;
+  }).join('\n');
+
+  const advancedNote = hasAdvanced && advancedFields
+    ? `\n\n进阶信息：已注册=${advancedFields.hasCompany}, 代持=${advancedFields.hasNomineeHolding}, 不经营=${advancedFields.hasNonOperatingPartner}, 需控制权=${advancedFields.needsControlRight}, 担心退出=${advancedFields.worriesExit}, 运营=${advancedFields.operatorPerson}, 财务=${advancedFields.financeController}, 拍板=${advancedFields.decisionMaker}`
+    : '';
+
+  const systemPrompt = `你是一位合伙创业分钱方案顾问。
+
+## 任务
+用户有一份已生成的《合伙关系诊断与分钱方案报告》，要求你根据以下指令修改这份报告。
+
+## 修改类型
+- 如果 target 是具体模块名（如"三套分钱方案"、"风险清单"），只修改该模块，保持其余部分不变
+- 如果 target 是 "auto"，根据用户指令自动判断要改的部分
+- 如果 target 是 "全部" 或指令包含"全部重做"，输出全新的10模块报告
+
+## 输出要求
+- 输出完整的报告 markdown（保持未修改模块不变）
+- 用 ## 标题 分隔模块
+- 必须包含以下10个模块：合伙关系摘要、核心矛盾诊断、贡献估值表、五权结构诊断、三套分钱方案、利润模拟表、推荐方案与调整条件、风险清单、协议条款草稿、沟通话术与下一步行动
+- 如果是局部修改，只在改动模块周围做必要衔接调整
+
+## 限制
+- 不提供正式法律意见
+- 涉及到合同条款问题回复"建议咨询专业律师"`;
+
+  let userMessage;
+  if (target && target !== 'auto' && target !== '全部') {
+    // 局部修改：只改指定模块
+    userMessage = `以下是一份合伙关系诊断与分钱方案报告。请修改其中"${target}"模块的内容。
+
+用户修改指令：${instruction}
+
+合伙人信息：
+${partnerDesc}${advancedNote}
+
+原报告：
+${originalReport}
+
+请保持原报告中其他模块不变，只重新生成并替换"${target}"模块的内容。输出完整的修改后报告。`;
+  } else {
+    // 全部重做
+    userMessage = `用户要求根据以下信息重新生成完整的合伙关系诊断与分钱方案报告。
+
+用户修改指令：${instruction}
+
+合伙人信息：
+${partnerCount}人合伙
+${partnerDesc}${advancedNote}
+
+请按10模块格式输出完整的修改后报告。`;
+  }
+
+  const provider = process.env.AI_PROVIDER || 'mock';
+  const providerFn = PROVIDERS[provider] || PROVIDERS.mock;
+
+  const report = await providerFn({ partners, partnerCount }, null, null, systemPrompt, userMessage);
+  return report;
+}
+
+module.exports = { generateReport, regenerateReport };
