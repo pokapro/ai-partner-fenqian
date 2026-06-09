@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { useCopilotReadable, useCopilotAction } from "@copilotkit/react-core";
 
 const PARTNER_CONFIGS = {
   2: [{ id: "A", label: "合伙人 A" }, { id: "B", label: "合伙人 B" }],
@@ -62,6 +63,58 @@ function QArea({ label, current, setter }) {
 }
 
 export default function ChatApp() {
+  // 让CopilotKit侧边栏AI知道表单当前状态
+  useCopilotReadable({
+    description: "当前合伙分钱表单的状态",
+    value: {
+      partnerCount,
+      partners: partners.map((p, i) => ({
+        name: p.name || `合伙人${i}`,
+        capital: p.capital,
+        effortType: p.effortType,
+        responsibility: p.responsibility,
+      })),
+      annualProfit,
+      showAdvanced: showAdvanced ? "进阶诊断已展开" : "进阶诊断已折叠",
+    },
+  });
+
+  // AI填表工具：接收AI建议的填表数据，自动填入表单
+  useCopilotAction({
+    name: "fillFormFields",
+    description: "根据用户的描述，将合伙人的出资、出力等信息填入表单。调这个工具后用户的表单会自动填好。",
+    parameters: [
+      {
+        name: "partnerCount",
+        type: "number",
+        description: "合伙人数（2/3/4）",
+        required: true,
+      },
+      {
+        name: "partners",
+        type: "object[]",
+        description: "合伙人列表，每个包含：name(姓名), capital(出资金额元), effortType(出力类型：全职运营/兼职/不出力/技术/资源), responsibility(职责描述)",
+        required: true,
+      },
+      {
+        name: "annualProfit",
+        type: "number",
+        description: "预计年利润（元）",
+        required: false,
+      },
+    ],
+    handler: async ({ partnerCount, partners, annualProfit }) => {
+      setPartnerCount(partnerCount);
+      // 确保数组长度匹配
+      const padded = [...partners];
+      while (padded.length < partnerCount) {
+        padded.push({ name: "", capital: 0, effortType: "", responsibility: "" });
+      }
+      setPartners(padded.slice(0, partnerCount));
+      if (annualProfit) setAnnualProfit(String(annualProfit));
+      return "表单已自动填写完成！";
+    },
+  });
   const formRef = useRef(null);
   const reportRef = useRef(null);
 
