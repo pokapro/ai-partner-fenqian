@@ -112,6 +112,78 @@ function requireAdminToken(req, res, next) {
 
 // === Public API Routes ===
 
+// AI一键填表：弹出一个对话框让用户描述情况，AI解析后返回表单数据
+const suggestFormInputs = {}; // 临时存储用户输入
+
+app.post('/api/suggest-form', async (req, res) => {
+  const { message } = req.body;
+
+  // 如果没有消息，返回引导信息让用户输入
+  if (!message) {
+    return res.json({
+      needInput: true,
+      prompt: '简单说说你们的合伙情况，例如："我和两个朋友合伙开餐厅，我出20万全职，张三出10万兼职，李四出5万不出力"'
+    });
+  }
+
+  try {
+    const apiKey = (process.env.DEEPSEEK_API_KEY_P1 || '') + (process.env.DEEPSEEK_API_KEY_P2 || '');
+    const sysPrompt = `你是AI填表助手。用户会用口语描述他们的合伙创业情况，你需要提取结构化的表单数据并返回JSON。
+
+返回格式（只返回JSON，不要其他内容）：
+{
+  "partnerCount": 2,
+  "partners": [
+    {"name": "张三", "capital": 200000, "effortType": "全职运营", "responsibility": "日常管理"},
+    {"name": "李四", "capital": 100000, "effortType": "不出力", "responsibility": "仅出资"}
+  ],
+  "annualProfit": 500000,
+  "oralAgreement": "口头约定五五分",
+  "exitConcern": "担心有人退出",
+  "lossConcern": "亏损怎么承担"
+}
+
+规则：
+- partnerCount 必须是 2/3/4
+- effortType 取值：全职运营/兼职/不出力/技术/资源
+- capital 是数字（元）
+- 无法推断的字段填 null 或不输出
+- 只输出JSON，不要markdown\`\`\`或任何其他文字`;
+
+    const res2 = await fetch('https://api.deepseek.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + apiKey
+      },
+      body: JSON.stringify({
+        model: process.env.DEEPSEEK_MODEL || 'deepseek-chat',
+        messages: [
+          { role: 'system', content: sysPrompt },
+          { role: 'user', content: message }
+        ],
+        temperature: 0.3
+      })
+    });
+
+    if (!res2.ok) throw new Error('API error: ' + res2.status);
+    const data = await res2.json();
+    const content = data.choices?.[0]?.message?.content || '';
+
+    // 解析JSON（去掉可能的markdown包围）
+    const cleaned = content.replace(/^\s*\\`\\`\\`(?:json)?\s*/, '').replace(/\s*\\`\\`\\`\s*$/, '').trim();
+    const parsed = JSON.parse(cleaned);
+
+    res.json({
+      needInput: false,
+      ...parsed
+    });
+  } catch (err) {
+    console.error('[suggest-form]', err);
+    res.status(500).json({ error: 'AI解析失败，请手动填写表单', needInput: false });
+  }
+});
+
 app.post('/api/generate', async (req, res) => {
   try {
     const errors = validateInput(req.body);

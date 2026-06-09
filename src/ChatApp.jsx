@@ -1,5 +1,4 @@
 import { useState, useRef } from "react";
-import { useCopilotReadable, useCopilotAction } from "@copilotkit/react-core";
 
 const PARTNER_CONFIGS = {
   2: [{ id: "A", label: "合伙人 A" }, { id: "B", label: "合伙人 B" }],
@@ -63,58 +62,10 @@ function QArea({ label, current, setter }) {
 }
 
 export default function ChatApp() {
-  // 让CopilotKit侧边栏AI知道表单当前状态
-  useCopilotReadable({
-    description: "当前合伙分钱表单的状态",
-    value: {
-      partnerCount,
-      partners: partners.map((p, i) => ({
-        name: p.name || `合伙人${i}`,
-        capital: p.capital,
-        effortType: p.effortType,
-        responsibility: p.responsibility,
-      })),
-      annualProfit,
-      showAdvanced: showAdvanced ? "进阶诊断已展开" : "进阶诊断已折叠",
-    },
-  });
-
-  // AI填表工具：接收AI建议的填表数据，自动填入表单
-  useCopilotAction({
-    name: "fillFormFields",
-    description: "根据用户的描述，将合伙人的出资、出力等信息填入表单。调这个工具后用户的表单会自动填好。",
-    parameters: [
-      {
-        name: "partnerCount",
-        type: "number",
-        description: "合伙人数（2/3/4）",
-        required: true,
-      },
-      {
-        name: "partners",
-        type: "object[]",
-        description: "合伙人列表，每个包含：name(姓名), capital(出资金额元), effortType(出力类型：全职运营/兼职/不出力/技术/资源), responsibility(职责描述)",
-        required: true,
-      },
-      {
-        name: "annualProfit",
-        type: "number",
-        description: "预计年利润（元）",
-        required: false,
-      },
-    ],
-    handler: async ({ partnerCount, partners, annualProfit }) => {
-      setPartnerCount(partnerCount);
-      // 确保数组长度匹配
-      const padded = [...partners];
-      while (padded.length < partnerCount) {
-        padded.push({ name: "", capital: 0, effortType: "", responsibility: "" });
-      }
-      setPartners(padded.slice(0, partnerCount));
-      if (annualProfit) setAnnualProfit(String(annualProfit));
-      return "表单已自动填写完成！";
-    },
-  });
+  // AI一键填表
+  const [aiFilling, setAiFilling] = useState(false);
+  const [showAiFillDialog, setShowAiFillDialog] = useState(false);
+  const [aiFillInput, setAiFillInput] = useState("");
   const formRef = useRef(null);
   const reportRef = useRef(null);
 
@@ -174,6 +125,38 @@ export default function ChatApp() {
   const handlePartnerCountChange = (count) => {
     setPartnerCount(count);
     setPartners(PARTNER_CONFIGS[count].map(() => ({ name: "", capital: 0, effortType: "", responsibility: "" })));
+  };
+
+  // AI一键填表
+  const handleAiFill = async (msg) => {
+    if (!msg?.trim()) { setShowAiFillDialog(true); return; }
+    setAiFilling(true);
+    setShowAiFillDialog(false);
+    try {
+      const res = await fetch("/api/suggest-form", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: msg.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) { setAiFilling(false); return; }
+
+      if (data.partnerCount) handlePartnerCountChange(data.partnerCount);
+      if (data.partners) {
+        const padded = [...data.partners];
+        while (padded.length < (data.partnerCount || 2)) {
+          padded.push({ name: "", capital: 0, effortType: "", responsibility: "" });
+        }
+        setPartners(padded.slice(0, data.partnerCount || 2));
+      }
+      if (data.annualProfit) setAnnualProfit(String(data.annualProfit));
+      if (data.oralAgreement) setOralAgreement(data.oralAgreement);
+      if (data.lossConcern) setLossConcern(data.lossConcern);
+      if (data.exitConcern) setExitConcern(data.exitConcern);
+    } catch (e) {
+      console.error("AI fill error", e);
+    }
+    setAiFilling(false);
   };
 
   const handleSubmit = async () => {
@@ -356,6 +339,61 @@ export default function ChatApp() {
               >{s.label}</button>
             ))}
           </div>
+          {/* AI一键填表 */}
+          <button onClick={() => setShowAiFillDialog(true)} disabled={aiFilling}
+            style={{
+              width: "100%", padding: "10px 0", fontSize: "0.85rem", fontWeight: 600,
+              background: aiFilling ? "#999" : "linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)",
+              color: "white", border: "none", borderRadius: 10, cursor: aiFilling ? "not-allowed" : "pointer",
+              marginTop: 8, display: "flex", alignItems: "center", justifyContent: "center", gap: 6
+            }}
+          >
+            {aiFilling ? "⏳ AI 正在分析..." : "🤖 跟 AI 说说什么情况，自动填好表单"}
+          </button>
+
+          {/* AI填表对话弹窗 */}
+          {showAiFillDialog && (
+            <div style={{
+              position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              zIndex: 1000, padding: 20
+            }} onClick={() => setShowAiFillDialog(false)}>
+              <div style={{
+                background: "white", borderRadius: 16, padding: 24, maxWidth: 500, width: "100%",
+                boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+              }} onClick={(e) => e.stopPropagation()}>
+                <h3 style={{ fontSize: "1rem", fontWeight: 700, marginBottom: 6 }}>🤖 描述你们的合伙情况</h3>
+                <p style={{ fontSize: "0.8rem", color: "#777", marginBottom: 14, lineHeight: 1.5 }}>
+                  用自然语言说就行，AI 会自动提取并填入左侧表单。
+                </p>
+                <textarea value={aiFillInput} onChange={(e) => setAiFillInput(e.target.value)}
+                  placeholder={`例如：
+我和两个朋友合伙开餐厅，我出20万全职运营，
+张三出10万平时兼职帮忙，李四出5万不出力只分红。
+预计一年能赚个三四十万。`}
+                  style={{
+                    width: "100%", minHeight: 120, padding: 12, fontSize: "0.9rem",
+                    border: "1px solid #dde2eb", borderRadius: 10, resize: "vertical",
+                    fontFamily: "inherit", lineHeight: 1.5,
+                  }} />
+                <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+                  <button onClick={() => setShowAiFillDialog(false)}
+                    style={{
+                      flex: 1, padding: "10px 0", fontSize: "0.85rem",
+                      border: "1px solid #ddd", borderRadius: 8, background: "white", cursor: "pointer",
+                    }}
+                  >取消</button>
+                  <button onClick={() => handleAiFill(aiFillInput)} disabled={aiFilling || !aiFillInput.trim()}
+                    style={{
+                      flex: 2, padding: "10px 0", fontSize: "0.85rem", fontWeight: 600,
+                      color: "white", background: aiFilling || !aiFillInput.trim() ? "#999" : "#667eea",
+                      border: "none", borderRadius: 8, cursor: aiFilling || !aiFillInput.trim() ? "not-allowed" : "pointer",
+                    }}
+                  >{aiFilling ? "⏳ 分析中..." : "🚀 自动填写"}</button>
+                </div>
+              </div>
+            </div>
+          )}
         </section>
 
         {/* 合伙人信息 */}
