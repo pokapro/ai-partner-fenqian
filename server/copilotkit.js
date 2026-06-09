@@ -127,7 +127,10 @@ function createCopilotKitHandler(app, db) {
     mode: "single-route",
     cors: true,
   });
-  app.use("/api/copilotkit", handler);
+  // ⚠️ app.use(handler) 不带路径参数：因为 handler 内部的 basePath 已
+  // 包含完整路径 /api/copilotkit，如果 app.use 也带路径，Express
+  // 会剥离该前缀导致 handler 内部的 POST /api/copilotkit 匹配不上。
+  app.use(handler);
 }
 
 module.exports = { createCopilotKitHandler };
