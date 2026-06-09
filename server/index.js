@@ -407,7 +407,7 @@ app.post('/api/admin/cases/:id/promote', requireAdminToken, (req, res) => {
 });
 
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', time: new Date().toISOString(), provider: process.env.AI_PROVIDER || 'ollama', version: '0.3.0' });
+  res.json({ status: 'ok', time: new Date().toISOString(), provider: process.env.AI_PROVIDER || 'ollama', version: '0.4.0' });
 });
 
 // SPA fallback: serve index.html for non-API routes
@@ -431,7 +431,7 @@ initDb().then(database => {
   setupCopilotKit(app, db);
   app.listen(PORT, () => {
     console.log(`\n========================================`);
-    console.log(`   AI 合伙分钱方案生成器 V0.3 (CopilotKit)`);
+    console.log(`   AI 合伙分钱方案生成器 V0.4 (五权诊断+AI填表+报告编辑)`);
     console.log(`   服务已启动: http://localhost:${PORT}`);
     console.log(`   AI Provider: ${process.env.AI_PROVIDER || 'ollama'}`);
     console.log(`   数据目录: ${path.join(__dirname, '..', 'data')}`);
