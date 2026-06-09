@@ -520,7 +520,6 @@ export default function ChatApp() {
                         <li>全部体验版权益</li>
                         <li>人工快速审核一次</li>
                         <li>可补充信息后重新生成</li>
-                        <li                        <li>可补充信息后重新生成</li>
                         <li>重点条款草稿 + 协议清单</li>
                       </ul>
                     </div>
