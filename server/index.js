@@ -193,45 +193,63 @@ app.post('/api/generate', async (req, res) => {
       inputJson: req.body
     });
 
-    try {
-      const reportMarkdown = await generateReport(req.body, db);
-      const profitTable = generateProfitTable(partners);
-      const fullReport = reportMarkdown + '\n\n---\n\n## 利润模拟表（系统计算）\n\n' + profitTable;
+    // 先返回 caseId，后端异步生成
+    res.json({ caseId, progress: 0, status: 'generating' });
 
-      db.updateReport(caseId, fullReport);
+    // 异步生成报告
+    (async () => {
+      try {
+        db.updateProgress(caseId, 10);
+        const reportMarkdown = await generateReport(req.body, db);
+        db.updateProgress(caseId, 80);
 
-      // 在前端付费模块前插入 <!--paid--> 标记（用于前端付费保护渲染）
-      const paidModules = ['贡献估值表', '五权结构诊断', '协议条款草稿', '协议文件清单'];
-      let protectedReport = fullReport;
-      for (const mod of paidModules) {
-        // 兼容 ## 贡献估值表、## 三、贡献估值表、## 3. 贡献估值表 等多种格式
-        const regex = new RegExp(`(##\\s*(?:[\\d一二三四五六七八九十]+[、.\\s]?)?\\s*${mod})`, 's');
-        protectedReport = protectedReport.replace(regex, `<!--paid-->$1`);
+        const profitTable = generateProfitTable(partners);
+        const fullReport = reportMarkdown + '\n\n---\n\n## 利润模拟表（系统计算）\n\n' + profitTable;
+        db.updateProgress(caseId, 90);
+
+        db.updateReport(caseId, fullReport);
+
+        // 在前端付费模块前插入 <!--paid--> 标记
+        const paidModules = ['贡献估值表', '五权结构诊断', '协议条款草稿', '协议文件清单'];
+        let protectedReport = fullReport;
+        for (const mod of paidModules) {
+          const regex = new RegExp(`(##\\s*(?:[\\d一二三四五六七八九十]+[、.\\s]?)?\\s*${mod})`, 's');
+          protectedReport = protectedReport.replace(regex, `<!--paid-->$1`);
+        }
+
+        const previewMarkdown = protectedReport.length > 6000
+          ? protectedReport.substring(0, 6000) + '\n\n> ...（完整报告请联系客服获取）'
+          : protectedReport;
+
+        db.updateProgress(caseId, 100);
+      } catch (aiErr) {
+        db.updateReport(caseId, `AI 生成失败：${aiErr.message}`, 'pending_review');
+        db.updateProgress(caseId, -1); // -1 = 失败
+        console.error('Async generation error:', aiErr);
       }
-
-      // previewMarkdown：截断保护 + 付费标记
-      const previewMarkdown = protectedReport.length > 6000
-        ? protectedReport.substring(0, 6000) + '\n\n> ...（完整报告请联系客服获取）'
-        : protectedReport;
-
-      res.json({
-        caseId,
-        previewMarkdown,
-        hasUnlocked: false,
-        status: 'pending_review'
-      });
-    } catch (aiErr) {
-      db.updateReport(caseId, `AI 生成失败：${aiErr.message}`, 'pending_review');
-      res.status(500).json({
-        caseId,
-        error: 'ai_error',
-        message: `报告生成失败：${aiErr.message}。请稍后重试或联系客服。`
-      });
-    }
+    })();
   } catch (err) {
     console.error('Server error:', err);
     res.status(500).json({ error: 'server_error', message: '服务器内部错误，请稍后重试。' });
   }
+});
+
+app.get('/api/progress/:caseId', (req, res) => {
+  const progress = db.getProgress(req.params.caseId);
+  if (progress === null || progress === undefined) {
+    return res.json({ progress: 0, status: 'unknown' });
+  }
+  if (progress === 100) {
+    const row = db.getCaseReportSummary(req.params.caseId);
+    if (row) {
+      return res.json({ progress: 100, status: 'done', caseId: req.params.caseId, previewMarkdown: row.previewMarkdown });
+    }
+    return res.json({ progress: 100, status: 'done' });
+  }
+  if (progress < 0) {
+    return res.json({ progress: 0, status: 'failed' });
+  }
+  res.json({ progress, status: 'generating' });
 });
 
 app.get('/api/cases', requireAdminToken, (req, res) => {

@@ -43,7 +43,8 @@ async function initDb() {
       report_markdown TEXT DEFAULT '',
       payment_intent TEXT DEFAULT '',
       review_status TEXT NOT NULL DEFAULT 'pending_review',
-      review_note TEXT DEFAULT ''
+      review_note TEXT DEFAULT '',
+      progress INTEGER NOT NULL DEFAULT 0
     );
   `);
 
@@ -425,6 +426,28 @@ async function initDb() {
         [reportMarkdown, reviewStatus, id]
       );
       persist();
+    },
+
+    updateProgress(id, progress) {
+      database.run(
+        `UPDATE cases SET progress = ? WHERE id = ?`,
+        [progress, id]
+      );
+      persist();
+    },
+
+    getProgress(id) {
+      const row = database.prepare(`SELECT progress FROM cases WHERE id = ?`).get(id);
+      return row ? row.progress : null;
+    },
+
+    getCaseReportSummary(id) {
+      const row = database.prepare(`SELECT report_markdown FROM cases WHERE id = ?`).get(id);
+      if (!row || !row.report_markdown) return null;
+      const md = row.report_markdown;
+      // 前6000字截断
+      const preview = md.length > 6000 ? md.substring(0, 6000) + '\n\n> ...（完整报告请联系客服获取）' : md;
+      return { previewMarkdown: preview };
     },
 
     updatePaymentIntent(id, paymentIntent) {

@@ -186,10 +186,18 @@ export default function ChatApp() {
     setAiFilling(false);
   };
 
+  // 进度条轮询
+  const [generating, setGenerating] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [progressLabel, setProgressLabel] = useState("");
+
   const handleSubmit = async () => {
     setError("");
-    setLoading(true);
+    setResult(null);
     setShowResult(false);
+    setGenerating(true);
+    setProgress(0);
+    setProgressLabel("正在启动...");
 
     const body = {
       partnerCount,
@@ -231,21 +239,55 @@ export default function ChatApp() {
 
       if (!res.ok) {
         setError(data.message || data.error || "生成失败");
-        setLoading(false);
+        setGenerating(false);
         return;
       }
 
-      setResult(data);
-      setShowResult(true);
-      setLoading(false);
-      setEditHistory([]);
+      if (!data.caseId) {
+        setError("服务器返回异常，请重试");
+        setGenerating(false);
+        return;
+      }
 
-      setTimeout(() => {
-        reportRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-      }, 100);
+      // 轮询进度
+      const caseId = data.caseId;
+      const poll = async () => {
+        try {
+          const pRes = await fetch(`/api/progress/${caseId}`);
+          const pData = await pRes.json();
+          if (pData.status === 'done') {
+            setProgress(100);
+            setProgressLabel("生成完成");
+            // 直接使用后端返回的 previewMarkdown
+            setResult({ caseId, previewMarkdown: pData.previewMarkdown, hasUnlocked: false, status: 'pending_review' });
+            setShowResult(true);
+            setGenerating(false);
+            setEditHistory([]);
+            setTimeout(() => { reportRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }); }, 150);
+            return;
+          }
+          if (pData.status === 'failed') {
+            setError("报告生成失败，请稍后重试");
+            setGenerating(false);
+            return;
+          }
+          const pct = pData.progress || 0;
+          setProgress(pct);
+          if (pct < 20) setProgressLabel("正在分析合伙信息...");
+          else if (pct < 40) setProgressLabel("正在匹配参考案例...");
+          else if (pct < 60) setProgressLabel("正在生成诊断报告...");
+          else if (pct < 80) setProgressLabel("正在生成分钱方案...");
+          else if (pct < 100) setProgressLabel("正在整理最终报告...");
+          setTimeout(poll, 800);
+        } catch (e) {
+          // 重试
+          setTimeout(poll, 1500);
+        }
+      };
+      poll();
     } catch (e) {
       setError("网络错误，请检查连接后重试");
-      setLoading(false);
+      setGenerating(false);
     }
   };
 
@@ -576,10 +618,21 @@ export default function ChatApp() {
           </div>
         </section>
 
-        {/* 生成按钮 */}
-        <button onClick={handleSubmit} disabled={loading}
-          style={{ width: "100%", padding: "14px 0", fontSize: "1.05rem", fontWeight: 700, color: "white", background: loading ? "#94a3b8" : "#334155", border: "none", borderRadius: 12, cursor: loading ? "not-allowed" : "pointer", marginBottom: 16 }}
-        >{loading ? "⏳ 正在生成方案..." : "✨ 生成分钱方案"}</button>
+        {/* 生成按钮 + 进度条 */}
+        <button onClick={handleSubmit} disabled={generating}
+          style={{ width: "100%", padding: generating ? "10px 0 6px" : "14px 0", fontSize: "1.05rem", fontWeight: 700, color: "white", background: generating ? "#334155" : "#334155", border: "none", borderRadius: 12, cursor: generating ? "not-allowed" : "pointer", marginBottom: 16 }}>
+          {generating ? (
+            <div>
+              <div style={{ marginBottom: 4 }}>{progressLabel}</div>
+              <div style={{ background: "rgba(255,255,255,0.2)", borderRadius: 6, height: 10, margin: "0 20px", position: "relative", overflow: "hidden" }}>
+                <div style={{ width: `${progress}%`, background: "#a7f3d0", height: "100%", borderRadius: 6, transition: "width 0.3s ease" }}></div>
+              </div>
+              <div style={{ fontSize: "0.75rem", marginTop: 2, opacity: 0.8 }}>{Math.round(progress)}%</div>
+            </div>
+          ) : (
+            "✨ 生成分钱方案"
+          )}
+        </button>
 
         {/* 错误提示 */}
         {error && (
