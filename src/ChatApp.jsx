@@ -81,6 +81,7 @@ function QArea({ label, current, setter }) {
   );
 }
 
+const APP_VERSION = 'v0.4.1-pb'; // 进度条版本，强制hash刷新
 export default function ChatApp() {
   // AI一键填表
   const [aiFilling, setAiFilling] = useState(false);
