@@ -200,13 +200,24 @@ app.post('/api/generate', async (req, res) => {
 
       db.updateReport(caseId, fullReport);
 
-      const previewMarkdown = fullReport.length > 6000
-        ? fullReport.substring(0, 6000) + '\n\n> ...（完整报告请联系客服获取）'
-        : fullReport;
+      // 在前端付费模块前插入 <!--paid--> 标记（用于前端付费保护渲染）
+      const paidModules = ['贡献估值表', '五权结构诊断', '协议条款草稿', '协议文件清单'];
+      let protectedReport = fullReport;
+      for (const mod of paidModules) {
+        // 兼容 ## 贡献估值表、## 三、贡献估值表、## 3. 贡献估值表 等多种格式
+        const regex = new RegExp(`(##\\s*(?:[\\d一二三四五六七八九十]+[、.\\s]?)?\\s*${mod})`, 's');
+        protectedReport = protectedReport.replace(regex, `<!--paid-->$1`);
+      }
+
+      // previewMarkdown：截断保护 + 付费标记
+      const previewMarkdown = protectedReport.length > 6000
+        ? protectedReport.substring(0, 6000) + '\n\n> ...（完整报告请联系客服获取）'
+        : protectedReport;
 
       res.json({
         caseId,
         previewMarkdown,
+        hasUnlocked: false,
         status: 'pending_review'
       });
     } catch (aiErr) {
