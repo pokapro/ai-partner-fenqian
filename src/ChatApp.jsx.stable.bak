@@ -1,24 +1,4 @@
 import { useState, useRef } from "react";
-import { marked } from "marked";
-
-// 配置 marked 格式
-marked.setOptions({ breaks: true, gfm: true });
-const renderer = new marked.Renderer();
-renderer.table = ({ header, body }) =>
-  `<div style="overflow-x:auto;margin:8px 0;"><table style="width:100%;border-collapse:collapse;font-size:0.82rem;"><thead>${header}</thead><tbody>${body}</tbody></table></div>`;
-renderer.tablerow = ({ text }) => `<tr>${text}</tr>`;
-renderer.tablecell = ({ text, align, header }) => {
-  const tag = header ? 'th' : 'td';
-  const s = header
-    ? `padding:8px 10px;background:#f0fdf4;color:#166534;font-weight:600;border:1px solid #d1d5db;text-align:left;`
-    : `padding:8px 10px;border:1px solid #e2e8f0;text-align:left;`;
-  return `<${tag} style="${s}">${text}</${tag}>`;
-};
-renderer.strong = ({ text }) => `<strong style="color:#059669;">${text}</strong>`;
-renderer.blockquote = ({ text }) =>
-  `<blockquote style="border-left:4px solid #059669;padding:8px 16px;margin:12px 0;background:#f0fdf4;color:#166534;font-style:italic;">${text}</blockquote>`;
-renderer.hr = () => `<hr style="border:none;border-top:1px solid #e2e8f0;margin:16px 0;">`;
-marked.use({ renderer });
 
 const PARTNER_CONFIGS = {
   2: [{ id: "A", label: "合伙人 A" }, { id: "B", label: "合伙人 B" }],
@@ -86,15 +66,12 @@ export default function ChatApp() {
   const [aiFilling, setAiFilling] = useState(false);
   const [showAiFillDialog, setShowAiFillDialog] = useState(false);
   const [aiFillInput, setAiFillInput] = useState("");
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState(null);
   const formRef = useRef(null);
   const reportRef = useRef(null);
 
   // 基础表单
   const [partnerCount, setPartnerCount] = useState(2);
   const [partners, setPartners] = useState(PARTNER_CONFIGS[2].map(() => ({ name: "", capital: 0, effortType: "", responsibility: "" })));
-  const [currencyUnit, setCurrencyUnit] = useState("元");
   const [annualProfit, setAnnualProfit] = useState("");
   const [oralAgreement, setOralAgreement] = useState("");
   const [exitConcern, setExitConcern] = useState("");
@@ -159,7 +136,7 @@ export default function ChatApp() {
       const res = await fetch("/api/suggest-form", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: msg.trim(), currencyUnit }),
+        body: JSON.stringify({ message: msg.trim() }),
       });
       const data = await res.json();
       if (!res.ok || data.error) { setAiFilling(false); return; }
@@ -170,11 +147,7 @@ export default function ChatApp() {
         while (padded.length < (data.partnerCount || 2)) {
           padded.push({ name: "", capital: 0, effortType: "", responsibility: "" });
         }
-        const slice = padded.slice(0, data.partnerCount || 2);
-        // 检测是否整万，自动切万元显示
-        const allWan = slice.every(p => p.capital % 10000 === 0) && ((data.annualProfit || 0) % 10000 === 0);
-        if (allWan && slice.length > 0) setCurrencyUnit("万元");
-        setPartners(slice);
+        setPartners(padded.slice(0, data.partnerCount || 2));
       }
       if (data.annualProfit) setAnnualProfit(String(data.annualProfit));
       if (data.oralAgreement) setOralAgreement(data.oralAgreement);
@@ -195,11 +168,11 @@ export default function ChatApp() {
       partnerCount,
       partners: partners.map((p, i) => ({
         name: p.name || String.fromCharCode(65 + i),
-        capital: (Number(p.capital) || 0) * (currencyUnit === "万元" ? 10000 : 1),
+        capital: Number(p.capital) || 0,
         effortType: p.effortType,
         responsibility: p.responsibility,
       })),
-      annualProfit: (Number(annualProfit) || 0) * (currencyUnit === "万元" ? 10000 : 1),
+      annualProfit: Number(annualProfit) || 0,
       contact: contact.trim(),
     };
 
@@ -264,7 +237,7 @@ export default function ChatApp() {
           instruction: editPrompt.trim(),
           partners: partners.map((p, i) => ({
             name: p.name || String.fromCharCode(65 + i),
-            capital: (Number(p.capital) || 0) * (currencyUnit === "万元" ? 10000 : 1),
+            capital: Number(p.capital) || 0,
             effortType: p.effortType,
             responsibility: p.responsibility,
           })),
@@ -316,66 +289,24 @@ export default function ChatApp() {
     }
   };
 
-  const renderPreview = (markdown, hasUnlocked) => {
+  const renderPreview = (markdown) => {
     if (!markdown) return null;
-
-    // 已付费解锁：marked 渲染完整报告
-    if (hasUnlocked) {
-      const html = marked.parse(markdown);
-      return <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: html }} />;
-    }
-
-    // 未解锁：按行处理付费保护
     const lines = markdown.split("\n").filter(Boolean);
-    let inPaid = false, paidLinesShown = 0, maxVisible = 2;
-    const elements = [];
+    const previewLines = lines.slice(0, Math.min(lines.length, 80));
 
-    lines.forEach((line, i) => {
-      if (line.includes("<!--paid-->")) {
-        inPaid = true; paidLinesShown = 0;
-        elements.push(
-          <h3 key={i} style={{ fontSize: "1.05rem", fontWeight: 700, margin: "16px 0 8px" }}>
-            {line.replace("<!--paid-->", "").replace(/^##\s*/, "")}
-            <span style={{ fontSize: "0.7rem", color: "#d97706", marginLeft: 8, background: "#fef3c7", padding: "2px 8px", borderRadius: 4 }}>🔒 付费内容</span>
-          </h3>
-        );
-        return;
-      }
-      if (line.startsWith("## ")) { inPaid = false; elements.push(<h3 key={i} style={{ fontSize: "1.05rem", fontWeight: 700, margin: "16px 0 8px" }}>{line.replace(/^##\s*/, "")}</h3>); return; }
-      if (line.startsWith("### ")) { elements.push(<h4 key={i} style={{ fontSize: "0.95rem", fontWeight: 600, margin: "12px 0 4px", color: "#1f2937" }}>{line.replace(/^###\s*/, "")}</h4>); return; }
-
-      if (inPaid && !hasUnlocked) {
-        paidLinesShown++;
-        if (paidLinesShown <= maxVisible) {
-          const html = marked.parseInline(line.replace(/^[>-]\s*/, ''));
-          if (line.startsWith('- ')) elements.push(<li key={i} style={{ marginLeft: 16, marginBottom: 4, fontSize: "0.85rem" }} dangerouslySetInnerHTML={{ __html: html }} />);
-          else if (line.startsWith('> ')) elements.push(<blockquote key={i} style={{ borderLeft: "3px solid #059669", padding: "4px 12px", margin: "4px 0", background: "#f0fdf4", fontSize: "0.85rem" }} dangerouslySetInnerHTML={{ __html: html }} />);
-          else elements.push(<p key={i} style={{ margin: "4px 0", fontSize: "0.85rem" }} dangerouslySetInnerHTML={{ __html: html }} />);
-        } else if (paidLinesShown === maxVisible + 1) {
-          elements.push(
-            <div key={i} style={{ background: "#fef3c7", border: "1px solid #f59e0b", borderRadius: 10, padding: "14px 18px", margin: "12px 0", textAlign: "center" }}>
-              <p style={{ fontSize: "0.85rem", fontWeight: 700, color: "#92400e", marginBottom: 6 }}>🔒 付费解锁完整专业内容</p>
-              <p style={{ fontSize: "0.78rem", color: "#92400e", marginBottom: 10, lineHeight: 1.3 }}>贡献估值、五权诊断、协议条款等完整数据付费后可查看</p>
-              <button onClick={() => document.getElementById("payment-section")?.scrollIntoView({ behavior: "smooth" })}
-                style={{ padding: "10px 24px", fontSize: "0.85rem", fontWeight: 600, color: "white", background: "#059669", border: "none", borderRadius: 8, cursor: "pointer" }}>查看付费方案 →</button>
-            </div>
-          );
-        }
-        return;
-      }
-
-      // 非付费内容
-      const trimmed = line.trim();
-      if (!trimmed) return;
-      const html = marked.parseInline(trimmed);
-      if (trimmed.startsWith('- ')) elements.push(<li key={i} style={{ marginLeft: 16, marginBottom: 4, fontSize: "0.85rem" }} dangerouslySetInnerHTML={{ __html: html.replace(/^-\s*/, '') }} />);
-      else if (trimmed.startsWith('> ')) elements.push(<blockquote key={i} style={{ borderLeft: "3px solid #059669", padding: "4px 12px", margin: "4px 0", background: "#f0fdf4", fontSize: "0.85rem" }} dangerouslySetInnerHTML={{ __html: html }} />);
-      else if (trimmed.startsWith('---')) elements.push(<hr key={i} style={{ border: "none", borderTop: "1px solid #e2e8f0", margin: "16px 0" }} />);
-      else if (trimmed.startsWith('|')) elements.push(<p key={i} style={{ fontSize: "0.78rem", fontFamily: "monospace", color: "#4b5563", margin: "2px 0" }}>{trimmed}</p>);
-      else elements.push(<p key={i} style={{ margin: "4px 0", fontSize: "0.85rem" }} dangerouslySetInnerHTML={{ __html: html }} />);
-    });
-
-    return <div>{elements}</div>;
+    return (
+      <div className="prose prose-sm max-w-none">
+        {previewLines.map((line, i) => {
+          if (line.startsWith("## ")) return <h3 key={i} className="text-lg font-bold mt-4 mb-2">{line.replace("## ", "")}</h3>;
+          if (line.startsWith("### ")) return <h4 key={i} className="font-bold mt-3 mb-1">{line.replace("### ", "")}</h4>;
+          if (line.match(/^\|.*\|/)) return <p key={i} className="text-xs font-mono text-gray-600 my-1">{line}</p>;
+          if (line.startsWith("- ")) return <li key={i} className="ml-4 list-disc mb-1">{line.replace("- ", "")}</li>;
+          if (line.startsWith("> ")) return <blockquote key={i} className="border-l-4 border-blue-300 pl-3 italic text-gray-600 my-2">{line.replace("> ", "")}</blockquote>;
+          if (line.startsWith("---")) return <hr key={i} className="my-3" />;
+          return <p key={i} className="my-1">{line}</p>;
+        })}
+      </div>
+    );
   };
 
   return (
@@ -481,11 +412,7 @@ export default function ChatApp() {
                     <label style={{ fontSize: "0.8rem", color: "#777" }}>出资</label>
                     <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                       <input type="number" placeholder="0" value={partners[idx]?.capital || ""} onChange={(e) => updatePartner(idx, "capital", e.target.value)} style={{ ...inputStyle, flex: 1 }} />
-                      <select value={currencyUnit} onChange={(e) => setCurrencyUnit(e.target.value)}
-                        style={{ fontSize: "0.76rem", padding: "6px 4px", border: "1px solid #d1d5db", borderRadius: 6, background: "white", cursor: "pointer", minWidth: 55 }}>
-                        <option value="元">元</option>
-                        <option value="万元">万元</option>
-                      </select>
+                      <span style={{ fontSize: "0.8rem", color: "#999", minWidth: 20 }}>元</span>
                     </div>
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "100px 1fr", alignItems: "center", gap: 8 }}>
@@ -514,7 +441,7 @@ export default function ChatApp() {
               <label style={{ fontSize: "0.8rem", color: "#777" }}>年利润</label>
               <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                 <input type="number" placeholder="0" value={annualProfit} onChange={(e) => setAnnualProfit(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
-                <span style={{ fontSize: "0.8rem", color: "#999" }}>{currencyUnit}</span>
+                <span style={{ fontSize: "0.8rem", color: "#999" }}>元</span>
               </div>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "100px 1fr", alignItems: "center", gap: 10, marginBottom: 12 }}>
@@ -598,7 +525,7 @@ export default function ChatApp() {
             </div>
 
             <div style={{ background: "white", border: "1px solid #e2e8f0", borderRadius: 12, padding: 20, marginBottom: 16, lineHeight: 1.6, fontSize: "0.9rem" }}>
-              {result.previewMarkdown ? renderPreview(result.previewMarkdown, result.hasUnlocked) : <p style={{ color: "#888" }}>报告内容加载中...</p>}
+              {result.previewMarkdown ? renderPreview(result.previewMarkdown) : <p style={{ color: "#888" }}>报告内容加载中...</p>}
             </div>
 
             {/* 修改报告区 */}
@@ -654,54 +581,49 @@ export default function ChatApp() {
               )}
             </div>
 
-            {/* 付款转化 — 卡片式计费 */}
-            <div id="payment-section" style={{ background: "white", border: "1px solid #e2e8f0", borderRadius: 12, padding: "20px 16px", textAlign: "center" }}>
-              <h3 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: 4 }}>📋 获取完整报告</h3>
-              <p style={{ fontSize: "0.8rem", color: "#777", marginBottom: 16, lineHeight: 1.5 }}>
-                预览版已展示付费模块的前 2 行摘要<br/>完整内容含全部数据、分析和协议条款
+            {/* 付款转化 */}
+            <div style={{ background: "white", border: "1px solid #e2e8f0", borderRadius: 12, padding: 20, textAlign: "center" }}>
+              <h3 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: 6 }}>📋 获取完整报告</h3>
+              <p style={{ fontSize: "0.85rem", color: "#555", marginBottom: 16, lineHeight: 1.5 }}>
+                预览版只展示了部分内容。<br />完整版含人工审核和完整协议草稿。
               </p>
               <div style={{ display: "flex", gap: 10, flexDirection: "column" }}>
-                {/* 基础版卡片 */}
-                <div onClick={() => { setSelectedPlan("basic"); setShowPaymentModal(true); }}
-                  style={{ background: "white", border: "1px solid #d1d5db", borderRadius: 12, padding: 16, cursor: "pointer", textAlign: "left" }}>
+                <div style={{ background: "white", borderRadius: 10, padding: 12, textAlign: "left" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 700, fontSize: "0.95rem", marginBottom: 4 }}>基础版</div>
-                      <div style={{ fontSize: "0.78rem", color: "#059669", fontWeight: 600, marginBottom: 8 }}>29.9 元</div>
-                      <ul style={{ fontSize: "0.76rem", color: "#666", margin: 0, paddingLeft: 16, lineHeight: 1.7 }}>
-                        <li>完整 AI 报告含五权结构诊断</li>
-                        <li>三套分钱方案 + 利润模拟表</li>
-                        <li>基础协议条款草稿 + 协议清单</li>
-                        <li>PDF 下载可保存</li>
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: "0.95rem" }}>29.9 元 · 体验版</div>
+                      <ul style={{ fontSize: "0.78rem", color: "#666", margin: "6px 0 0", paddingLeft: 16, lineHeight: 1.6 }}>
+                        <li>完整 AI 报告（含五权诊断）</li>
+                        <li>三套分钱方案 + 利润模拟</li>
+                        <li>基础条款草稿</li>
                       </ul>
                     </div>
-                    <div style={{ fontSize: "1.3rem", color: "#059669", marginTop: 8 }}>→</div>
+                    <button onClick={() => handlePayment("full_report_29_9")}
+                      style={{ padding: "10px 20px", fontSize: "0.85rem", fontWeight: 600, color: "white", background: "#059669", border: "none", borderRadius: 8, cursor: "pointer", whiteSpace: "nowrap" }}
+                    >解锁</button>
                   </div>
                 </div>
-                {/* 人工审核版卡片 */}
-                <div onClick={() => { setSelectedPlan("reviewed"); setShowPaymentModal(true); }}
-                  style={{ background: "#fff8e1", border: "2px solid #059669", borderRadius: 12, padding: 16, cursor: "pointer", textAlign: "left" }}>
+                <div style={{ background: "#fff8e1", borderRadius: 10, padding: 12, border: "2px solid #059669", textAlign: "left" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 700, fontSize: "0.95rem", marginBottom: 4 }}>
-                        人工审核版
-                        <span style={{ fontSize: "0.65rem", background: "#059669", color: "white", padding: "2px 8px", borderRadius: 4, marginLeft: 6, verticalAlign: "middle" }}>推荐</span>
-                      </div>
-                      <div style={{ fontSize: "0.78rem", color: "#059669", fontWeight: 600, marginBottom: 8 }}>99 元</div>
-                      <ul style={{ fontSize: "0.76rem", color: "#666", margin: 0, paddingLeft: 16, lineHeight: 1.7 }}>
-                        <li>包含全部基础版权益</li>
-                        <li>人工快速审核报告一次</li>
-                        <li>可根据建议补充信息后重生成</li>
-                        <li>重点协议条款草稿 + 完整协议清单</li>
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: "0.95rem" }}>99 元 · 人工审核版 <span style={{ fontSize: "0.7rem", background: "#059669", color: "white", padding: "2px 6px", borderRadius: 4, marginLeft: 6 }}>推荐</span></div>
+                      <ul style={{ fontSize: "0.78rem", color: "#666", margin: "6px 0 0", paddingLeft: 16, lineHeight: 1.6 }}>
+                        <li>全部体验版权益</li>
+                        <li>人工快速审核一次</li>
+                        <li>可补充信息后重新生成</li>
+                        <li>重点条款草稿 + 协议清单</li>
                       </ul>
                     </div>
-                    <div style={{ fontSize: "1.3rem", color: "#059669", marginTop: 8 }}>→</div>
+                    <button onClick={() => handlePayment("reviewed_draft_99")}
+                      style={{ padding: "10px 20px", fontSize: "0.85rem", fontWeight: 600, color: "#059669", background: "white", border: "2px solid #059669", borderRadius: 8, cursor: "pointer", whiteSpace: "nowrap" }}
+                    >解锁</button>
                   </div>
                 </div>
+                <p style={{ fontSize: "0.75rem", color: "#888", marginTop: 8 }}>付款意向已记录，客服会通过微信/手机联系您</p>
               </div>
               {result.paymentRecorded && (
-                <div style={{ marginTop: 12, padding: "10px 14px", background: "#f0fdf4", borderRadius: 8, fontSize: "0.8rem", color: "#166534", border: "1px solid #a7f3d0" }}>
-                  ✅ 已记录您的选择，客服会通过您填写的联系方式联系
+                <div style={{ marginTop: 12, padding: "8px 12px", background: "rgba(255,255,255,0.7)", borderRadius: 8, fontSize: "0.8rem", color: "#166534" }}>
+                  ✅ 已记录您的选择
                 </div>
               )}
             </div>
@@ -710,54 +632,8 @@ export default function ChatApp() {
       </main>
 
       <footer style={{ textAlign: "center", padding: "16px 20px", fontSize: "0.75rem", color: "#aaa", borderTop: "1px solid #eee" }}>
-        右侧聊天可 AI 顾问辅助 · 基于真实案例数据的商业分析参考
+        右侧聊天可 AI 顾问辅助 · 仅供参考不构成法律意见
       </footer>
-
-      {/* 支付弹窗 Modal */}
-      {showPaymentModal && (
-        <div onClick={() => { setShowPaymentModal(false); setSelectedPlan(null); }}
-          style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <div onClick={(e) => e.stopPropagation()}
-            style={{ background: "white", borderRadius: 16, padding: 24, maxWidth: 360, width: "100%", boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }}>
-            
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-              <h3 style={{ fontSize: "1rem", fontWeight: 700, margin: 0 }}>{selectedPlan === "basic" ? "基础版" : "人工审核版"}</h3>
-              <button onClick={() => { setShowPaymentModal(false); setSelectedPlan(null); }}
-                style={{ background: "none", border: "none", fontSize: "1.3rem", cursor: "pointer", color: "#999", padding: "4px 8px" }}>✕</button>
-            </div>
-
-            <p style={{ fontSize: "0.8rem", color: "#555", marginBottom: 16, lineHeight: 1.5 }}>
-              {selectedPlan === "basic"
-                ? "选择基础版后请使用微信或支付宝扫码支付 29.9 元，支付完成后报告将自动解锁。"
-                : "选择人工审核版后请扫码支付 99 元，客服将审核您的报告。"}
-            </p>
-
-            <div style={{ background: "#f8fafc", borderRadius: 12, padding: 20, textAlign: "center", marginBottom: 16 }}>
-              <div style={{ fontSize: "1.4rem", fontWeight: 700, color: "#059669", marginBottom: 2 }}>
-                {selectedPlan === "basic" ? "29.9" : "99"} 元
-              </div>
-              <div style={{ fontSize: "0.75rem", color: "#888", marginBottom: 14 }}>微信 / 支付宝扫码支付</div>
-              <div style={{ background: "white", border: "2px dashed #d1d5db", borderRadius: 12, padding: 20, display: "inline-block" }}>
-                <div style={{ width: 150, height: 150, margin: "0 auto", background: "#f0fdf4", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column" }}>
-                  <span style={{ fontSize: "2.5rem" }}>📱</span>
-                  <span style={{ fontSize: "0.7rem", color: "#888", marginTop: 8 }}>扫码支付</span>
-                </div>
-              </div>
-            </div>
-
-            <div style={{ display: "flex", gap: 8 }}>
-              <button onClick={() => { setShowPaymentModal(false); setSelectedPlan(null); }}
-                style={{ flex: 1, padding: "12px 0", fontSize: "0.85rem", color: "#059669", background: "white", border: "1px solid #059669", borderRadius: 8, cursor: "pointer" }}>
-                取消
-              </button>
-              <button onClick={() => { handlePayment(selectedPlan === "basic" ? "basic" : "reviewed"); setShowPaymentModal(false); }}
-                style={{ flex: 1, padding: "12px 0", fontSize: "0.85rem", fontWeight: 600, color: "white", background: "#059669", border: "none", borderRadius: 8, cursor: "pointer" }}>
-                我已付款
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
