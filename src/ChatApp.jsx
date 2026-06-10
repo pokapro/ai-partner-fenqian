@@ -381,7 +381,7 @@ export default function ChatApp() {
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
       <header style={{ background: "#1e293b", color: "white", padding: "40px 20px 30px", textAlign: "center" }}>
-        <h1 style={{ fontSize: "1.8rem", fontWeight: 700, marginBottom: 8 }}>🤝 AI 合伙分钱诊断</h1>
+        <h1 style={{ fontSize: "1.8rem", fontWeight: 700, marginBottom: 8 }}>斯塔管理 | 🤝 AI 合伙分钱诊断</h1>
         <p style={{ fontSize: "0.95rem", opacity: 0.9, maxWidth: 500, margin: "0 auto", lineHeight: 1.6 }}>
           输入合伙人的出资、出力、利润预期，生成<strong>分钱方案 + 五权结构诊断 + 贡献估值 + 协议草稿</strong>。
         </p>
@@ -592,7 +592,7 @@ export default function ChatApp() {
         {showResult && result && (
           <div ref={reportRef} id="result-section">
             <div style={{ background: "#f0fdf4", border: "1px solid #a7f3d0", borderRadius: 10, padding: "12px 16px", marginBottom: 16, fontSize: "0.85rem", color: "#166534" }}>
-              ✅ 方案已生成
+              ✅ 方案已生成 · {new Date().toLocaleString("zh-CN", { timeZone: "Asia/Shanghai" })}
               {editHistory.length > 0 && <span style={{ marginLeft: 8, fontSize: "0.75rem", color: "#ff9800" }}>已修改 {editHistory.length} 次</span>}
               {result.caseId && <span style={{ fontSize: "0.75rem", color: "#888", marginLeft: 8 }}>ID: {result.caseId.slice(0, 8)}...</span>}
             </div>
@@ -736,12 +736,10 @@ export default function ChatApp() {
               <div style={{ fontSize: "1.4rem", fontWeight: 700, color: "#059669", marginBottom: 2 }}>
                 {selectedPlan === "basic" ? "29.9" : "99"} 元
               </div>
-              <div style={{ fontSize: "0.75rem", color: "#888", marginBottom: 14 }}>微信 / 支付宝扫码支付</div>
-              <div style={{ background: "white", border: "2px dashed #d1d5db", borderRadius: 12, padding: 20, display: "inline-block" }}>
-                <div style={{ width: 150, height: 150, margin: "0 auto", background: "#f0fdf4", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column" }}>
-                  <span style={{ fontSize: "2.5rem" }}>📱</span>
-                  <span style={{ fontSize: "0.7rem", color: "#888", marginTop: 8 }}>扫码支付</span>
-                </div>
+              <div style={{ fontSize: "0.75rem", color: "#888", marginBottom: 14 }}>微信扫码支付</div>
+              <div style={{ background: "white", border: "2px dashed #d1d5db", borderRadius: 12, padding: 12, display: "inline-block" }}>
+                <img src="/wechat-qr.png" alt="微信收款码"
+                  style={{ width: 160, height: 160, objectFit: "cover", borderRadius: 8, display: "block" }} />
               </div>
             </div>
 
