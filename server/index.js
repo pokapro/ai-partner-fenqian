@@ -41,6 +41,9 @@ app.use(express.json({ limit: '1mb' }));
 app.use(express.static(path.join(__dirname, '..', 'dist')));
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
+// 进度存储（内存 Map，不依赖 SQLite，确保异步读写正确）
+const progressStore = new Map();
+
 function validateInput(body) {
   const errors = [];
 
@@ -197,25 +200,28 @@ app.post('/api/generate', async (req, res) => {
     res.json({ caseId, progress: 0, status: 'generating' });
 
     // 异步生成报告
+    // 初始化进度到内存 Map
+    progressStore.set(caseId, 2);
+
     (async () => {
       try {
-        // 启动进度推进器：即使 AI 很快也让前端能观察到进度条
-        let progressStep = 1;
-        const progressInterval = setInterval(() => {
-          const current = db.getProgress(caseId) || 0;
-          if (current >= 75) { clearInterval(progressInterval); return; }
-          db.updateProgress(caseId, Math.min(current + progressStep, 75));
-          if (progressStep < 5) progressStep += 0.3;
-        }, 300);
+        // 进度推进器：每400ms递增，直到AI返回或到75%
+        progressStore.set(caseId, 3);
+        let pStep = 2;
+        const iv = setInterval(() => {
+          const cur = progressStore.get(caseId) || 0;
+          if (cur >= 75) { clearInterval(iv); return; }
+          progressStore.set(caseId, Math.min(cur + pStep, 75));
+          if (pStep < 6) pStep += 0.4;
+        }, 400);
 
-        db.updateProgress(caseId, 5);
         const reportMarkdown = await generateReport(req.body, db);
-        clearInterval(progressInterval);
-        db.updateProgress(caseId, 80);
+        clearInterval(iv);
+        progressStore.set(caseId, 80);
 
         const profitTable = generateProfitTable(partners);
         const fullReport = reportMarkdown + '\n\n---\n\n## 利润模拟表（系统计算）\n\n' + profitTable;
-        db.updateProgress(caseId, 90);
+        progressStore.set(caseId, 88);
 
         db.updateReport(caseId, fullReport);
 
@@ -231,10 +237,10 @@ app.post('/api/generate', async (req, res) => {
           ? protectedReport.substring(0, 6000) + '\n\n> ...（完整报告请联系客服获取）'
           : protectedReport;
 
-        db.updateProgress(caseId, 100);
+        progressStore.set(caseId, 100);
       } catch (aiErr) {
         db.updateReport(caseId, `AI 生成失败：${aiErr.message}`, 'pending_review');
-        db.updateProgress(caseId, -1); // -1 = 失败
+        progressStore.set(caseId, -1);
         console.error('Async generation error:', aiErr);
       }
     })();
@@ -245,21 +251,21 @@ app.post('/api/generate', async (req, res) => {
 });
 
 app.get('/api/progress/:caseId', (req, res) => {
-  const progress = db.getProgress(req.params.caseId);
+  const progress = progressStore.get(req.params.caseId);
   if (progress === null || progress === undefined) {
     return res.json({ progress: 0, status: 'unknown' });
   }
-  if (progress === 100) {
-    const row = db.getCaseReportSummary(req.params.caseId);
-    if (row) {
-      return res.json({ progress: 100, status: 'done', caseId: req.params.caseId, previewMarkdown: row.previewMarkdown });
+  if (progress >= 100) {
+    const summary = db.getCaseReportSummary(req.params.caseId);
+    if (summary) {
+      return res.json({ progress: 100, status: 'done', caseId: req.params.caseId, previewMarkdown: summary.previewMarkdown });
     }
     return res.json({ progress: 100, status: 'done' });
   }
   if (progress < 0) {
     return res.json({ progress: 0, status: 'failed' });
   }
-  res.json({ progress, status: 'generating' });
+  res.json({ progress: Math.round(progress), status: 'generating' });
 });
 
 app.get('/api/cases', requireAdminToken, (req, res) => {
