@@ -278,10 +278,10 @@ export default function ChatApp() {
           else if (pct < 60) setProgressLabel("正在生成诊断报告...");
           else if (pct < 80) setProgressLabel("正在生成分钱方案...");
           else if (pct < 100) setProgressLabel("正在整理最终报告...");
-          setTimeout(poll, 800);
+          setTimeout(poll, 500);
         } catch (e) {
           // 重试
-          setTimeout(poll, 1500);
+          setTimeout(poll, 1000);
         }
       };
       poll();

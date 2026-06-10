@@ -199,8 +199,18 @@ app.post('/api/generate', async (req, res) => {
     // 异步生成报告
     (async () => {
       try {
-        db.updateProgress(caseId, 10);
+        // 启动进度推进器：即使 AI 很快也让前端能观察到进度条
+        let progressStep = 1;
+        const progressInterval = setInterval(() => {
+          const current = db.getProgress(caseId) || 0;
+          if (current >= 75) { clearInterval(progressInterval); return; }
+          db.updateProgress(caseId, Math.min(current + progressStep, 75));
+          if (progressStep < 5) progressStep += 0.3;
+        }, 300);
+
+        db.updateProgress(caseId, 5);
         const reportMarkdown = await generateReport(req.body, db);
+        clearInterval(progressInterval);
         db.updateProgress(caseId, 80);
 
         const profitTable = generateProfitTable(partners);
