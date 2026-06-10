@@ -277,7 +277,7 @@ export default function ChatApp() {
           if (pct < 20) setProgressLabel("正在分析合伙信息...");
           else if (pct < 40) setProgressLabel("正在匹配参考案例...");
           else if (pct < 60) setProgressLabel("正在生成诊断报告...");
-          else if (pct < 80) setProgressLabel("正在生成分钱方案​...");
+          else if (pct < 80) setProgressLabel("正在生成分钱方案...");
           else if (pct < 100) setProgressLabel("正在整理最终报告...");
           setTimeout(poll, 500);
         } catch (e) {
