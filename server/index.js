@@ -239,19 +239,8 @@ app.post('/api/generate', async (req, res) => {
         db.updateReport(caseId, fullReport);
 
         // 在前端付费模块前插入 <!--paid--> 标记
-        const paidModules = ['贡献估值表', '五权结构诊断', '协议条款草稿', '协议文件清单'];
-        let protectedReport = fullReport;
-        for (const mod of paidModules) {
-          const regex = new RegExp(`(##\\s*(?:[\\d一二三四五六七八九十]+[、.\\s]?)?\\s*${mod})`, 's');
-          protectedReport = protectedReport.replace(regex, `<!--paid-->$1`);
-        }
-
-        // showAll=true 时不截断、不加付费标记（用于豆包对比测试）
-        const previewContent = req.body.showAll ? fullReport : protectedReport;
-        const previewMarkdown = previewContent.length > 6000 && !req.body.showAll
-          ? previewContent.substring(0, 6000) + '\n\n> ...（完整报告请联系客服获取）'
-          : previewContent;
-        progressStore.set(caseId, { pct: 100, preview: previewMarkdown });
+        // 付费保护已暂时禁用（等用户指令再开启）
+        progressStore.set(caseId, { pct: 100, preview: fullReport });
       } catch (aiErr) {
         db.updateReport(caseId, `AI 生成失败：${aiErr.message}`, 'pending_review');
         progressStore.set(caseId, { pct: -1, error: aiErr.message });
@@ -341,20 +330,11 @@ app.post('/api/regenerate', async (req, res) => {
     const { regenerateReport } = require('./ai');
     const updatedReport = await regenerateReport(input);
 
-    // 重写时也插入付费保护标记
-    const paidModules = ['贡献估值表', '五权结构诊断', '协议条款草稿', '协议文件清单'];
-    let protectedReport = updatedReport;
-    for (const mod of paidModules) {
-      const regex = new RegExp(`(##\\s*(?:[\\d一二三四五六七八九十]+[、.\\s]?)?\\s*${mod})`, 's');
-      protectedReport = protectedReport.replace(regex, `<!--paid-->$1`);
-    }
-
+    // 🔒 付费保护已暂时禁用（等用户指令再开启）
     const updateStmt = db.db.prepare("UPDATE cases SET previewMarkdown = ?, fullReport = ?, updatedAt = datetime('now') WHERE caseId = ?");
-    updateStmt.run(protectedReport, protectedReport, caseId);
+    updateStmt.run(updatedReport, updatedReport, caseId);
 
-    // showAll=true 时不加付费标记
-    const finalReport = req.body.showAll ? updatedReport : protectedReport;
-    res.json({ success: true, updatedReport: finalReport });
+    res.json({ success: true, updatedReport });
   } catch (err) {
     console.error('[regenerate]', err);
     res.status(500).json({ error: 'server_error', message: err.message || '修改失败' });

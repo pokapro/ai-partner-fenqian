@@ -441,46 +441,13 @@ export default function ChatApp() {
     // 未解锁：按章节瀑布渲染
     const chapters = chaptersRef.current;
     return <div>{chapters.slice(0, visibleChapters).map((ch, idx) => {
-      const isPaid = ch.includes('<!--paid-->');
-      const moduleTitle = ch.split('\n')[0].replace(/^##\s*/, '');
       const lines = ch.split('\n').filter(Boolean);
-      let inPaid = false, paidLinesShown = 0, maxVisible = 2;
       const elements = [];
-
+      
       lines.forEach((line, i) => {
-        if (line.includes('<!--paid-->')) {
-          inPaid = true; paidLinesShown = 0;
-          elements.push(
-            <h3 key={i} style={{ fontSize: '1.05rem', fontWeight: 700, margin: '16px 0 8px' }}>
-              {line.replace('<!--paid-->', '').replace(/^##\s*/, '')}
-              <span style={{ fontSize: '0.7rem', color: '#d97706', marginLeft: 8, background: '#fef3c7', padding: '2px 8px', borderRadius: 4 }}>🔒 付费内容</span>
-            </h3>
-          );
-          return;
-        }
-        if (line.startsWith('## ')) { inPaid = false; elements.push(<h3 key={i} style={{ fontSize: '1.05rem', fontWeight: 700, margin: '16px 0 8px' }}>{line.replace(/^##\s*/, '')}</h3>); return; }
+        if (line.startsWith('## ')) { elements.push(<h3 key={i} style={{ fontSize: '1.05rem', fontWeight: 700, margin: '16px 0 8px' }}>{line.replace(/^##\s*/, '')}</h3>); return; }
         if (line.startsWith('### ')) { elements.push(<h4 key={i} style={{ fontSize: '0.95rem', fontWeight: 600, margin: '12px 0 4px', color: '#1f2937' }}>{line.replace(/^###\s*/, '')}</h4>); return; }
-
-        if (inPaid) {
-          paidLinesShown++;
-          if (paidLinesShown <= maxVisible) {
-            const html = sanitizeHtml(marked.parseInline(line.replace(/^[>-]\s*/, '')));
-            if (line.startsWith('- ')) elements.push(<li key={i} style={{ marginLeft: 16, marginBottom: 4, fontSize: '0.85rem' }} dangerouslySetInnerHTML={{ __html: html }} />);
-            else if (line.startsWith('> ')) elements.push(<blockquote key={i} style={{ borderLeft: '3px solid #059669', padding: '4px 12px', margin: '4px 0', background: '#f0fdf4', fontSize: '0.85rem' }} dangerouslySetInnerHTML={{ __html: html }} />);
-            else elements.push(<p key={i} style={{ margin: '4px 0', fontSize: '0.85rem' }} dangerouslySetInnerHTML={{ __html: html }} />);
-          } else if (paidLinesShown === maxVisible + 1) {
-            elements.push(
-              <div key={i} style={{ background: '#fef3c7', border: '1px solid #f59e0b', borderRadius: 10, padding: '14px 18px', margin: '12px 0', textAlign: 'center' }}>
-                <p style={{ fontSize: '0.85rem', fontWeight: 700, color: '#92400e', marginBottom: 6 }}>🔒 付费解锁完整专业内容</p>
-                <p style={{ fontSize: '0.78rem', color: '#92400e', marginBottom: 10, lineHeight: 1.3 }}>贡献估值、五权诊断、协议条款等完整数据付费后可查看</p>
-                <button onClick={() => document.getElementById('payment-section')?.scrollIntoView({ behavior: 'smooth' })}
-                  style={{ padding: '10px 24px', fontSize: '0.85rem', fontWeight: 600, color: 'white', background: '#059669', border: 'none', borderRadius: 8, cursor: 'pointer' }}>查看付费方案 →</button>
-              </div>
-            );
-          }
-          return;
-        }
-
+        
         const trimmed = line.trim();
         if (!trimmed) return;
         const html = sanitizeHtml(marked.parseInline(trimmed));
@@ -873,7 +840,7 @@ export default function ChatApp() {
             <div id="payment-section" style={{ background: "white", border: "1px solid #e2e8f0", borderRadius: 12, padding: "20px 16px", textAlign: "center" }}>
               <h3 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: 4 }}>📋 获取完整报告</h3>
               <p style={{ fontSize: "0.8rem", color: "#777", marginBottom: 16, lineHeight: 1.5 }}>
-                预览版已展示付费模块的前 2 行摘要<br/>完整内容含全部数据、分析和协议条款
+                完整报告已生成，含全部数据、分析和协议条款
               </p>
               <div style={{ display: "flex", gap: 10, flexDirection: "column" }}>
                 {/* 基础版卡片 */}
