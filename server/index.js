@@ -489,8 +489,11 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', time: new Date().toISOString(), provider: process.env.AI_PROVIDER || 'ollama', version: '0.4.3' });
 });
 
-// === Admin Whitelist DB ===
+// === Admin Whitelist DB (首次启动自动初始化默认管理员) ===
 const WHITELIST_DB = path.join(__dirname, '..', 'data', 'admin_whitelist.json');
+const DEFAULT_ADMINS = [
+  { username: 'admin', password: 'afu_admin_2026', role: 'admin', created_at: '2026-06-11T00:00:00.000Z' }
+];
 
 function loadWhitelist() {
   try { return JSON.parse(require('fs').readFileSync(WHITELIST_DB, 'utf-8')); } catch { return []; }
@@ -498,6 +501,14 @@ function loadWhitelist() {
 function saveWhitelist(list) {
   require('fs').writeFileSync(WHITELIST_DB, JSON.stringify(list, null, 2));
 }
+function ensureWhitelist() {
+  const list = loadWhitelist();
+  if (list.length === 0) {
+    saveWhitelist(DEFAULT_ADMINS);
+  }
+}
+// 初始化白名单
+ensureWhitelist();
 
 // GET whitelist
 app.get('/api/admin/whitelist', requireAdminToken, (req, res) => {
