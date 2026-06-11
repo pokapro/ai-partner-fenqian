@@ -1,5 +1,7 @@
-import { useState, useRef } from "react";
-import { marked } from "marked";
+import { useState, useRef, useEffect } from "react";
+
+// marked 从 CDN 的 window.marked 引用，避免与 CopilotKit/mermaid 的 marked 版本冲突
+const marked = window.marked;
 
 // HTML 净化函数：移除 script 标签和事件处理器（防止 XSS）
 function sanitizeHtml(html) {
