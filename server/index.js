@@ -35,6 +35,19 @@ const { createCopilotKitHandler: setupCopilotKit } = require('./copilotkit');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// API 请求频率限制（防止滥用 + API 费用爆炸）
+const rateLimit = require('express-rate-limit');
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  message: { error: 'rate_limit', message: '请求太频繁，请稍后再试。' },
+  standardHeaders: true,
+  legacyHeaders: false
+});
+app.use('/api/generate', apiLimiter);
+app.use('/api/suggest-form', apiLimiter);
+app.use('/api/regenerate', apiLimiter);
+
 app.use(cors());
 app.use(express.json({ limit: '1mb' }));
 // Serve built frontend (Vite build → dist), fallback to legacy public/
@@ -258,6 +271,12 @@ app.get('/api/progress/:caseId', (req, res) => {
     return res.json({ progress: 0, status: 'unknown' });
   }
   if (typeof entry === 'object' && entry.pct === 100) {
+    // 完成后的条目 60 秒后自动清理（防止内存泄漏）
+    if (!progressStore._cleanupTimers) progressStore._cleanupTimers = new Map();
+    if (!progressStore._cleanupTimers.has(req.params.caseId)) {
+      const timer = setTimeout(() => { progressStore.delete(req.params.caseId); progressStore._cleanupTimers.delete(req.params.caseId); }, 60000);
+      progressStore._cleanupTimers.set(req.params.caseId, timer);
+    }
     return res.json({ progress: 100, status: 'done', caseId: req.params.caseId, previewMarkdown: entry.preview });
   }
   if (typeof entry === 'number' && entry >= 100) {
@@ -322,8 +341,16 @@ app.post('/api/regenerate', async (req, res) => {
     const { regenerateReport } = require('./ai');
     const updatedReport = await regenerateReport(input);
 
+    // 重写时也插入付费保护标记
+    const paidModules = ['贡献估值表', '五权结构诊断', '协议条款草稿', '协议文件清单'];
+    let protectedReport = updatedReport;
+    for (const mod of paidModules) {
+      const regex = new RegExp(`(##\\s*(?:[\\d一二三四五六七八九十]+[、.\\s]?)?\\s*${mod})`, 's');
+      protectedReport = protectedReport.replace(regex, `<!--paid-->$1`);
+    }
+
     const updateStmt = db.db.prepare("UPDATE cases SET previewMarkdown = ?, fullReport = ?, updatedAt = datetime('now') WHERE caseId = ?");
-    updateStmt.run(updatedReport, updatedReport, caseId);
+    updateStmt.run(protectedReport, protectedReport, caseId);
 
     res.json({ success: true, updatedReport });
   } catch (err) {

@@ -1,6 +1,14 @@
 import { useState, useRef } from "react";
 import { marked } from "marked";
 
+// HTML 净化函数：移除 script 标签和事件处理器（防止 XSS）
+function sanitizeHtml(html) {
+  return html
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/\son\w+\s*=\s*"[^"]*"/gi, '')
+    .replace(/\son\w+\s*=\s*'[^']*'/gi, '');
+}
+
 // 配置 marked 格式
 marked.setOptions({ breaks: true, gfm: true });
 const renderer = new marked.Renderer();
@@ -364,7 +372,7 @@ export default function ChatApp() {
 
     // 已付费解锁：marked 渲染完整报告
     if (hasUnlocked) {
-      const html = marked.parse(markdown);
+      const html = sanitizeHtml(marked.parse(markdown));
       return <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: html }} />;
     }
 
@@ -390,7 +398,7 @@ export default function ChatApp() {
       if (inPaid && !hasUnlocked) {
         paidLinesShown++;
         if (paidLinesShown <= maxVisible) {
-          const html = marked.parseInline(line.replace(/^[>-]\s*/, ''));
+          const html = sanitizeHtml(marked.parseInline(line.replace(/^[>-]\s*/, '')));
           if (line.startsWith('- ')) elements.push(<li key={i} style={{ marginLeft: 16, marginBottom: 4, fontSize: "0.85rem" }} dangerouslySetInnerHTML={{ __html: html }} />);
           else if (line.startsWith('> ')) elements.push(<blockquote key={i} style={{ borderLeft: "3px solid #059669", padding: "4px 12px", margin: "4px 0", background: "#f0fdf4", fontSize: "0.85rem" }} dangerouslySetInnerHTML={{ __html: html }} />);
           else elements.push(<p key={i} style={{ margin: "4px 0", fontSize: "0.85rem" }} dangerouslySetInnerHTML={{ __html: html }} />);
@@ -410,7 +418,7 @@ export default function ChatApp() {
       // 非付费内容
       const trimmed = line.trim();
       if (!trimmed) return;
-      const html = marked.parseInline(trimmed);
+      const html = sanitizeHtml(marked.parseInline(trimmed));
       if (trimmed.startsWith('- ')) elements.push(<li key={i} style={{ marginLeft: 16, marginBottom: 4, fontSize: "0.85rem" }} dangerouslySetInnerHTML={{ __html: html.replace(/^-\s*/, '') }} />);
       else if (trimmed.startsWith('> ')) elements.push(<blockquote key={i} style={{ borderLeft: "3px solid #059669", padding: "4px 12px", margin: "4px 0", background: "#f0fdf4", fontSize: "0.85rem" }} dangerouslySetInnerHTML={{ __html: html }} />);
       else if (trimmed.startsWith('---')) elements.push(<hr key={i} style={{ border: "none", borderTop: "1px solid #e2e8f0", margin: "16px 0" }} />);
