@@ -486,7 +486,7 @@ app.post('/api/admin/cases/:id/promote', requireAdminToken, (req, res) => {
 });
 
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', time: new Date().toISOString(), provider: process.env.AI_PROVIDER || 'ollama', version: '0.4.0' });
+  res.json({ status: 'ok', time: new Date().toISOString(), provider: process.env.AI_PROVIDER || 'ollama', version: '0.4.2' });
 });
 
 // SPA fallback: serve index.html for non-API routes

@@ -89,7 +89,7 @@ function QArea({ label, current, setter }) {
   );
 }
 
-const APP_VERSION = 'v0.4.1-pb'; // 进度条版本，强制hash刷新
+const APP_VERSION = 'v0.4.2-waterfall'; // 瀑布式回复+AI思考动画
 export default function ChatApp() {
   // AI一键填表
   const [aiFilling, setAiFilling] = useState(false);
@@ -267,12 +267,23 @@ export default function ChatApp() {
           if (pData.status === 'done') {
             setProgress(100);
             setProgressLabel("生成完成");
-            // 直接使用后端返回的 previewMarkdown
-            setResult({ caseId, previewMarkdown: pData.previewMarkdown, hasUnlocked: false, status: 'pending_review' });
+            // 瀑布式展示：先存储完整markdown供章节拆分
+            const fullMd = pData.previewMarkdown || '';
+            const chapters = splitChapters(fullMd);
+            chaptersRef.current = chapters;
+            setResult({ caseId, previewMarkdown: fullMd, hasUnlocked: false, status: 'pending_review' });
             setShowResult(true);
             setGenerating(false);
+            setVisibleChapters(0);
             setEditHistory([]);
-            setTimeout(() => { reportRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }); }, 150);
+            // 瀑布触发：渐进展示段落
+            const timer = setInterval(() => {
+              setVisibleChapters((prev) => {
+                if (prev >= chapters.length) { clearInterval(timer); return prev; }
+                return prev + 1;
+              });
+            }, 280);
+            setTimeout(() => { reportRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }); }, 300);
             return;
           }
           if (pData.status === 'failed') {
@@ -370,67 +381,132 @@ export default function ChatApp() {
   const renderPreview = (markdown, hasUnlocked) => {
     if (!markdown) return null;
 
-    // 已付费解锁：marked 渲染完整报告
+    // 已付费解锁：marked 渲染完整报告（带瀑布效果）
     if (hasUnlocked) {
-      const html = sanitizeHtml(marked.parse(markdown));
-      return <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: html }} />;
+      const chapters = splitChapters(markdown);
+      return <div>{chapters.slice(0, Math.max(visibleChapters, chapters.length)).map((ch, i) => (
+        <div key={i} className="waterfall-item" style={{ animationDelay: `${i * 0.05}s` }}>
+          <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: sanitizeHtml(marked.parse(ch)) }} />
+        </div>
+      ))}</div>;
     }
 
-    // 未解锁：按行处理付费保护
-    const lines = markdown.split("\n").filter(Boolean);
-    let inPaid = false, paidLinesShown = 0, maxVisible = 2;
-    const elements = [];
+    // 未解锁：按章节瀑布渲染
+    const chapters = chaptersRef.current;
+    return <div>{chapters.slice(0, visibleChapters).map((ch, idx) => {
+      const isPaid = ch.includes('<!--paid-->');
+      const moduleTitle = ch.split('\n')[0].replace(/^##\s*/, '');
+      const lines = ch.split('\n').filter(Boolean);
+      let inPaid = false, paidLinesShown = 0, maxVisible = 2;
+      const elements = [];
 
-    lines.forEach((line, i) => {
-      if (line.includes("<!--paid-->")) {
-        inPaid = true; paidLinesShown = 0;
-        elements.push(
-          <h3 key={i} style={{ fontSize: "1.05rem", fontWeight: 700, margin: "16px 0 8px" }}>
-            {line.replace("<!--paid-->", "").replace(/^##\s*/, "")}
-            <span style={{ fontSize: "0.7rem", color: "#d97706", marginLeft: 8, background: "#fef3c7", padding: "2px 8px", borderRadius: 4 }}>🔒 付费内容</span>
-          </h3>
-        );
-        return;
-      }
-      if (line.startsWith("## ")) { inPaid = false; elements.push(<h3 key={i} style={{ fontSize: "1.05rem", fontWeight: 700, margin: "16px 0 8px" }}>{line.replace(/^##\s*/, "")}</h3>); return; }
-      if (line.startsWith("### ")) { elements.push(<h4 key={i} style={{ fontSize: "0.95rem", fontWeight: 600, margin: "12px 0 4px", color: "#1f2937" }}>{line.replace(/^###\s*/, "")}</h4>); return; }
-
-      if (inPaid && !hasUnlocked) {
-        paidLinesShown++;
-        if (paidLinesShown <= maxVisible) {
-          const html = sanitizeHtml(marked.parseInline(line.replace(/^[>-]\s*/, '')));
-          if (line.startsWith('- ')) elements.push(<li key={i} style={{ marginLeft: 16, marginBottom: 4, fontSize: "0.85rem" }} dangerouslySetInnerHTML={{ __html: html }} />);
-          else if (line.startsWith('> ')) elements.push(<blockquote key={i} style={{ borderLeft: "3px solid #059669", padding: "4px 12px", margin: "4px 0", background: "#f0fdf4", fontSize: "0.85rem" }} dangerouslySetInnerHTML={{ __html: html }} />);
-          else elements.push(<p key={i} style={{ margin: "4px 0", fontSize: "0.85rem" }} dangerouslySetInnerHTML={{ __html: html }} />);
-        } else if (paidLinesShown === maxVisible + 1) {
+      lines.forEach((line, i) => {
+        if (line.includes('<!--paid-->')) {
+          inPaid = true; paidLinesShown = 0;
           elements.push(
-            <div key={i} style={{ background: "#fef3c7", border: "1px solid #f59e0b", borderRadius: 10, padding: "14px 18px", margin: "12px 0", textAlign: "center" }}>
-              <p style={{ fontSize: "0.85rem", fontWeight: 700, color: "#92400e", marginBottom: 6 }}>🔒 付费解锁完整专业内容</p>
-              <p style={{ fontSize: "0.78rem", color: "#92400e", marginBottom: 10, lineHeight: 1.3 }}>贡献估值、五权诊断、协议条款等完整数据付费后可查看</p>
-              <button onClick={() => document.getElementById("payment-section")?.scrollIntoView({ behavior: "smooth" })}
-                style={{ padding: "10px 24px", fontSize: "0.85rem", fontWeight: 600, color: "white", background: "#059669", border: "none", borderRadius: 8, cursor: "pointer" }}>查看付费方案 →</button>
-            </div>
+            <h3 key={i} style={{ fontSize: '1.05rem', fontWeight: 700, margin: '16px 0 8px' }}>
+              {line.replace('<!--paid-->', '').replace(/^##\s*/, '')}
+              <span style={{ fontSize: '0.7rem', color: '#d97706', marginLeft: 8, background: '#fef3c7', padding: '2px 8px', borderRadius: 4 }}>🔒 付费内容</span>
+            </h3>
           );
+          return;
         }
-        return;
-      }
+        if (line.startsWith('## ')) { inPaid = false; elements.push(<h3 key={i} style={{ fontSize: '1.05rem', fontWeight: 700, margin: '16px 0 8px' }}>{line.replace(/^##\s*/, '')}</h3>); return; }
+        if (line.startsWith('### ')) { elements.push(<h4 key={i} style={{ fontSize: '0.95rem', fontWeight: 600, margin: '12px 0 4px', color: '#1f2937' }}>{line.replace(/^###\s*/, '')}</h4>); return; }
 
-      // 非付费内容
-      const trimmed = line.trim();
-      if (!trimmed) return;
-      const html = sanitizeHtml(marked.parseInline(trimmed));
-      if (trimmed.startsWith('- ')) elements.push(<li key={i} style={{ marginLeft: 16, marginBottom: 4, fontSize: "0.85rem" }} dangerouslySetInnerHTML={{ __html: html.replace(/^-\s*/, '') }} />);
-      else if (trimmed.startsWith('> ')) elements.push(<blockquote key={i} style={{ borderLeft: "3px solid #059669", padding: "4px 12px", margin: "4px 0", background: "#f0fdf4", fontSize: "0.85rem" }} dangerouslySetInnerHTML={{ __html: html }} />);
-      else if (trimmed.startsWith('---')) elements.push(<hr key={i} style={{ border: "none", borderTop: "1px solid #e2e8f0", margin: "16px 0" }} />);
-      else if (trimmed.startsWith('|')) elements.push(<p key={i} style={{ fontSize: "0.78rem", fontFamily: "monospace", color: "#4b5563", margin: "2px 0" }}>{trimmed}</p>);
-      else elements.push(<p key={i} style={{ margin: "4px 0", fontSize: "0.85rem" }} dangerouslySetInnerHTML={{ __html: html }} />);
-    });
+        if (inPaid) {
+          paidLinesShown++;
+          if (paidLinesShown <= maxVisible) {
+            const html = sanitizeHtml(marked.parseInline(line.replace(/^[>-]\s*/, '')));
+            if (line.startsWith('- ')) elements.push(<li key={i} style={{ marginLeft: 16, marginBottom: 4, fontSize: '0.85rem' }} dangerouslySetInnerHTML={{ __html: html }} />);
+            else if (line.startsWith('> ')) elements.push(<blockquote key={i} style={{ borderLeft: '3px solid #059669', padding: '4px 12px', margin: '4px 0', background: '#f0fdf4', fontSize: '0.85rem' }} dangerouslySetInnerHTML={{ __html: html }} />);
+            else elements.push(<p key={i} style={{ margin: '4px 0', fontSize: '0.85rem' }} dangerouslySetInnerHTML={{ __html: html }} />);
+          } else if (paidLinesShown === maxVisible + 1) {
+            elements.push(
+              <div key={i} style={{ background: '#fef3c7', border: '1px solid #f59e0b', borderRadius: 10, padding: '14px 18px', margin: '12px 0', textAlign: 'center' }}>
+                <p style={{ fontSize: '0.85rem', fontWeight: 700, color: '#92400e', marginBottom: 6 }}>🔒 付费解锁完整专业内容</p>
+                <p style={{ fontSize: '0.78rem', color: '#92400e', marginBottom: 10, lineHeight: 1.3 }}>贡献估值、五权诊断、协议条款等完整数据付费后可查看</p>
+                <button onClick={() => document.getElementById('payment-section')?.scrollIntoView({ behavior: 'smooth' })}
+                  style={{ padding: '10px 24px', fontSize: '0.85rem', fontWeight: 600, color: 'white', background: '#059669', border: 'none', borderRadius: 8, cursor: 'pointer' }}>查看付费方案 →</button>
+              </div>
+            );
+          }
+          return;
+        }
 
-    return <div>{elements}</div>;
+        const trimmed = line.trim();
+        if (!trimmed) return;
+        const html = sanitizeHtml(marked.parseInline(trimmed));
+        if (trimmed.startsWith('- ')) elements.push(<li key={i} style={{ marginLeft: 16, marginBottom: 4, fontSize: '0.85rem' }} dangerouslySetInnerHTML={{ __html: html.replace(/^-\s*/, '') }} />);
+        else if (trimmed.startsWith('> ')) elements.push(<blockquote key={i} style={{ borderLeft: '3px solid #059669', padding: '4px 12px', margin: '4px 0', background: '#f0fdf4', fontSize: '0.85rem' }} dangerouslySetInnerHTML={{ __html: html }} />);
+        else if (trimmed.startsWith('---')) elements.push(<hr key={i} style={{ border: 'none', borderTop: '1px solid #e2e8f0', margin: '16px 0' }} />);
+        else if (trimmed.startsWith('|')) elements.push(<p key={i} style={{ fontSize: '0.78rem', fontFamily: 'monospace', color: '#4b5563', margin: '2px 0' }}>{trimmed}</p>);
+        else elements.push(<p key={i} style={{ margin: '4px 0', fontSize: '0.85rem' }} dangerouslySetInnerHTML={{ __html: html }} />);
+      });
+
+      return <div key={idx} className="waterfall-item" style={{ animationDelay: `${idx * 0.04}s` }}>{elements}</div>;
+    })}</div>;
   };
+
+  // 瀑布式段落分割：将报告按 ## 标题切分为段落块
+  const splitChapters = (md) => {
+    if (!md) return [];
+    const chapters = [];
+    const lines = md.split('\n');
+    let current = [];
+    lines.forEach((line) => {
+      if (line.startsWith('## ') && current.length > 0) {
+        chapters.push(current.join('\n').trim());
+        current = [line];
+      } else {
+        current.push(line);
+      }
+    });
+    if (current.length > 0) chapters.push(current.join('\n').trim());
+    return chapters.filter(Boolean);
+  };
+
+  // 已展示的段落索引（用于瀑布效果）
+  const [visibleChapters, setVisibleChapters] = useState(0);
+  const chaptersRef = useRef([]);
+  useEffect(() => {
+    if (result?.previewMarkdown && chaptersRef.current.length > 0) {
+      // 重置
+      setVisibleChapters(0);
+      const timer = setInterval(() => {
+        setVisibleChapters((prev) => {
+          if (prev >= chaptersRef.current.length) {
+            clearInterval(timer);
+            return prev;
+          }
+          return prev + 1;
+        });
+      }, 300);
+      return () => clearInterval(timer);
+    }
+  }, [result?.caseId]);
 
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+      {/* 内联 CSS */}
+      <style>{`
+        @keyframes think-bounce {
+          0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+          40% { transform: scale(1); opacity: 1; }
+        }
+        .think-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #a7f3d0; animation: think-bounce 1.4s ease-in-out infinite both; }
+        .think-dot:nth-child(1) { animation-delay: -0.32s; }
+        .think-dot:nth-child(2) { animation-delay: -0.16s; }
+        .think-dot:nth-child(3) { animation-delay: 0s; }
+
+        @keyframes waterfall-in {
+          from { opacity: 0; transform: translateY(12px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .waterfall-item {
+          animation: waterfall-in 0.4s ease-out both;
+        }
+      `}</style>
       <header style={{ background: "#1e293b", color: "white", padding: "40px 20px 30px", textAlign: "center" }}>
         <h1 style={{ fontSize: "1.8rem", fontWeight: 700, marginBottom: 8 }}>斯塔管理 | 🤝 AI 合伙分钱诊断</h1>
         <p style={{ fontSize: "0.95rem", opacity: 0.9, maxWidth: 500, margin: "0 auto", lineHeight: 1.6 }}>
@@ -632,9 +708,16 @@ export default function ChatApp() {
           style={{ width: "100%", padding: generating ? "10px 0 6px" : "14px 0", fontSize: "1.05rem", fontWeight: 700, color: "white", background: generating ? "#334155" : "#334155", border: "none", borderRadius: 12, cursor: generating ? "not-allowed" : "pointer", marginBottom: 16 }}>
           {generating ? (
             <div>
-              <div style={{ marginBottom: 4 }}>{progressLabel}</div>
+              <div style={{ marginBottom: 6 }}>
+                <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>{progressLabel}</span>
+                <span style={{ marginLeft: 10 }}>
+                  <span className="think-dot"></span>
+                  <span className="think-dot" style={{ marginLeft: 4 }}></span>
+                  <span className="think-dot" style={{ marginLeft: 4 }}></span>
+                </span>
+              </div>
               <div style={{ background: "rgba(255,255,255,0.2)", borderRadius: 6, height: 10, margin: "0 20px", position: "relative", overflow: "hidden" }}>
-                <div style={{ width: `${progress}%`, background: "#a7f3d0", height: "100%", borderRadius: 6, transition: "width 0.3s ease" }}></div>
+                <div style={{ width: `${progress}%`, background: "linear-gradient(90deg, #a7f3d0, #34d399)", height: "100%", borderRadius: 6, transition: "width 0.4s ease" }}></div>
               </div>
               <div style={{ fontSize: "0.75rem", marginTop: 2, opacity: 0.8 }}>{Math.round(progress)}%</div>
             </div>
