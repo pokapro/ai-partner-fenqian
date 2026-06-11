@@ -643,7 +643,11 @@ export default function ChatApp() {
               <label style={{ fontSize: "0.8rem", color: "#777" }}>年利润</label>
               <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                 <input type="number" placeholder="0" value={annualProfit} onChange={(e) => setAnnualProfit(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
-                <span style={{ fontSize: "0.8rem", color: "#999" }}>{currencyUnit}</span>
+                <select value={currencyUnit} onChange={(e) => setCurrencyUnit(e.target.value)}
+                  style={{ fontSize: "0.76rem", padding: "6px 4px", border: "1px solid #d1d5db", borderRadius: 6, background: "white", cursor: "pointer", minWidth: 55 }}>
+                  <option value="元">元</option>
+                  <option value="万元">万元</option>
+                </select>
               </div>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "100px 1fr", alignItems: "center", gap: 10, marginBottom: 12 }}>
