@@ -125,7 +125,6 @@ export default function ChatApp() {
   const [worriesExit, setWorriesExit] = useState("");
   const [needsProtocolList, setNeedsProtocolList] = useState("");
 
-  const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
   const [showResult, setShowResult] = useState(false);

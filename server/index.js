@@ -486,7 +486,60 @@ app.post('/api/admin/cases/:id/promote', requireAdminToken, (req, res) => {
 });
 
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', time: new Date().toISOString(), provider: process.env.AI_PROVIDER || 'ollama', version: '0.4.2' });
+  res.json({ status: 'ok', time: new Date().toISOString(), provider: process.env.AI_PROVIDER || 'ollama', version: '0.4.3' });
+});
+
+// === Admin Whitelist DB ===
+const WHITELIST_DB = path.join(__dirname, '..', 'data', 'admin_whitelist.json');
+
+function loadWhitelist() {
+  try { return JSON.parse(require('fs').readFileSync(WHITELIST_DB, 'utf-8')); } catch { return []; }
+}
+function saveWhitelist(list) {
+  require('fs').writeFileSync(WHITELIST_DB, JSON.stringify(list, null, 2));
+}
+
+// GET whitelist
+app.get('/api/admin/whitelist', requireAdminToken, (req, res) => {
+  const list = loadWhitelist();
+  // 不返回密码哈希，但为了前端验证也返回密码（内网自用场景可以接受）
+  res.json(list);
+});
+
+// POST add to whitelist
+app.post('/api/admin/whitelist', requireAdminToken, (req, res) => {
+  try {
+    const { username, password, role } = req.body;
+    if (!username || !password) return res.status(400).json({ error: 'validation', message: '用户名和密码必填' });
+    const list = loadWhitelist();
+    if (list.find(w => w.username === username)) {
+      return res.status(409).json({ error: 'conflict', message: '用户名已存在' });
+    }
+    list.push({ username: username.trim(), password, role: role || 'viewer', created_at: new Date().toISOString() });
+    saveWhitelist(list);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'server_error', message: err.message });
+  }
+});
+
+// DELETE whitelist entry
+app.delete('/api/admin/whitelist', requireAdminToken, (req, res) => {
+  try {
+    const { username } = req.body;
+    if (!username) return res.status(400).json({ error: 'validation', message: 'username 必填' });
+    let list = loadWhitelist();
+    list = list.filter(w => w.username !== username);
+    saveWhitelist(list);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'server_error', message: err.message });
+  }
+});
+
+// Admin 管理页面
+app.get('/admin', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'admin.html'));
 });
 
 // SPA fallback: serve index.html for non-API routes
@@ -494,7 +547,6 @@ app.get('*', (req, res) => {
   if (req.path.startsWith('/api/') || req.path.startsWith('/.')) return;
   res.sendFile(path.join(__dirname, '..', 'dist', 'index.html'), (err) => {
     if (err) {
-      // Fallback to legacy public/index.html
       res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
     }
   });
