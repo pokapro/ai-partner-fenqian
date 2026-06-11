@@ -237,10 +237,11 @@ app.post('/api/generate', async (req, res) => {
           ? protectedReport.substring(0, 6000) + '\n\n> ...（完整报告请联系客服获取）'
           : protectedReport;
 
-        progressStore.set(caseId, 100);
+        // 把预览内容直接存到内存Map，不依赖数据库
+        progressStore.set(caseId, { pct: 100, preview: previewMarkdown });
       } catch (aiErr) {
         db.updateReport(caseId, `AI 生成失败：${aiErr.message}`, 'pending_review');
-        progressStore.set(caseId, -1);
+        progressStore.set(caseId, { pct: -1, error: aiErr.message });
         console.error('Async generation error:', aiErr);
       }
     })();
@@ -251,21 +252,27 @@ app.post('/api/generate', async (req, res) => {
 });
 
 app.get('/api/progress/:caseId', (req, res) => {
-  const progress = progressStore.get(req.params.caseId);
-  if (progress === null || progress === undefined) {
+  const entry = progressStore.get(req.params.caseId);
+  // entry 可能是数字（进行中）也可能是对象（完成）
+  if (entry === null || entry === undefined) {
     return res.json({ progress: 0, status: 'unknown' });
   }
-  if (progress >= 100) {
+  if (typeof entry === 'object' && entry.pct === 100) {
+    return res.json({ progress: 100, status: 'done', caseId: req.params.caseId, previewMarkdown: entry.preview });
+  }
+  if (typeof entry === 'number' && entry >= 100) {
+    // 兼容：如果是数字100，尝试从数据库读
     const summary = db.getCaseReportSummary(req.params.caseId);
     if (summary) {
       return res.json({ progress: 100, status: 'done', caseId: req.params.caseId, previewMarkdown: summary.previewMarkdown });
     }
     return res.json({ progress: 100, status: 'done' });
   }
-  if (progress < 0) {
+  if (typeof entry === 'number' && entry < 0) {
     return res.json({ progress: 0, status: 'failed' });
   }
-  res.json({ progress: Math.round(progress), status: 'generating' });
+  const val = typeof entry === 'object' ? (entry.pct || 0) : entry;
+  res.json({ progress: Math.round(val), status: 'generating' });
 });
 
 app.get('/api/cases', requireAdminToken, (req, res) => {
