@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>斯塔管理 · 后台 v0.4.3</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f1f5f9; color: #1e293b; }
+.header { background: #1e293b; color: white; padding: 20px 24px; display: flex; justify-content: space-between; align-items: center; }
+.header h1 { font-size: 1.3rem; font-weight: 700; }
+.header .meta { font-size: 0.8rem; opacity: .7; }
+.header-actions { display: flex; gap: 10px; align-items: center; }
+.user-badge { font-size: .75rem; background: rgba(255,255,255,.1); padding: 4px 12px; border-radius: 20px; }
+.container { max-width: 1200px; margin: 0 auto; padding: 16px; }
+
+/* === Login Page === */
+.login-page { display: flex; align-items: center; justify-content: center; min-height: 100vh; background: #0f172a; }
+.login-card { background: white; border-radius: 16px; padding: 40px 36px; width: 380px; max-width: 90vw; box-shadow: 0 20px 60px rgba(0,0,0,.3); }
+.login-card h1 { font-size: 1.4rem; margin-bottom: 4px; }
+.login-card p { font-size: .82rem; color: #64748b; margin-bottom: 24px; }
+.login-card label { display: block; font-size: .8rem; color: #475569; margin-bottom: 6px; font-weight: 500; }
+.login-card input { width: 100%; padding: 12px 14px; border: 1px solid #d1d5db; border-radius: 10px; font-size: .9rem; margin-bottom: 16px; transition: border-color .2s; }
+.login-card input:focus { outline: none; border-color: #059669; box-shadow: 0 0 0 3px rgba(5,150,105,.1); }
+.login-card button { width: 100%; padding: 12px; background: #059669; color: white; border: none; border-radius: 10px; font-size: .95rem; font-weight: 600; cursor: pointer; transition: background .2s; }
+.login-card button:hover { background: #047857; }
+.login-card button:disabled { background: #94a3b8; cursor: not-allowed; }
+.login-error { color: #dc2626; font-size: .8rem; margin-bottom: 12px; text-align: center; display: none; }
+
+/* Stats */
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.stat-card { background: white; border-radius: 10px; padding: 14px 16px; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+.stat-card .num { font-size: 1.5rem; font-weight: 700; }
+.stat-card .label { font-size: .75rem; color: #64748b; margin-top: 2px; }
+
+/* Filters */
+.filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; align-items: center; }
+.filters input,.filters select { padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: .82rem; }
+.filters input { flex: 1; min-width: 180px; }
+.filters select { min-width: 100px; }
+.filters button { padding: 8px 16px; border: none; border-radius: 8px; cursor: pointer; font-size: .82rem; }
+
+/* Tab nav */
+.tabs { display: flex; gap: 4px; margin-bottom: 16px; background: white; border-radius: 10px; padding: 4px; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+.tab { padding: 8px 18px; border-radius: 8px; cursor: pointer; font-size: .82rem; font-weight: 500; border: none; background: none; color: #64748b; transition: all .15s; }
+.tab.active { background: #059669; color: white; }
+.tab:hover:not(.active) { background: #f1f5f9; }
+
+/* Table */
+.table-wrap { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+table { width: 100%; border-collapse: collapse; font-size: .8rem; }
+th { background: #f8fafc; text-align: left; padding: 10px 12px; font-weight: 600; color: #475569; white-space: nowrap; border-bottom: 2px solid #e2e8f0; }
+td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+tr:hover { background: #f8fafc; }
+.tag { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: .7rem; font-weight: 600; }
+.tag-pending { background: #fef3c7; color: #92400e; }
+.tag-reviewed { background: #d1fae5; color: #065f46; }
+.tag-delivered { background: #dbeafe; color: #1e40af; }
+.tag-rejected { background: #fecaca; color: #991b1b; }
+.tag-paid { background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
+.tag-unpaid { background: #f1f5f9; color: #64748b; }
+.tag-admin { background: #ede9fe; color: #5b21b6; }
+
+/* Modal */
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 1000; align-items: center; justify-content: center; padding: 20px; }
+.modal-overlay.active { display: flex; }
+.modal { background: white; border-radius: 14px; max-width: 800px; width: 100%; max-height: 85vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,.15); }
+.modal-header { padding: 16px 20px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; }
+.modal-header h2 { font-size: 1rem; }
+.modal-close { background: none; border: none; font-size: 1.3rem; cursor: pointer; color: #888; padding: 4px; }
+.modal-body { padding: 20px; font-size: .82rem; line-height: 1.6; }
+.modal-body .field { margin-bottom: 10px; }
+.modal-body .field label { display: block; font-size: .72rem; color: #64748b; margin-bottom: 2px; }
+.modal-body .field .val { color: #1e293b; word-break: break-all; }
+.modal-report { white-space: pre-wrap; font-family: 'Courier New', monospace; font-size: .75rem; background: #f8fafc; padding: 12px; border-radius: 8px; max-height: 300px; overflow-y: auto; }
+.modal-footer { padding: 16px 20px; border-top: 1px solid #e2e8f0; display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; align-items: center; }
+
+/* Actions */
+.actions { display: flex; gap: 4px; }
+.actions button { padding: 4px 10px; border: none; border-radius: 6px; cursor: pointer; font-size: .72rem; }
+.btn-primary { background: #059669; color: white; font-weight: 600; }
+.btn-outline { background: white; border: 1px solid #d1d5db; color: #333; }
+.btn-sm { padding: 4px 10px; font-size: .75rem; border-radius: 6px; }
+.btn-danger { background: #dc2626; color: white; }
+.btn-warning { background: #d97706; color: white; }
+
+/* Whitemail list */
+.whitelist-form { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.whitelist-form input { padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: .82rem; flex: 1; min-width: 140px; }
+
+/* Toast */
+.toast { position: fixed; top: 20px; right: 20px; background: #1e293b; color: white; padding: 12px 20px; border-radius: 10px; font-size: .82rem; z-index: 2000; opacity: 0; transition: opacity .3s; }
+.toast.show { opacity: 1; }
+
+@media(max-width:640px) {
+  table { font-size: .72rem; }
+  th,td { padding: 6px 8px; }
+  .stats { grid-template-columns: repeat(3,1fr); }
+  .filters { flex-direction: column; }
+  .filters input { width: 100%; min-width: auto; }
+  .modal { max-width: 100%; border-radius: 0; margin: 0; max-height: 100vh; }
+  .login-card { padding: 28px 24px; }
+}
+</style>
+</head>
+<body>
+<!-- ===== LOGIN ===== -->
+<div class="login-page" id="loginPage">
+  <div class="login-card">
+    <h1>🤝 斯塔管理</h1>
+    <p>管理后台 · 请使用管理员账号登录</p>
+    <div class="login-error" id="loginError"></div>
+    <label for="loginUser">用户名</label>
+    <input id="loginUser" placeholder="输入用户名" autocomplete="username" />
+    <label for="loginPass">密码</label>
+    <input id="loginPass" type="password" placeholder="输入密码" autocomplete="current-password" />
+    <label for="loginToken">管理令牌（Token）</label>
+    <input id="loginToken" placeholder="从管理员处获取" />
+    <button id="loginBtn" onclick="handleLogin()">登录 →</button>
+  </div>
+</div>
+
+<!-- ===== DASHBOARD ===== -->
+<div id="dashboard" style="display:none">
+<div class="header">
+  <div>
+    <h1>斯塔管理 · 后台</h1>
+    <div class="meta" id="headerMeta"></div>
+  </div>
+  <div class="header-actions">
+    <span class="user-badge" id="userBadge"></span>
+    <span style="font-size:.75rem;opacity:.7" id="clock"></span>
+    <button class="btn-outline btn-sm" style="color:white;border-color:rgba(255,255,255,.3);padding:6px 14px;" onclick="handleLogout()">退出</button>
+  </div>
+</div>
+
+<div class="container">
+  <div class="stats" id="stats"></div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab active" data-tab="cases" onclick="switchTab('cases',this)">📋 案例</button>
+    <button class="tab" data-tab="whitelist" onclick="switchTab('whitelist',this)">🔐 白名单</button>
+  </div>
+
+  <!-- Tab: Cases -->
+  <div id="tab-cases">
+    <div class="filters">
+      <input id="searchInput" placeholder="搜索联系人/ID..." oninput="renderTable()" />
+      <select id="statusFilter" onchange="renderTable()">
+        <option value="">全部状态</option>
+        <option value="pending_review">待审核</option>
+        <option value="reviewed">已审核</option>
+        <option value="delivered">已交付</option>
+        <option value="rejected">已拒绝</option>
+      </select>
+      <select id="paymentFilter" onchange="renderTable()">
+        <option value="">付款(全部)</option>
+        <option value="paid">已付款</option>
+        <option value="not_paid">未付款</option>
+      </select>
+      <button class="btn-primary btn-sm" onclick="loadCases()">⟳ 刷新</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:30px">#</th>
+            <th>时间</th>
+            <th>联系人</th>
+            <th>合伙人</th>
+            <th>出资总额</th>
+            <th>年利润</th>
+            <th>审核</th>
+            <th>付款</th>
+            <th style="width:130px">操作</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+      <div id="emptyState" style="text-align:center;padding:40px;color:#94a3b8;font-size:.85rem;display:none">暂无数据</div>
+    </div>
+  </div>
+
+  <!-- Tab: Whitelist -->
+  <div id="tab-whitelist" style="display:none">
+    <div style="background:white;border-radius:12px;padding:20px;box-shadow:0 1px 3px rgba(0,0,0,.06)">
+      <h3 style="font-size:1rem;margin-bottom:12px">🔐 白名单管理</h3>
+      <p style="font-size:.8rem;color:#64748b;margin-bottom:16px">只有白名单中的用户可以通过用户名+密码登录后台。Token 由管理员统一分配。</p>
+      <div class="whitelist-form">
+        <input id="wlUser" placeholder="用户名" />
+        <input id="wlPass" type="password" placeholder="密码" />
+        <input id="wlRole" placeholder="角色 (admin/viewer)" style="width:120px;flex:none" />
+        <button class="btn-primary btn-sm" onclick="addWhitelist()">+ 添加</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>用户名</th><th>角色</th><th>添加时间</th><th style="width:60px">操作</th></tr></thead>
+          <tbody id="wlBody"></tbody>
+        </table>
+        <div id="wlEmpty" style="text-align:center;padding:30px;color:#94a3b8;font-size:.82rem">暂无白名单用户</div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modalTitle">案例详情</h2>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+    <div class="modal-footer" id="modalFooter"></div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ===== STATE =====
+let currentUser = null;
+let currentRole = 'viewer';
+let adminToken = '';
+let allCases = [];
+
+// ===== TOAST =====
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2000);
+}
+
+// ===== LOGIN =====
+function handleLogin() {
+  const user = document.getElementById('loginUser').value.trim();
+  const pass = document.getElementById('loginPass').value.trim();
+  const token = document.getElementById('loginToken').value.trim();
+  const btn = document.getElementById('loginBtn');
+  const errEl = document.getElementById('loginError');
+
+  if (!user || !pass || !token) {
+    errEl.textContent = '请填写用户名、密码和 Token';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  errEl.style.display = 'none';
+  btn.disabled = true;
+  btn.textContent = '验证中...';
+
+  // 先尝试用 token 拉取白名单数据来验证 token 是否有效
+  fetch('/api/admin/whitelist?token=' + encodeURIComponent(token))
+    .then(r => {
+      if (!r.ok) throw new Error('Token 无效');
+      return r.json();
+    })
+    .then(whitelist => {
+      const match = whitelist.find(w => w.username === user && w.password === pass);
+      if (!match) {
+        throw new Error('用户名或密码错误，或无权限访问');
+      }
+      // 登录成功
+      currentUser = user;
+      currentRole = match.role || 'viewer';
+      adminToken = token;
+      showDashboard();
+    })
+    .catch(e => {
+      errEl.textContent = e.message;
+      errEl.style.display = 'block';
+    })
+    .finally(() => {
+      btn.disabled = false;
+      btn.textContent = '登录 →';
+    });
+}
+
+function showDashboard() {
+  document.getElementById('loginPage').style.display = 'none';
+  document.getElementById('dashboard').style.display = 'block';
+  document.getElementById('userBadge').textContent = `${currentUser} · ${currentRole === 'admin' ? '管理员' : '查看者'}`;
+  // admin role可以管理白名单
+  if (currentRole !== 'admin') {
+    document.querySelector('[data-tab="whitelist"]').style.display = 'none';
+  }
+  startClock();
+  loadCases();
+}
+
+function handleLogout() {
+  currentUser = null;
+  currentRole = 'viewer';
+  adminToken = '';
+  document.getElementById('loginPage').style.display = 'flex';
+  document.getElementById('dashboard').style.display = 'none';
+  document.getElementById('loginUser').value = '';
+  document.getElementById('loginPass').value = '';
+  document.getElementById('loginToken').value = '';
+}
+
+// ===== API helper =====
+function apiCall(path, options) {
+  const url = path + (path.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(adminToken);
+  return fetch(url, { headers: { 'Content-Type': 'application/json' }, ...options }).then(r => {
+    if (!r.ok) throw new Error('请求失败');
+    return r.json();
+  });
+}
+
+// ===== CLOCK =====
+let clockInterval = null;
+function startClock() {
+  updateClock();
+  if (clockInterval) clearInterval(clockInterval);
+  clockInterval = setInterval(updateClock, 1000);
+}
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clock').textContent = now.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false });
+}
+
+// ===== TABS =====
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('[id^="tab-"]').forEach(el => el.style.display = 'none');
+  document.getElementById('tab-' + name).style.display = 'block';
+  if (name === 'whitelist') loadWhitelist();
+  if (name === 'cases') loadCases();
+}
+
+// ===== CASES =====
+function loadCases() {
+  apiCall('/api/cases').then(data => {
+    allCases = (data || []).map(c => {
+      const input = (() => { try { return JSON.parse(c.input_json || '{}'); } catch { return {}; } })();
+      const partners = input.partners || [];
+      const totalCapital = partners.reduce((s,p) => s + (Number(p.capital)||0), 0);
+      const profit = Number(input.annualProfit) || 0;
+      return { ...c, input, partners, totalCapital, profit };
+    });
+    renderStats();
+    renderTable();
+    document.getElementById('headerMeta').textContent =
+      `数据 ${allCases.length} 条 · ${currentUser} · 最后刷新 ${new Date().toLocaleTimeString('zh-CN')}`;
+  }).catch(e => toast('加载案例失败: ' + e.message));
+}
+
+function renderStats() {
+  const total = allCases.length;
+  const today = new Date().toISOString().slice(0,10);
+  const todayCount = allCases.filter(c => (c.created_at||'').startsWith(today)).length;
+  const pending = allCases.filter(c => c.review_status === 'pending_review').length;
+  const reviewedTotal = allCases.filter(c => c.review_status === 'reviewed' || c.review_status === 'delivered').length;
+  const paid = allCases.filter(c => c.payment_intent && c.payment_intent !== '').length;
+  const totalCap = allCases.reduce((s,c) => s + (c.totalCapital||0), 0);
+
+  document.getElementById('stats').innerHTML = [
+    { num: total, label: '总提交' },
+    { num: todayCount, label: '今日新增' },
+    { num: pending, label: '待审核' },
+    { num: reviewedTotal, label: '已审核', color: '#059669' },
+    { num: paid, label: '已付款', color: '#059669' },
+    { num: totalCap >= 10000 ? (totalCap/10000).toFixed(1)+'万' : '¥'+(totalCap||0), label: '出资总额' },
+  ].map(c => `<div class="stat-card"><div class="num" style="color:${c.color||'#1e293b'}">${c.num}</div><div class="label">${c.label}</div></div>`).join('');
+}
+
+function renderTable() {
+  const q = document.getElementById('searchInput').value.trim().toLowerCase();
+  const s = document.getElementById('statusFilter').value;
+  const p = document.getElementById('paymentFilter').value;
+
+  let filtered = allCases.filter(c => {
+    if (s && c.review_status !== s) return false;
+    if (p === 'paid' && !c.payment_intent) return false;
+    if (p === 'not_paid' && c.payment_intent) return false;
+    if (q && !(c.id||'').toLowerCase().includes(q) && !(c.contact||'').toLowerCase().includes(q)) return false;
+    return true;
+  }).sort((a,b) => ((b.created_at||'') > (a.created_at||'') ? 1 : -1));
+
+  document.getElementById('emptyState').style.display = filtered.length === 0 ? 'block' : 'none';
+  const tbody = document.getElementById('tableBody');
+  if (filtered.length === 0) { tbody.innerHTML = ''; return; }
+
+  tbody.innerHTML = filtered.map((c, i) => {
+    const peeps = c.partners.map(p => `${p.name||'?'}(${p.effortType||'?'})`).join('<br>');
+    const statusTag = (() => {
+      const map = { pending_review: '待审核', reviewed: '已审核', delivered: '已交付', rejected: '已拒绝' };
+      const cls = { pending_review: 'tag-pending', reviewed: 'tag-reviewed', delivered: 'tag-delivered', rejected: 'tag-rejected' };
+      return `<span class="tag ${cls[c.review_status]||'tag-pending'}">${map[c.review_status]||c.review_status}</span>`;
+    })();
+    const paidTag = c.payment_intent ? `<span class="tag tag-paid">✓ 已付款</span>` : `<span class="tag tag-unpaid">○ 未付款</span>`;
+    const canReview = currentRole === 'admin' ? `
+      <button class="btn-primary btn-sm" onclick="viewCase('${c.id}')">查看</button>
+      <button class="btn-outline btn-sm" onclick="openReview('${c.id}')">审核</button>
+    ` : `<button class="btn-primary btn-sm" onclick="viewCase('${c.id}')">查看</button>`;
+
+    return `<tr>
+      <td style="color:#94a3b8">${i+1}</td>
+      <td style="white-space:nowrap">${fmtDate(c.created_at)}</td>
+      <td>${c.contact || '-'}</td>
+      <td style="font-size:.72rem">${peeps}</td>
+      <td style="white-space:nowrap">¥${(c.totalCapital||0).toLocaleString()}</td>
+      <td style="white-space:nowrap">¥${(c.profit||0).toLocaleString()}</td>
+      <td>${statusTag}</td>
+      <td>${paidTag}</td>
+      <td><div class="actions">${canReview}</div></td>
+    </tr>`;
+  }).join('');
+}
+
+function fmtDate(s) {
+  if (!s) return '-';
+  const d = new Date(s.replace(' ','T')+'Z');
+  const now = new Date();
+  const diff = Math.floor((now - d) / 60000);
+  if (diff < 1) return '刚刚';
+  if (diff < 60) return diff + '分钟前';
+  const h = String(d.getHours()).padStart(2,'0');
+  const m = String(d.getMinutes()).padStart(2,'0');
+  return `${d.getMonth()+1}/${d.getDate()} ${h}:${m}`;
+}
+
+// ===== VIEW CASE =====
+function viewCase(id) {
+  const c = allCases.find(x => x.id === id);
+  if (!c) return toast('未找到案例');
+  const input = c.input;
+  const partnersHtml = (input.partners||[]).map((p,i) =>
+    `<div class="field"><label>合伙人${String.fromCharCode(65+i)}</label><div class="val">${p.name||'?'} · ¥${(Number(p.capital)||0).toLocaleString()} · ${p.effortType||'?'} · ${p.responsibility||'?'}</div></div>`
+  ).join('');
+  const payHtml = c.payment_intent ? `<div class="field"><label>付款记录</label><div class="val">${c.payment_intent}</div></div>` : '';
+
+  document.getElementById('modalTitle').textContent = `案例 ${id.slice(0,12)}...`;
+  document.getElementById('modalBody').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
+      <div class="field"><label>提交时间</label><div class="val">${c.created_at || '-'}</div></div>
+      <div class="field"><label>联系方式</label><div class="val">${c.contact || '-'}</div></div>
+      <div class="field"><label>审核状态</label><div class="val">${c.review_status}</div></div>
+      <div class="field"><label>审核备注</label><div class="val">${c.review_note || '-'}</div></div>
+    </div>
+    <div class="field"><label>输入JSON</label><div class="val" style="font-size:.72rem">${(()=>{try{return JSON.stringify(JSON.parse(c.input_json||'{}'),null,2)}catch{return c.input_json||'--'}})()}</div></div>
+    ${partnersHtml}
+    ${payHtml}
+    <div class="field" style="margin-top:12px"><label>报告内容</label></div>
+    <div class="modal-report">${c.report_markdown || '(无报告内容)'}</div>
+  `;
+
+  if (currentRole === 'admin') {
+    document.getElementById('modalFooter').innerHTML = `
+      <select id="reviewSelect">
+        <option value="reviewed" ${c.review_status==='reviewed'?'selected':''}>✓ 通过</option>
+        <option value="delivered" ${c.review_status==='delivered'?'selected':''}>📤 已交付</option>
+        <option value="rejected" ${c.review_status==='rejected'?'selected':''}>✕ 拒绝</option>
+      </select>
+      <input id="reviewNote" placeholder="备注" value="${c.review_note||''}" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:.78rem;width:140px" />
+      <button class="btn-primary btn-sm" onclick="submitReview('${c.id}')">提交</button>
+      <button class="btn-outline btn-sm" onclick="closeModal()">关闭</button>
+    `;
+  } else {
+    document.getElementById('modalFooter').innerHTML = `<button class="btn-outline btn-sm" onclick="closeModal()">关闭</button>`;
+  }
+
+  document.getElementById('modal').classList.add('active');
+}
+
+function closeModal() {
+  document.getElementById('modal').classList.remove('active');
+}
+
+function openReview(id) {
+  viewCase(id);
+}
+
+async function submitReview(id) {
+  const status = document.getElementById('reviewSelect').value;
+  const note = document.getElementById('reviewNote').value;
+  try {
+    await apiCall(`/api/cases/${id}/review`, {
+      method: 'PUT',
+      body: JSON.stringify({ reviewStatus: status, reviewNote: note })
+    });
+    toast('审核已提交 ✅');
+    closeModal();
+    loadCases();
+  } catch(e) {
+    toast('审核提交失败');
+  }
+}
+
+document.getElementById('modal').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+
+// ===== WHITELIST =====
+function loadWhitelist() {
+  apiCall('/api/admin/whitelist').then(data => {
+    const list = data || [];
+    if (list.length === 0) {
+      document.getElementById('wlEmpty').style.display = 'block';
+      document.getElementById('wlBody').innerHTML = '';
+      return;
+    }
+    document.getElementById('wlEmpty').style.display = 'none';
+    document.getElementById('wlBody').innerHTML = list.map(w => `
+      <tr>
+        <td>${w.username} <span class="tag tag-admin">${w.role || 'viewer'}</span></td>
+        <td>${w.role === 'admin' ? '管理员' : '查看者'}</td>
+        <td style="font-size:.72rem;color:#94a3b8">${w.created_at ? new Date(w.created_at).toLocaleString() : '-'}</td>
+        <td><button class="btn-danger btn-sm" onclick="delWhitelist('${w.username}')">删除</button></td>
+      </tr>
+    `).join('');
+  }).catch(e => toast('加载白名单失败'));
+}
+
+function addWhitelist() {
+  const user = document.getElementById('wlUser').value.trim();
+  const pass = document.getElementById('wlPass').value.trim();
+  const role = document.getElementById('wlRole').value.trim() || 'viewer';
+  if (!user || !pass) return toast('请填写用户名和密码');
+
+  apiCall('/api/admin/whitelist', {
+    method: 'POST',
+    body: JSON.stringify({ username: user, password: pass, role })
+  }).then(() => {
+    toast('添加成功 ✅');
+    document.getElementById('wlUser').value = '';
+    document.getElementById('wlPass').value = '';
+    document.getElementById('wlRole').value = '';
+    loadWhitelist();
+  }).catch(e => toast('添加失败: ' + e.message));
+}
+
+function delWhitelist(username) {
+  if (!confirm(`确定删除用户 ${username}？`)) return;
+  apiCall('/api/admin/whitelist', {
+    method: 'DELETE',
+    body: JSON.stringify({ username })
+  }).then(() => {
+    toast('删除成功');
+    loadWhitelist();
+  }).catch(e => toast('删除失败'));
+}
+
+// ===== ENTER KEY ON LOGIN =====
+document.getElementById('loginToken').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') handleLogin();
+});
+</script>
+</body>
+</html>

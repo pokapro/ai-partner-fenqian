@@ -1,5 +1,5 @@
-// System prompt for AI report generation — V0.4
-// 报告结构升级：8模块 → 10模块（新增五权结构诊断 + 贡献估值表 + 协议文件清单）
+// System prompt for AI report generation — V0.5
+// 升级：加入场景识别（夫妻档/亲友合伙/商业合伙），推荐方案策略优化，风险场景化
 
 function buildSystemPrompt() {
   return `你是一位合伙创业分钱方案顾问，服务对象是合伙创业团队（含4人以内股东）。
@@ -34,17 +34,16 @@ function buildSystemPrompt() {
 #### 一、合伙关系摘要
 用一段话概括本次合伙的全文：几人合伙、各自出资多少、出什么力、年利润预期、关键矛盾点。类似报告摘要。
 
-#### 二、核心矛盾诊断
-分析本次合伙最核心的1-3个矛盾点，例如：
-- 出资差异导致的分配不公平感
-- 全职vs兼职的出力不对等
-- 资源/技术贡献难以量化
-- 代持关系带来的控制权隐患
-- 重大事项决策权不明确
-- 退出机制缺失
-- 分红频率和留存利润比例争议
+如果判断是夫妻合伙或情侣合伙，语气应更贴心，提及"共同经营""家庭前景"等角度。
+如果是商业合伙，语气保持专业。
 
-每个矛盾点需说明"为什么这是问题"和"不解决的后果"。
+#### 二、核心矛盾诊断
+分析本次合伙最核心的1-3个矛盾点，每个矛盾点需说明"为什么这是问题"和"不解决的后果"。
+
+场景化指导：
+- 夫妻档/小店场景：注意分析"出资与分红不匹配的心理不平衡""岗位价值认知偏差""亏损承担机制缺失""退出变动无规则""经营无标准化约束"等特定矛盾
+- 三人以上商业合伙：关注控制权、决策机制、代持风险等
+- 全职+兼职组合：关注出力对等性
 
 #### 三、贡献估值表
 必须输出以下格式的贡献估值表：
@@ -58,7 +57,9 @@ function buildSystemPrompt() {
 | 风险承担 | | | | |
 | 可替代性 | | | | |
 
-每个维度用 高/中/低 或 数值（如 5/5）表示。判断列写出对比结果（如"A资金远高于B"、"B时间投入最高"）。
+每个维度用 高/中/低 表示。判断列写出对比分析结果。
+
+对于夫妻档/小本经营场景，建议补充一段"综合得分"或"维度总结"文字，帮助双方理解各自价值差异不大、各有侧重，避免引发争吵。
 
 #### 四、五权结构诊断
 必须输出以下格式的五权结构诊断表：
@@ -73,27 +74,60 @@ function buildSystemPrompt() {
 
 根据用户信息填写"当前情况"列。如果用户信息不足，在"当前情况"中注明"未提供详细信息"。"建议"列给出具体操作建议。
 
-#### 五、三套分钱方案
+对于夫妻档场景，建议在"决策权"中补充"分歧僵持时的最终拍板人"——例如经营事项以核心产能方为准，财务事项以资金管控方为准。
+
+#### 五、三套分钱方案（策略升级版）
 输出3套不同的分配方案，每套方案包含：
-- 方案名称（如：出资优先型、激励型、平衡型）
+- 方案名称（具体、好理解）
 - 方案说明（1-2句话）
 - 各合伙人分配比例（含具体百分比）
 - 适用场景
 
+**方案设计策略（重要）**：
+- 方案一：最温和的分配方案（优先保障感情/以情义优先）
+- 方案二：务实平衡方案（兼顾情义与公平，★一般作为推荐方案）
+- 方案三：最严格的方案（纯按出资或按股权比例）
+
+**夫妻档/小本经营特别规则**：
+- 不要推荐纯出资比例方案作为首选。出资差异小的（如3万vs2万），推荐55/45或50/50更合适
+- 三套方案梯度推荐（例如：50/50 → 55/45 → 60/40），让用户自己选
+- 如果双方都全职，方案要考虑认可双方的劳动价值
+
+**商业合伙/大额出资规则**：
+- 按出资比例推荐更合理
+- 三套梯度可以是：出资比例型 → 出资+激励型 → 动态调整型
+
 #### 六、利润模拟表
-分2-3档利润水平模拟各合伙人实际到手金额。
+分2-3档利润水平模拟各合伙人实际到手金额。至少包含"预期利润"和"低于预期"两档。
 
 #### 七、推荐方案与调整条件
 从三套方案中推荐一套最合适的，并说明：
-- 推荐理由
+- 推荐理由（基于场景特征：夫妻关系/小本经营/出资差异/全职属性等）
 - 调整条件（什么情况下切换到其他方案）
-- 回本优先权安排（如适用）
+- 动态微调规则（如一方缺勤打折、盈利大幅上涨后调整等）
 
-#### 八、风险清单
+#### 八、风险清单（场景化版本）
 列出至少5个风险点，每个风险点包含：
 - 风险描述
 - 触发条件
 - 应对建议
+
+**场景化指导**：
+夫妻档场景必须包含以下特定风险（选择适用者）：
+- 亏损承担无约定风险
+- 岗位价值扯皮风险（"我比你更累"心态）
+- 资金账目不透明风险
+- 一方离岗/备孕/生病等退出风险
+- 决策僵持风险
+- 采购贪腐/对账出错风险
+
+商业合伙场景必须包含：
+- 口头协议无法律效力风险
+- 控制权旁落风险
+- 代持风险
+- 竞业风险
+- 增资稀释风险
+- 退出机制缺失风险
 
 #### 九、协议条款草稿
 根据用户情况，输出以下内容的条款草稿：
@@ -104,20 +138,22 @@ function buildSystemPrompt() {
 - 行为规范
 - 竞业限制
 
-如果是普通两人/三人合伙（未注册公司），用简化版表达。
-如果是四人股东且有代持/决策权等复杂情况，参考成熟协议样本的结构输出，包括：
-- 股权代持提示
-- 重大事项67%表决
-- 任职股东与非任职股东区分
-- 红黄绿线行为约束
-- 公章与财务监督
+**场景化处理**：
+- 夫妻档/小档口：用简化版表达，通俗易懂，可直接抄写使用。包含亏损分担规则、岗位权责划分。
+- 三人以上正式合伙：用正式版格式，参考成熟协议样本。
+- 可包含"岗位职责划分"条款，明确各合伙人日常负责领域。
 
 每个条款使用正式格式，但保留占位符（____），不输出用户真实身份证信息。
 
-同时在协议条款末尾输出**协议文件清单**，列出用户下一步需要准备的协议文件（如：《股东合作协议书》《股权代持协议》《竞业限制协议》等）。
+同时在协议条款末尾输出**协议文件清单**，列出用户下一步需要准备的协议文件。
 
 #### 十、沟通话术与下一步行动
-提供2-3条可以和合伙人沟通的话术，以及建议的下一步行动（如：召开股东会、补充信息、咨询律师等）。
+
+**场景化话术**：
+- 夫妻档/亲友合伙：话术要温和走心，体现"定规则是为了保护感情和长久经营"的逻辑。示例开场白："我们一起全职开店，都是为了家里变好。之前口头对半分是初心，现在细化规则不是计较，是避免未来因为钱忙累了闹矛盾。"
+- 商业合伙：话术偏理性，强调"契约精神"和"商业规则"。示例话术："咱们把规矩定在前面，后续执行起来就不用靠人情，大家按规则做生意。"
+
+下一步行动列出3-5条可立即执行的步骤。
 
 ### 历史案例参考
 
@@ -135,11 +171,65 @@ function buildSystemPrompt() {
 
 function buildUserPrompt(input) {
   const { partnerCount, partners, expectedProfit, oralAgreement, lossConcern, exitConcern,
-          // V0.4 进阶诊断字段
           hasCompany, hasEquityRegistration, hasNomineeHolding,
           operatorPerson, financeController, decisionMaker,
           hasNonOperatingPartner, needsControlRight, worriesExit,
-          needsProtocolList } = input;
+          needsProtocolList,
+          sceneMode  // 前端传入的经营场景模式：small_biz / standard / corporate
+        } = input;
+
+  const name1 = partners[0]?.name || '甲';
+  const name2 = partners[1]?.name || '乙';
+
+  // 场景模式提示：优先使用前端指定的 sceneMode，自动推断作为备用
+  let sceneHint = '';
+  const effectiveScene = sceneMode || (() => {
+    // 自动推断逻辑（当 sceneMode 未传入时）
+    if (partnerCount >= 3) return 'corporate';
+    const capitals = partners.map(p => Number(p.capital) || 0);
+    const totalCap = capitals.reduce((a, b) => a + b, 0);
+    const allFulltime = partners.every(p => p.effortType?.includes('全职') || p.effortType === '全职');
+    const isSmallBusiness = totalCap <= 100000;
+    const responsibilityHint = partners.some(p => 
+      ['制作','出餐','收银','采购','档口','店铺','小吃','餐饮','摊位','小卖'].some(kw => 
+        (p.responsibility || '').includes(kw) || (p.effortType || '').includes(kw)
+      )
+    );
+    if (isSmallBusiness && allFulltime && (responsibilityHint || totalCap <= 60000)) return 'small_biz';
+    if (totalCap >= 200000) return 'corporate';
+    return 'standard';
+  })();
+
+  if (effectiveScene === 'small_biz') {
+    sceneHint = `
+
+## 场景模式：小店/夫妻档 🏪
+已选择「小店/夫妻档」模式。请注意以下生成规则：
+1. 三套方案梯度：50/50（温和）→ 55/45（推荐）→ 60/40（严格），**推荐方案不是纯出资比例型**
+2. 风险清单包含夫妻/亲友合伙特有风险：岗位价值扯皮、一方离岗/备孕、账目不透明、采购把关
+3. 话术要温和走心，体现"定规则是为了保护感情"
+4. 协议条款用简化版，可直接抄写使用
+5. 亏损承担、退出机制必须包含`;
+  } else if (effectiveScene === 'corporate') {
+    sceneHint = `
+
+## 场景模式：公司化合伙 🏛️
+已选择「公司化合伙」模式。请注意以下生成规则：
+1. 三套方案包含按出资比例方案，可以推纯商业逻辑的分配方案
+2. 风险清单包含竞业限制、控制权、股权稀释等专业风险
+3. 话术偏理性，强调"契约精神"
+4. 协议条款用正式版格式，包含完整决策机制和表决门槛
+5. 多人合伙时重点给出权表决机制建议`;
+  } else {
+    sceneHint = `
+
+## 场景模式：标准合伙 🏢
+已选择「标准合伙」模式。请注意以下生成规则：
+1. 三套方案覆盖出资比例型、激励型、平衡型
+2. 风险清单包含竞业、退出机制等一般商业风险
+3. 可识别全职/兼职组合场景，给出对应出力价值的分析
+4. 协议条款包含出资股权、利润分配、决策机制、退出机制、行为规范`;
+  }
 
   let partnerDesc = partners.map((p, i) => {
     return `合伙人${p.name || String.fromCharCode(65 + i)}：
@@ -162,9 +252,7 @@ function buildUserPrompt(input) {
 - 是否有人只分红不经营：${hasNonOperatingPartner !== undefined ? (hasNonOperatingPartner ? '是' : '否') : '未提供'}
 - 是否需要某一方保持控制权：${needsControlRight !== undefined ? (needsControlRight ? '是' : '否') : '未提供'}
 - 是否担心合伙人退出：${worriesExit !== undefined ? (worriesExit ? '是' : '否') : '未提供'}
-- 是否需要协议文件清单：${needsProtocolList !== undefined ? (needsProtocolList ? '是' : '否') : '未提供'}
-
-注意：如果用户提供了进阶信息，报告中的"五权结构诊断"和"风险清单"模块应充分利用这些信息做深度分析。`;
+- 是否需要协议文件清单：${needsProtocolList !== undefined ? (needsProtocolList ? '是' : '否') : '未提供'}`;
   }
 
   return `请根据以下合伙信息生成合伙关系诊断与分钱方案报告：
@@ -178,7 +266,7 @@ ${partnerDesc}
 口头约定情况：${oralAgreement || '无'}
 亏损承担担忧：${lossConcern || '无'}
 退出机制需求：${exitConcern || '无'}
-${advancedSection}
+${advancedSection}${sceneHint}
 
 请按系统指令中要求的10个模块生成完整Markdown报告。`;
 }
@@ -192,41 +280,39 @@ function buildReferenceContext(similarCases, stats) {
   lines.push('> ⚠️ 以下数据仅供参考。每个合伙情况都是独特的，请结合当前案例具体分析，切勿直接套用。');
   lines.push('');
 
-  // System statistics
-  lines.push('### 平台统计数据');
-  lines.push(`- 平台已有案例总数：${stats.totalCases} 个`);
-  lines.push(`- 已完成报告的案例：${stats.totalWithReport} 个`);
+  if (stats) {
+    lines.push('### 平台统计数据');
+    lines.push(`- 平台已有案例总数：${stats.totalCases} 个`);
+    lines.push(`- 已完成报告的案例：${stats.totalWithReport} 个`);
 
-  if (Object.keys(stats.schemeAdoption).length > 0) {
-    lines.push('- 各分配方案在已完成报告中的采纳情况：');
-    for (const [scheme, count] of Object.entries(stats.schemeAdoption)) {
-      const pct = Math.round(count / stats.totalWithReport * 100);
-      lines.push(`  - ${scheme}：${count} 次（${pct}%）`);
+    if (Object.keys(stats.schemeAdoption).length > 0) {
+      lines.push('- 各分配方案在已完成报告中的采纳情况：');
+      for (const [scheme, count] of Object.entries(stats.schemeAdoption)) {
+        const pct = Math.round(count / stats.totalWithReport * 100);
+        lines.push(`  - ${scheme}：${count} 次（${pct}%）`);
+      }
     }
   }
 
   lines.push('');
 
-  // Similar cases
   if (similarCases && similarCases.length > 0) {
     lines.push(`### 相似案例（${similarCases.length} 个）`);
-    lines.push('');
-
     similarCases.forEach((c, i) => {
+      lines.push('');
       lines.push(`**案例 ${i + 1}**：`);
       lines.push(`- 合伙人数：${c.partnerCount} 人`);
       lines.push(`- 出资金额：${c.totalCapital.toLocaleString()} 元`);
       lines.push(`- 出资模式：${c.fundingMode}`);
       lines.push(`- 出力类型：${c.effortTypes.filter(Boolean).join('、')}`);
       lines.push(`- 采用的分配方案：${c.allocationScheme}`);
-      lines.push('');
     });
   } else {
     lines.push('### 相似案例');
     lines.push('暂未找到高度相似的过往案例。您可以根据自己的具体情况选择分配方案。');
-    lines.push('');
   }
 
+  lines.push('');
   lines.push('---');
   lines.push('');
 

@@ -53,30 +53,69 @@ const EFFORT_OPTIONS = [
   { value: "资源", label: "资源/渠道" },
 ];
 
-const SCENARIOS = [
-  {
-    label: "A出20万不出力，B出5万全职",
-    data: { partnerCount: 2, partners: [
-      { name: "A", capital: 200000, effortType: "不出力", responsibility: "仅出资" },
-      { name: "B", capital: 50000, effortType: "全职运营", responsibility: "日常运营管理" },
-    ], annualProfit: 300000 },
-  },
-  {
-    label: "两人都出钱，一人全职一人兼职",
-    data: { partnerCount: 2, partners: [
-      { name: "A", capital: 100000, effortType: "全职运营", responsibility: "全面负责公司运营" },
-      { name: "B", capital: 100000, effortType: "兼职", responsibility: "周末协助管理" },
-    ], annualProfit: 200000 },
-  },
-  {
-    label: "三人合伙：资金+运营+技术",
-    data: { partnerCount: 3, partners: [
-      { name: "A", capital: 150000, effortType: "不出力", responsibility: "仅出资" },
-      { name: "B", capital: 50000, effortType: "全职运营", responsibility: "日常管理+销售" },
-      { name: "C", capital: 0, effortType: "技术", responsibility: "产品开发和技术维护" },
-    ], annualProfit: 500000 },
-  },
+// 经营场景模式
+const SCENE_MODES = [
+  { value: "small_biz", label: "🏪 小店/夫妻档", desc: "小本经营、亲友合伙，适合温和务实方案" },
+  { value: "standard", label: "🏢 标准合伙", desc: "全职+兼职组合，一般商业合伙场景" },
+  { value: "corporate", label: "🏛️ 公司化合伙", desc: "多人合伙、大额出资，适合正式商业方案" },
 ];
+
+// 场景预设（按类别分组）
+const SCENE_PRESETS = {
+  small_biz: [
+    {
+      label: "夫妻档口（3万+2万）",
+      data: { partnerCount: 2, partners: [
+        { name: "小明", capital: 30000, effortType: "全职", responsibility: "制作+出餐" },
+        { name: "小红", capital: 20000, effortType: "全职", responsibility: "收银+采购" },
+      ], annualProfit: 120000 },
+    },
+    {
+      label: "小餐饮（5万+3万）",
+      data: { partnerCount: 2, partners: [
+        { name: "A", capital: 50000, effortType: "全职", responsibility: "厨房+出品" },
+        { name: "B", capital: 30000, effortType: "全职", responsibility: "前厅+收银" },
+      ], annualProfit: 180000 },
+    },
+  ],
+  standard: [
+    {
+      label: "一人出钱一人全职",
+      data: { partnerCount: 2, partners: [
+        { name: "A", capital: 200000, effortType: "不出力", responsibility: "仅出资" },
+        { name: "B", capital: 50000, effortType: "全职运营", responsibility: "日常运营管理" },
+      ], annualProfit: 300000 },
+    },
+    {
+      label: "两人都出钱，一全职一兼职",
+      data: { partnerCount: 2, partners: [
+        { name: "A", capital: 100000, effortType: "全职运营", responsibility: "全面负责公司运营" },
+        { name: "B", capital: 100000, effortType: "兼职", responsibility: "周末协助管理" },
+      ], annualProfit: 200000 },
+    },
+  ],
+  corporate: [
+    {
+      label: "资金+运营+技术",
+      data: { partnerCount: 3, partners: [
+        { name: "A", capital: 150000, effortType: "不出力", responsibility: "仅出资" },
+        { name: "B", capital: 50000, effortType: "全职运营", responsibility: "日常管理+销售" },
+        { name: "C", capital: 0, effortType: "技术", responsibility: "产品开发和技术维护" },
+      ], annualProfit: 500000 },
+    },
+    {
+      label: "四人合伙出资",
+      data: { partnerCount: 4, partners: [
+        { name: "A", capital: 300000, effortType: "不出力", responsibility: "仅出资" },
+        { name: "B", capital: 200000, effortType: "全职运营", responsibility: "CEO+全面管理" },
+        { name: "C", capital: 100000, effortType: "兼职", responsibility: "市场拓展" },
+        { name: "D", capital: 50000, effortType: "技术", responsibility: "技术研发" },
+      ], annualProfit: 800000 },
+    },
+  ],
+};
+
+
 
 function QArea({ label, current, setter }) {
   return (
@@ -104,6 +143,7 @@ export default function ChatApp() {
 
   // 基础表单
   const [partnerCount, setPartnerCount] = useState(2);
+  const [sceneMode, setSceneMode] = useState("standard"); // small_biz / standard / corporate
   const [partners, setPartners] = useState(PARTNER_CONFIGS[2].map(() => ({ name: "", capital: 0, effortType: "", responsibility: "" })));
   const [currencyUnit, setCurrencyUnit] = useState("元");
   const [annualProfit, setAnnualProfit] = useState("");
@@ -153,6 +193,11 @@ export default function ChatApp() {
     setError("");
     setEditHistory([]);
     setShowEditDialog(false);
+  };
+
+  const applyPreset = (mode, preset) => {
+    setSceneMode(mode);
+    applyScenario(preset);
   };
 
   const handlePartnerCountChange = (count) => {
@@ -211,6 +256,7 @@ export default function ChatApp() {
 
     const body = {
       partnerCount,
+      sceneMode,
       partners: partners.map((p, i) => ({
         name: p.name || String.fromCharCode(65 + i),
         capital: (Number(p.capital) || 0) * (currencyUnit === "万元" ? 10000 : 1),
@@ -526,10 +572,29 @@ export default function ChatApp() {
               >{n} 人合伙</button>
             ))}
           </div>
-          <p style={{ fontSize: "0.75rem", color: "#999", marginBottom: 8 }}>快速填一个场景试试：</p>
+          {/* 经营场景模式选择 */}
+          <p style={{ fontSize: "0.75rem", color: "#999", marginBottom: 6 }}>选择经营类型：</p>
+          <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+            {SCENE_MODES.map((m) => (
+              <button key={m.value} onClick={() => setSceneMode(m.value)}
+                style={{
+                  flex: 1, padding: "10px 6px", fontSize: "0.75rem", lineHeight: 1.3,
+                  border: sceneMode === m.value ? "2px solid #059669" : "1px solid #d1d5db",
+                  borderRadius: 10, background: sceneMode === m.value ? "#f0fdf4" : "white",
+                  cursor: "pointer", color: sceneMode === m.value ? "#059669" : "#555",
+                  textAlign: "center",
+                }}
+              >
+                {m.label}<br/>
+                <span style={{ fontSize: "0.65rem", color: sceneMode === m.value ? "#059669" : "#999", fontWeight: 400 }}>{m.desc}</span>
+              </button>
+            ))}
+          </div>
+          {/* 按当前经营模式显示预设场景 */}
+          <p style={{ fontSize: "0.75rem", color: "#999", marginBottom: 8 }}>快速填一个{SCENE_MODES.find(m=>m.value===sceneMode)?.label.replace(/^[^\s]+\s/,'')}场景：</p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {SCENARIOS.map((s, i) => (
-              <button key={i} onClick={() => applyScenario(s)}
+            {(SCENE_PRESETS[sceneMode] || []).map((s, i) => (
+              <button key={i} onClick={() => applyPreset(sceneMode, s)}
                 style={{ padding: "8px 14px", fontSize: "0.8rem", background: "#f0fdf4", border: "1px solid #d1d5db", borderRadius: 8, cursor: "pointer", color: "#444", whiteSpace: "nowrap" }}
                 onMouseEnter={(e) => e.target.style.background = "#f1f5f9"}
                 onMouseLeave={(e) => e.target.style.background = "#f0fdf4"}
