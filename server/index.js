@@ -512,6 +512,12 @@ function ensureWhitelist() {
 // 初始化白名单
 ensureWhitelist();
 
+// 调试：确保白名单已初始化
+if (loadWhitelist().length === 0) {
+  console.error('[whitelist] WARNING: 白名单为空，强制写入默认管理员');
+  saveWhitelist(DEFAULT_ADMINS);
+}
+
 // GET whitelist
 app.get('/api/admin/whitelist', requireAdminToken, (req, res) => {
   const list = loadWhitelist();
