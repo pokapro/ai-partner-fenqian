@@ -15,13 +15,13 @@ function sanitizeHtml(html) {
 marked.setOptions({ breaks: true, gfm: true });
 const renderer = new marked.Renderer();
 renderer.table = ({ header, body }) =>
-  `<div style="overflow-x:auto;margin:8px 0;"><table style="width:100%;border-collapse:collapse;font-size:0.82rem;"><thead>${header}</thead><tbody>${body}</tbody></table></div>`;
+  `<div style="overflow-x:auto;margin:10px 0;border-radius:10px;border:1px solid #e2e8f0;background:white;"><table style="width:100%;border-collapse:collapse;font-size:0.82rem;white-space:nowrap;"><thead>${header}</thead><tbody>${body}</tbody></table></div>`;
 renderer.tablerow = ({ text }) => `<tr>${text}</tr>`;
 renderer.tablecell = ({ text, align, header }) => {
   const tag = header ? 'th' : 'td';
   const s = header
-    ? `padding:8px 10px;background:#f0fdf4;color:#166534;font-weight:600;border:1px solid #d1d5db;text-align:left;`
-    : `padding:8px 10px;border:1px solid #e2e8f0;text-align:left;`;
+    ? `padding:10px 12px;background:#f0fdf4;color:#166534;font-weight:700;font-size:0.78rem;letter-spacing:0.02em;text-align:left;white-space:nowrap;`
+    : `padding:10px 12px;border-top:1px solid #f1f5f9;text-align:left;min-width:80px;`;
   return `<${tag} style="${s}">${text}</${tag}>`;
 };
 renderer.strong = ({ text }) => `<strong style="color:#059669;">${text}</strong>`;
@@ -507,28 +507,13 @@ export default function ChatApp() {
       })}</div>;
     }
 
-    // 未解锁：按章节瀑布渲染
+    // 未解锁：整段用 marked 渲染（支持表格/blockquote等富格式）
     const chapters = chaptersRef.current;
-    return <div>{chapters.slice(0, visibleChapters).map((ch, idx) => {
-      const lines = ch.split('\n').filter(Boolean);
-      const elements = [];
-      
-      lines.forEach((line, i) => {
-        if (line.startsWith('## ')) { elements.push(<h3 key={i} style={{ fontSize: '1.05rem', fontWeight: 700, margin: '16px 0 8px' }}>{line.replace(/^##\s*/, '')}</h3>); return; }
-        if (line.startsWith('### ')) { elements.push(<h4 key={i} style={{ fontSize: '0.95rem', fontWeight: 600, margin: '12px 0 4px', color: '#1f2937' }}>{line.replace(/^###\s*/, '')}</h4>); return; }
-        
-        const trimmed = line.trim();
-        if (!trimmed) return;
-        const html = sanitizeHtml(marked.parseInline(trimmed));
-        if (trimmed.startsWith('- ')) elements.push(<li key={i} style={{ marginLeft: 16, marginBottom: 4, fontSize: '0.85rem' }} dangerouslySetInnerHTML={{ __html: html.replace(/^-\s*/, '') }} />);
-        else if (trimmed.startsWith('> ')) elements.push(<blockquote key={i} style={{ borderLeft: '3px solid #059669', padding: '4px 12px', margin: '4px 0', background: '#f0fdf4', fontSize: '0.85rem' }} dangerouslySetInnerHTML={{ __html: html }} />);
-        else if (trimmed.startsWith('---')) elements.push(<hr key={i} style={{ border: 'none', borderTop: '1px solid #e2e8f0', margin: '16px 0' }} />);
-        else if (trimmed.startsWith('|')) elements.push(<p key={i} style={{ fontSize: '0.78rem', fontFamily: 'monospace', color: '#4b5563', margin: '2px 0' }}>{trimmed}</p>);
-        else elements.push(<p key={i} style={{ margin: '4px 0', fontSize: '0.85rem' }} dangerouslySetInnerHTML={{ __html: html }} />);
-      });
-
-      return <div key={idx} className="waterfall-item" style={{ animationDelay: `${idx * 0.04}s` }}>{elements}</div>;
-    })}</div>;
+    return <div>{chapters.slice(0, visibleChapters).map((ch, idx) => (
+      <div key={idx} className="waterfall-item" style={{ animationDelay: `${idx * 0.04}s` }}>
+        <div className="prose prose-sm max-w-none" style={{ lineHeight: 1.5, fontSize: '0.85rem' }} dangerouslySetInnerHTML={{ __html: sanitizeHtml(marked.parse(ch)) }} />
+      </div>
+    ))}</div>;
   };
 
   // 瀑布式段落分割：将报告按 ## 标题切分为段落块
