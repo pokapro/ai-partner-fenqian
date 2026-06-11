@@ -425,17 +425,86 @@ export default function ChatApp() {
     }
   };
 
+  // 根据章节标题识别模块，返回卡片样式
+  const getCardStyle = (chapterText) => {
+    const firstLine = chapterText.split('\n')[0] || '';
+    if (firstLine.includes('贡献估值表')) {
+      return {
+        background: 'linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%)',
+        border: '1px solid #86efac',
+        borderRadius: 12,
+        padding: '12px 16px',
+        marginBottom: 12,
+      };
+    }
+    if (firstLine.includes('五权结构诊断')) {
+      return {
+        background: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)',
+        border: '1px solid #93c5fd',
+        borderRadius: 12,
+        padding: '12px 16px',
+        marginBottom: 12,
+      };
+    }
+    if (firstLine.includes('三套分钱方案') || firstLine.includes('利润模拟表')) {
+      return {
+        background: 'linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%)',
+        border: '1px solid #c084fc',
+        borderRadius: 12,
+        padding: '12px 16px',
+        marginBottom: 12,
+      };
+    }
+    if (firstLine.includes('风险清单')) {
+      return {
+        background: 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)',
+        border: '1px solid #fca5a5',
+        borderRadius: 12,
+        padding: '12px 16px',
+        marginBottom: 12,
+      };
+    }
+    if (firstLine.includes('协议条款草稿')) {
+      return {
+        background: '#f8fafc',
+        border: '1px solid #cbd5e1',
+        borderRadius: 12,
+        padding: '12px 16px',
+        marginBottom: 12,
+        fontFamily: 'monospace',
+      };
+    }
+    if (firstLine.includes('沟通话术')) {
+      return {
+        background: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)',
+        border: '1px solid #fdba74',
+        borderRadius: 12,
+        padding: '12px 16px',
+        marginBottom: 12,
+      };
+    }
+    return null;
+  };
+
   const renderPreview = (markdown, hasUnlocked) => {
     if (!markdown) return null;
 
     // 已付费解锁：marked 渲染完整报告（带瀑布效果）
     if (hasUnlocked) {
       const chapters = splitChapters(markdown);
-      return <div>{chapters.slice(0, Math.max(visibleChapters, chapters.length)).map((ch, i) => (
-        <div key={i} className="waterfall-item" style={{ animationDelay: `${i * 0.05}s` }}>
-          <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: sanitizeHtml(marked.parse(ch)) }} />
-        </div>
-      ))}</div>;
+      return <div>{chapters.slice(0, Math.max(visibleChapters, chapters.length)).map((ch, i) => {
+        // 识别章节类型，选择卡片样式
+        const cardStyle = getCardStyle(ch);
+        return <div key={i} className="waterfall-item" style={{ animationDelay: `${i * 0.05}s` }}>
+          {cardStyle ? (
+            <div style={cardStyle}>
+              <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: sanitizeHtml(marked.parse(ch)) }} />
+            </div>
+          ) : (
+            <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: sanitizeHtml(marked.parse(ch)) }} />
+          )}
+        </div>;
+      })}</div>;
     }
 
     // 未解锁：按章节瀑布渲染
