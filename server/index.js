@@ -246,11 +246,11 @@ app.post('/api/generate', async (req, res) => {
           protectedReport = protectedReport.replace(regex, `<!--paid-->$1`);
         }
 
-        const previewMarkdown = protectedReport.length > 6000
-          ? protectedReport.substring(0, 6000) + '\n\n> ...（完整报告请联系客服获取）'
-          : protectedReport;
-
-        // 把预览内容直接存到内存Map，不依赖数据库
+        // showAll=true 时不截断、不加付费标记（用于豆包对比测试）
+        const previewContent = req.body.showAll ? fullReport : protectedReport;
+        const previewMarkdown = previewContent.length > 6000 && !req.body.showAll
+          ? previewContent.substring(0, 6000) + '\n\n> ...（完整报告请联系客服获取）'
+          : previewContent;
         progressStore.set(caseId, { pct: 100, preview: previewMarkdown });
       } catch (aiErr) {
         db.updateReport(caseId, `AI 生成失败：${aiErr.message}`, 'pending_review');
@@ -352,7 +352,9 @@ app.post('/api/regenerate', async (req, res) => {
     const updateStmt = db.db.prepare("UPDATE cases SET previewMarkdown = ?, fullReport = ?, updatedAt = datetime('now') WHERE caseId = ?");
     updateStmt.run(protectedReport, protectedReport, caseId);
 
-    res.json({ success: true, updatedReport });
+    // showAll=true 时不加付费标记
+    const finalReport = req.body.showAll ? updatedReport : protectedReport;
+    res.json({ success: true, updatedReport: finalReport });
   } catch (err) {
     console.error('[regenerate]', err);
     res.status(500).json({ error: 'server_error', message: err.message || '修改失败' });
