@@ -499,6 +499,8 @@ function loadWhitelist() {
   try { return JSON.parse(require('fs').readFileSync(WHITELIST_DB, 'utf-8')); } catch { return []; }
 }
 function saveWhitelist(list) {
+  const dir = path.dirname(WHITELIST_DB);
+  if (!require('fs').existsSync(dir)) require('fs').mkdirSync(dir, { recursive: true });
   require('fs').writeFileSync(WHITELIST_DB, JSON.stringify(list, null, 2));
 }
 function ensureWhitelist() {
