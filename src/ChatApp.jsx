@@ -19,12 +19,14 @@ renderer.table = ({ header, body }) =>
 renderer.tablerow = ({ text }) => `<tr>${text}</tr>`;
 renderer.tablecell = ({ text, align, header }) => {
   const tag = header ? 'th' : 'td';
+  // marked v12+ 中 text 可能是对象数组，提取纯文本
+  const txt = typeof text === 'string' ? text : (typeof text === 'object' && text !== null ? String(text.tokens ? text.tokens.map(t => t.raw || t.text || '').join('') : '') : '');
   const s = header
     ? `padding:10px 12px;background:#f0fdf4;color:#166534;font-weight:700;font-size:0.78rem;letter-spacing:0.02em;text-align:left;white-space:nowrap;`
     : `padding:10px 12px;border-top:1px solid #f1f5f9;text-align:left;min-width:80px;`;
-  return `<${tag} style="${s}">${text}</${tag}>`;
+  return `<${tag} style="${s}">${txt}</${tag}>`;
 };
-renderer.strong = ({ text }) => `<strong style="color:#059669;">${text}</strong>`;
+renderer.strong = ({ text }) => `<span style="font-weight:700;">${text}</span>`;
 renderer.blockquote = ({ text }) =>
   `<blockquote style="border-left:4px solid #059669;padding:8px 16px;margin:12px 0;background:#f0fdf4;color:#166534;font-style:italic;">${text}</blockquote>`;
 renderer.hr = () => `<hr style="border:none;border-top:1px solid #e2e8f0;margin:16px 0;">`;
