@@ -11,20 +11,80 @@ function sanitizeHtml(html) {
     .replace(/\son\w+\s*=\s*'[^']*'/gi, '');
 }
 
+// 修复表格 HTML 中 marked 参数对象乱码
+function fixTables(html) {
+  // marked 18 中 tablecell/tablerow 可能输出 [object Object]
+  // 替换所有 [object Object]
+  let result = html;
+  while (result.indexOf('[object Object]') >= 0) {
+    result = result.replace('[object Object]', '');
+  }
+  // 替换 undefined
+  result = result.replace(/undefined/g, '');
+  return result;
+}
+
 // 配置 marked 格式
 marked.setOptions({ breaks: true, gfm: true });
 const renderer = new marked.Renderer();
-renderer.table = ({ header, body }) =>
-  `<div style="overflow-x:auto;margin:10px 0;border-radius:10px;border:1px solid #e2e8f0;background:white;"><table style="width:100%;border-collapse:collapse;font-size:0.82rem;white-space:nowrap;"><thead>${header}</thead><tbody>${body}</tbody></table></div>`;
-renderer.tablerow = ({ text }) => `<tr>${text}</tr>`;
+// 表格 → 卡片式布局（替代传统表格，更美观兼容）
+function stripMd(t) {
+  return String(t || '').replace(/\*\*/g, '').replace(/\*/g, '').replace(/_/g, '').replace(/~/g, '');
+}
+function extractCellText(obj) {
+  if (typeof obj === 'string') return stripMd(obj);
+  if (obj && typeof obj === 'object') {
+    // marked 18: text 是 { type: 'text', raw: 'xxx', text: 'xxx', tokens: [...] }
+    if (obj.raw) return stripMd(obj.raw);
+    if (Array.isArray(obj.tokens)) return obj.tokens.map(function(t){return t.raw||t.text||''}).join('').replace(/\*\*/g,'').replace(/\*/g,'');
+    if (obj.text) return stripMd(obj.text);
+    // 兜底：序列化
+    try { return JSON.stringify(obj).replace(/\*\*/g,'').replace(/\*/g,''); } catch(e) {}
+  }
+  return '';
+}
+
+renderer.table = ({ header, body }) => {
+  // 提取表头和数据行，用 flex 卡片布局
+  const headRows = header ? header.replace(/<tr>/g, '').replace(/<\/tr>/g, '').replace(/<th[^>]*>/g, '').replace(/<\/th>/g, '|') : '';
+  const headCells = headRows.split('|').filter(Boolean).map(h => h.trim());
+  
+  // body 中的行
+  const bodyHtml = body || '';
+  const rowMatches = [...bodyHtml.matchAll(/<tr>(.*?)<\/tr>/gs)];
+  const dataRows = rowMatches.map(m => {
+    const cells = m[1].replace(/<td[^>]*>/g, '').replace(/<\/td>/g, '|').split('|').filter(Boolean).map(c => c.trim());
+    return cells;
+  });
+  
+  // 用 HTML 表格（但是我们自己构建，绕过 marked 的 tablecell bug）
+  let html = '<div style="overflow-x:auto;margin:10px 0;border-radius:10px;border:1px solid #e2e8f0;background:white;"><table style="width:100%;border-collapse:collapse;font-size:0.82rem;white-space:nowrap;"><thead><tr>';
+  headCells.forEach(c => {
+    html += '<th style="padding:10px 12px;background:#f0fdf4;color:#166534;font-weight:700;font-size:0.78rem;letter-spacing:0.02em;text-align:left;white-space:nowrap;">' + extractCellText(c) + '</th>';
+  });
+  html += '</tr></thead><tbody>';
+  dataRows.forEach(row => {
+    html += '<tr>';
+    row.forEach(c => {
+      html += '<td style="padding:10px 12px;border-top:1px solid #f1f5f9;text-align:left;min-width:80px;">' + extractCellText(c) + '</td>';
+    });
+    html += '</tr>';
+  });
+  return html + '</tbody></table></div>';
+};
+renderer.tablerow = ({ text }) => {
+  // 不处理，由 table 接管
+  return JSON.stringify(text);
+};
 renderer.tablecell = ({ text, align, header }) => {
+  // 不处理，由 table 接管。但 marked 18 仍然会调用它构建中间 token
+  // 返回空 td/th
   const tag = header ? 'th' : 'td';
-  // marked v12+ 中 text 可能是对象数组，提取纯文本
-  const txt = typeof text === 'string' ? text : (typeof text === 'object' && text !== null ? String(text.tokens ? text.tokens.map(t => t.raw || t.text || '').join('') : '') : '');
+  const txt = extractCellText(text);
   const s = header
-    ? `padding:10px 12px;background:#f0fdf4;color:#166534;font-weight:700;font-size:0.78rem;letter-spacing:0.02em;text-align:left;white-space:nowrap;`
-    : `padding:10px 12px;border-top:1px solid #f1f5f9;text-align:left;min-width:80px;`;
-  return `<${tag} style="${s}">${txt}</${tag}>`;
+    ? 'padding:10px 12px;background:#f0fdf4;color:#166534;font-weight:700;font-size:0.78rem;letter-spacing:0.02em;text-align:left;white-space:nowrap;'
+    : 'padding:10px 12px;border-top:1px solid #f1f5f9;text-align:left;min-width:80px;';
+  return '<' + tag + ' style="' + s + '">' + txt + '</' + tag + '>';
 };
 renderer.strong = ({ text }) => `<span style="font-weight:700;">${text}</span>`;
 renderer.blockquote = ({ text }) =>
@@ -500,10 +560,10 @@ export default function ChatApp() {
         return <div key={i} className="waterfall-item" style={{ animationDelay: `${i * 0.05}s` }}>
           {cardStyle ? (
             <div style={cardStyle}>
-              <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: sanitizeHtml(marked.parse(ch)) }} />
+              <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: fixTables(sanitizeHtml(marked.parse(ch))) }} />
             </div>
           ) : (
-            <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: sanitizeHtml(marked.parse(ch)) }} />
+            <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: fixTables(sanitizeHtml(marked.parse(ch))) }} />
           )}
         </div>;
       })}</div>;
@@ -513,7 +573,7 @@ export default function ChatApp() {
     const chapters = chaptersRef.current;
     return <div>{chapters.slice(0, visibleChapters).map((ch, idx) => (
       <div key={idx} className="waterfall-item" style={{ animationDelay: `${idx * 0.04}s` }}>
-        <div className="prose prose-sm max-w-none" style={{ lineHeight: 1.5, fontSize: '0.85rem' }} dangerouslySetInnerHTML={{ __html: sanitizeHtml(marked.parse(ch)) }} />
+        <div className="prose prose-sm max-w-none" style={{ lineHeight: 1.5, fontSize: '0.85rem' }} dangerouslySetInnerHTML={{ __html: fixTables(sanitizeHtml(marked.parse(ch))) }} />
       </div>
     ))}</div>;
   };
