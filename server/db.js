@@ -52,7 +52,8 @@ async function initDb() {
 
   // 恢复备份案例数据（部署重建后 SQLite 丢失时从 JSON 恢复）
   try {
-    const backupFile = path.join(__dirname, '..', 'data', 'cases_backup.json');
+    const backupDir = path.join(process.env.HOME || '/tmp', '.fenqian-data');
+  const backupFile = path.join(backupDir, 'cases_backup.json');
     if (fs.existsSync(backupFile)) {
       const backup = JSON.parse(fs.readFileSync(backupFile, 'utf-8'));
       if (backup.cases && Array.isArray(backup.cases)) {
@@ -147,12 +148,12 @@ async function initDb() {
     fs.writeFileSync(DB_PATH, Buffer.from(data));
     // 同步备份到 JSON（部署重建后从 JSON 恢复）
     try {
-      const backupDir = path.join(__dirname, '..', 'data');
+      const backupDir2 = path.join(process.env.HOME || '/tmp', '.fenqian-data');
       const rows = [];
       const stmt = database.prepare('SELECT * FROM cases ORDER BY created_at DESC');
       while (stmt.step()) rows.push(stmt.getAsObject());
       stmt.free();
-      fs.writeFileSync(path.join(backupDir, 'cases_backup.json'), JSON.stringify({ backup_time: new Date().toISOString(), count: rows.length, cases: rows }, null, 2));
+      fs.writeFileSync(path.join(backupDir2, 'cases_backup.json'), JSON.stringify({ backup_time: new Date().toISOString(), count: rows.length, cases: rows }, null, 2));
     } catch(e) { /* silent */ }
   }
 
