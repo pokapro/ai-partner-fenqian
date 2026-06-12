@@ -227,6 +227,30 @@ let currentRole = 'viewer';
 let adminToken = '';
 let allCases = [];
 
+// ===== 页面加载时恢复登录状态 =====
+(function() {
+  const saved = localStorage.getItem('fenqian_admin_session');
+  if (saved) {
+    try {
+      const s = JSON.parse(saved);
+      if (s.adminToken && s.currentUser && s.currentRole) {
+        currentUser = s.currentUser;
+        currentRole = s.currentRole;
+        adminToken = s.adminToken;
+        // 验证 token 是否仍然有效
+        fetch('/api/admin/whitelist?token=' + encodeURIComponent(adminToken))
+          .then(r => {
+            if (r.ok) showDashboard();
+            else localStorage.removeItem('fenqian_admin_session');
+          })
+          .catch(() => localStorage.removeItem('fenqian_admin_session'));
+      }
+    } catch(e) {
+      localStorage.removeItem('fenqian_admin_session');
+    }
+  }
+})();
+
 // ===== TOAST =====
 function toast(msg) {
   const el = document.getElementById('toast');
@@ -268,6 +292,8 @@ function handleLogin() {
       currentUser = user;
       currentRole = match.role || 'viewer';
       adminToken = token;
+      // 持久化登录状态到 localStorage
+      localStorage.setItem('fenqian_admin_session', JSON.stringify({ currentUser, currentRole, adminToken }));
       showDashboard();
     })
     .catch(e => {
@@ -296,6 +322,7 @@ function handleLogout() {
   currentUser = null;
   currentRole = 'viewer';
   adminToken = '';
+  localStorage.removeItem('fenqian_admin_session');
   document.getElementById('loginPage').style.display = 'flex';
   document.getElementById('dashboard').style.display = 'none';
   document.getElementById('loginUser').value = '';
