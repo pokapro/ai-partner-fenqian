@@ -318,7 +318,7 @@ function handleLogin() {
       showDashboard();
     })
     .catch(e => {
-      errEl.textContent = e.message;
+      errEl.textContent = e.message; console.error("Login error:", e);
       errEl.style.display = 'block';
     })
     .finally(() => {
