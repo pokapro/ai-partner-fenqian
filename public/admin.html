@@ -641,7 +641,11 @@ function exportCases() { downloadWithAuth('/api/admin/export/cases'); }
 function exportOrders() { downloadWithAuth('/api/admin/export/orders'); }
 
 // ===== ENTER KEY ON LOGIN =====
-  if (e.key === 'Enter') handleLogin();
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') {
+    const loginPage = document.getElementById('loginPage');
+    if (loginPage && loginPage.style.display !== 'none') handleLogin();
+  }
 });
 </script>
 </body>
