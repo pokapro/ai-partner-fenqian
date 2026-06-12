@@ -605,22 +605,28 @@ const [result, setResult] = useState(savedResult);
   // 已展示的段落索引（用于瀑布效果）
   const [visibleChapters, setVisibleChapters] = useState(0);
   const chaptersRef = useRef([]);
-  // 页面切回时刷新报告状态
-useEffect(() => {
-  const handleVisibility = () => {
-    if (document.visibilityState === 'visible' && result?.caseId) {
-      fetch('/api/progress/' + result.caseId).then(r => r.json()).then(d => {
-        if (d.status === 'done' && d.previewMarkdown && d.previewMarkdown !== result.previewMarkdown) {
-          const updated = { caseId: result.caseId, previewMarkdown: d.previewMarkdown, hasUnlocked: d.hasUnlocked || result.hasUnlocked, status: 'done' };
-          setResult(updated);
-          try { localStorage.setItem('fenqian_report', JSON.stringify(updated)); } catch(e) {}
-        }
-      }).catch(() => {});
-    }
-  };
-  document.addEventListener('visibilitychange', handleVisibility);
-  return () => document.removeEventListener('visibilitychange', handleVisibility);
-}, [result?.caseId]);
+  // 页面切回时刷新报告状态（使用 useRef 避免闭包中 result 过期）
+  const resultRef = useRef(result);
+  resultRef.current = result;
+  
+  // visibilitychange 监听：切回页面时自动从服务器刷新报告
+  useEffect(() => {
+    const fn = () => {
+      if (document.visibilityState === 'visible') {
+        const r = resultRef.current;
+        if (!r?.caseId) return;
+        fetch('/api/progress/' + r.caseId).then(res => res.json()).then(d => {
+          if (d.status === 'done' && d.previewMarkdown) {
+            const updated = { caseId: r.caseId, previewMarkdown: d.previewMarkdown, hasUnlocked: d.hasUnlocked || false, status: 'done' };
+            setResult(updated);
+            try { localStorage.setItem('fenqian_report', JSON.stringify(updated)); } catch(e) {}
+          }
+        }).catch(() => {});
+      }
+    };
+    document.addEventListener('visibilitychange', fn);
+    return () => document.removeEventListener('visibilitychange', fn);
+  }, []);
 
 useEffect(() => {
     if (result?.previewMarkdown && chaptersRef.current.length > 0) {
