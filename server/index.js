@@ -534,6 +534,19 @@ app.put('/api/cases/:id/review', requireAdminToken, (req, res) => {
   }
 });
 
+// Admin case notes（管理员备注+跟进状态）
+app.put('/api/admin/cases/:id/notes', requireAdminToken, (req, res) => {
+  try {
+    const { adminNote, followupStatus } = req.body;
+    const existing = db.getCase(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'not_found', message: '案例不存在' });
+    db.updateCaseNotes(req.params.id, adminNote, followupStatus);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'server_error', message: err.message });
+  }
+});
+
 // === Admin API Routes (knowledge_cases) ===
 
 app.get('/api/admin/knowledge-cases', requireAdminToken, (req, res) => {
@@ -629,6 +642,87 @@ app.post('/api/admin/cases/:id/promote', requireAdminToken, (req, res) => {
     res.json({ success: true, id });
   } catch (err) {
     res.status(500).json({ error: 'server_error', message: err.message || '提升为知识案例失败' });
+  }
+});
+
+// === Admin Dashboard 统计 ===
+app.get('/api/admin/stats', requireAdminToken, (req, res) => {
+  try {
+    const allCases = db.getAllCases();
+    const allOrders = db.getAllOrders();
+    const paidOrders = allOrders.filter(o => o.status === 'paid');
+    const basicOrders = paidOrders.filter(o => o.plan === 'basic');
+    const reviewedOrders = paidOrders.filter(o => o.plan === 'reviewed');
+    const today = new Date();
+    const todayStr = today.toISOString().slice(0, 10);
+    const todayCases = allCases.filter(c => (c.created_at || '').startsWith(todayStr));
+    const todayPaid = paidOrders.filter(o => (o.paid_at || '').startsWith(todayStr));
+
+    res.json({
+      totalCases: allCases.length,
+      todayCases: todayCases.length,
+      totalOrders: allOrders.length,
+      totalPaid: paidOrders.length,
+      todayPaid: todayPaid.length,
+      basicOrders: basicOrders.length,
+      reviewedOrders: reviewedOrders.length,
+      pendingReview: allCases.filter(c => c.review_status === 'pending_review').length,
+      unpaid: allCases.filter(c => !c.payment_intent || c.payment_intent === '').length,
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'server_error', message: err.message });
+  }
+});
+
+// === Admin 订单管理 ===
+app.get('/api/admin/orders', requireAdminToken, (req, res) => {
+  try {
+    const orders = db.getAllOrders();
+    res.json(orders);
+  } catch (err) {
+    res.status(500).json({ error: 'server_error', message: err.message });
+  }
+});
+
+// === Admin 导出案例 CSV ===
+app.get('/api/admin/export/cases', requireAdminToken, (req, res) => {
+  try {
+    const cases = db.getAllCases();
+    const header = '案例ID,提交时间,合伙人数,联系方式,付费意向,审核状态,跟进状态,管理员备注';
+    const rows = cases.map(c => {
+      const id = c.id || '';
+      const time = c.created_at || '';
+      const count = c.partner_count || '';
+      const contact = (c.contact || '').replace(/,/g, ';');
+      const payment = c.payment_intent || '';
+      const review = c.review_status || '';
+      const followup = c.followup_status || '';
+      const note = (c.admin_note || '').replace(/,/g, ';').replace(/\n/g, ' ');
+      return [id, time, count, contact, payment, review, followup, note].join(',');
+    });
+    const csv = '\ufeff' + header + '\n' + rows.join('\n');
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="fenqian-cases-' + today.toISOString().slice(0,10) + '.csv"');
+    res.send(csv);
+  } catch (err) {
+    res.status(500).json({ error: 'server_error', message: err.message });
+  }
+});
+
+// === Admin 导出订单 CSV ===
+app.get('/api/admin/export/orders', requireAdminToken, (req, res) => {
+  try {
+    const orders = db.getAllOrders();
+    const header = '订单ID,案例ID,套餐,金额(分),状态,支付时间,创建时间';
+    const rows = orders.map(o => {
+      return [o.id, o.case_id, o.plan, o.amount, o.status, o.paid_at || '', o.created_at || ''].join(',');
+    });
+    const csv = '\ufeff' + header + '\n' + rows.join('\n');
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="fenqian-orders-' + today.toISOString().slice(0,10) + '.csv"');
+    res.send(csv);
+  } catch (err) {
+    res.status(500).json({ error: 'server_error', message: err.message });
   }
 });
 

@@ -138,6 +138,7 @@ tr:hover { background: #f8fafc; }
   <!-- Tabs -->
   <div class="tabs">
     <button class="tab active" data-tab="cases" onclick="switchTab('cases',this)">📋 案例</button>
+    <button class="tab" data-tab="orders" onclick="switchTab('orders',this)">💰 订单</button>
     <button class="tab" data-tab="whitelist" onclick="switchTab('whitelist',this)">🔐 白名单</button>
   </div>
 
@@ -158,6 +159,7 @@ tr:hover { background: #f8fafc; }
         <option value="not_paid">未付款</option>
       </select>
       <button class="btn-primary btn-sm" onclick="loadCases()">⟳ 刷新</button>
+      <button class="btn-outline btn-sm" onclick="exportCases()">📥 导出CSV</button>
     </div>
     <div class="table-wrap">
       <table>
@@ -177,6 +179,23 @@ tr:hover { background: #f8fafc; }
         <tbody id="tableBody"></tbody>
       </table>
       <div id="emptyState" style="text-align:center;padding:40px;color:#94a3b8;font-size:.85rem;display:none">暂无数据</div>
+    </div>
+  </div>
+
+  <!-- Tab: Orders -->
+  <div id="tab-orders" style="display:none">
+    <div class="filters">
+      <button class="btn-primary btn-sm" onclick="loadOrders()">⟳ 刷新</button>
+      <button class="btn-outline btn-sm" onclick="exportOrders()">📥 导出CSV</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>订单ID</th><th>案例ID</th><th>套餐</th><th>金额</th><th>状态</th><th>支付时间</th><th>创建时间</th>
+        </tr></thead>
+        <tbody id="ordersBody"></tbody>
+      </table>
+      <div id="ordersEmpty" style="text-align:center;padding:40px;color:#94a3b8;font-size:.85rem;display:none">暂无订单</div>
     </div>
   </div>
 
@@ -358,6 +377,7 @@ function switchTab(name, btn) {
   document.querySelectorAll('[id^="tab-"]').forEach(el => el.style.display = 'none');
   document.getElementById('tab-' + name).style.display = 'block';
   if (name === 'whitelist') loadWhitelist();
+  if (name === 'orders') loadOrders();
   if (name === 'cases') loadCases();
 }
 
@@ -379,22 +399,21 @@ function loadCases() {
 }
 
 function renderStats() {
-  const total = allCases.length;
-  const today = new Date().toISOString().slice(0,10);
-  const todayCount = allCases.filter(c => (c.created_at||'').startsWith(today)).length;
-  const pending = allCases.filter(c => c.review_status === 'pending_review').length;
-  const reviewedTotal = allCases.filter(c => c.review_status === 'reviewed' || c.review_status === 'delivered').length;
-  const paid = allCases.filter(c => c.payment_intent && c.payment_intent !== '').length;
-  const totalCap = allCases.reduce((s,c) => s + (c.totalCapital||0), 0);
+  // 从后端拉取统计
+  apiCall('/api/admin/stats').then(stats => {
+    const totalCap = allCases.reduce((s,c) => s + (c.totalCapital||0), 0);
+    const paid = allCases.filter(c => c.payment_intent && c.payment_intent !== '').length;
 
-  document.getElementById('stats').innerHTML = [
-    { num: total, label: '总提交' },
-    { num: todayCount, label: '今日新增' },
-    { num: pending, label: '待审核' },
-    { num: reviewedTotal, label: '已审核', color: '#059669' },
-    { num: paid, label: '已付款', color: '#059669' },
-    { num: totalCap >= 10000 ? (totalCap/10000).toFixed(1)+'万' : '¥'+(totalCap||0), label: '出资总额' },
-  ].map(c => `<div class="stat-card"><div class="num" style="color:${c.color||'#1e293b'}">${c.num}</div><div class="label">${c.label}</div></div>`).join('');
+    document.getElementById('stats').innerHTML = [
+      { num: stats.totalCases || allCases.length, label: '总提交' },
+      { num: stats.todayCases || 0, label: '今日新增' },
+      { num: stats.pendingReview || 0, label: '待审核' },
+      { num: stats.totalPaid || paid, label: '已付款', color: '#059669' },
+      { num: stats.basicOrders || 0, label: '基础版(29.9)', color: '#059669' },
+      { num: stats.reviewedOrders || 0, label: '人工版(99)', color: '#8b5cf6' },
+      { num: totalCap >= 10000 ? (totalCap/10000).toFixed(1)+'万' : '¥'+(totalCap||0), label: '出资总额' },
+    ].map(c => `<div class="stat-card"><div class="num" style="color:${c.color||'#1e293b'}">${c.num}</div><div class="label">${c.label}</div></div>`).join('');
+  }).catch(() => {});
 }
 
 function renderTable() {
@@ -573,6 +592,50 @@ function delWhitelist(username) {
     loadWhitelist();
   }).catch(e => toast('删除失败'));
 }
+
+// ===== ORDERS =====
+let allOrders = [];
+function loadOrders() {
+  apiCall('/api/admin/orders').then(data => {
+    allOrders = data || [];
+    const tbody = document.getElementById('ordersBody');
+    document.getElementById('ordersEmpty').style.display = allOrders.length === 0 ? 'block' : 'none';
+    tbody.innerHTML = allOrders.map(o => {
+      const statusMap = { pending: '⏳ 待支付', pending_pay: '待支付', paid: '✅ 已支付', completed: '已完成' };
+      const planMap = { basic: '基础版', reviewed: '人工审核版' };
+      return `<tr>
+        <td style="font-size:.7rem">${o.id}</td>
+        <td style="font-size:.7rem">${o.case_id}</td>
+        <td>${planMap[o.plan] || o.plan}</td>
+        <td>¥${(o.amount/100).toFixed(2)}</td>
+        <td>${statusMap[o.status] || o.status}</td>
+        <td style="font-size:.72rem">${o.paid_at ? new Date(o.paid_at).toLocaleString() : '-'}</td>
+        <td style="font-size:.72rem">${o.created_at || '-'}</td>
+      </tr>`;
+    }).join('');
+  }).catch(e => toast('加载订单失败: ' + e.message));
+}
+
+// ===== EXPORT =====
+function downloadWithAuth(url) {
+  const xhr = new XMLHttpRequest();
+  xhr.open('GET', url, true);
+  xhr.setRequestHeader('Authorization', 'Basic ' + adminToken);
+  xhr.responseType = 'blob';
+  xhr.onload = function() {
+    if (xhr.status === 200) {
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(xhr.response);
+      link.download = url.split('/').pop() + '-' + new Date().toISOString().slice(0,10) + '.csv';
+      link.click();
+    } else {
+      toast('导出失败');
+    }
+  };
+  xhr.send();
+}
+function exportCases() { downloadWithAuth('/api/admin/export/cases'); }
+function exportOrders() { downloadWithAuth('/api/admin/export/orders'); }
 
 // ===== ENTER KEY ON LOGIN =====
   if (e.key === 'Enter') handleLogin();

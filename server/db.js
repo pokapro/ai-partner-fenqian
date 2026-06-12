@@ -512,6 +512,17 @@ async function initDb() {
       persist();
     },
 
+    updateCaseNotes(id, adminNote, followupStatus = '') {
+      const fields = [];
+      const values = [];
+      if (adminNote !== undefined) { fields.push('admin_note = ?'); values.push(adminNote); }
+      if (followupStatus !== undefined) { fields.push('followup_status = ?'); values.push(followupStatus); }
+      if (fields.length === 0) return;
+      values.push(id);
+      database.run(`UPDATE cases SET ${fields.join(', ')} WHERE id = ?`, values);
+      persist();
+    },
+
     updateReviewStatus(id, status, note = '') {
       database.run(
         `UPDATE cases SET review_status = ?, review_note = ? WHERE id = ?`,
