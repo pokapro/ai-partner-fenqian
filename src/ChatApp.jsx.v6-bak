@@ -524,22 +524,50 @@ export default function ChatApp() {
     }
   };
 
-  // === 支付状态 ===
-  const handlePayment = async (plan) => {
+  // === PayJS 支付状态 ===
+  const [payQrcode, setPayQrcode] = useState(null);
+  const [payOrderId, setPayOrderId] = useState(null);
+  const [payPollTimer, setPayPollTimer] = useState(null);
+
+  const handleCreatePayment = async (plan) => {
     if (!result?.caseId) return;
+    setAppState('payment_pending');
     try {
-      // 记录付款意向
-      await fetch('/api/cases/' + result.caseId + '/payment', {
-        method: 'PUT',
+      const resp = await fetch('/api/pay/create', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paymentIntent: plan }),
-      });
-      // 手动确认：48小时内客服联系后手动解锁
-      setResult((prev) => ({ ...prev, paymentRecorded: plan }));
-      setAppState('paid_unlocked');
-      try { localStorage.setItem('fenqian_currentCase', JSON.stringify({ state: 'paid_unlocked', data: { ...result, hasUnlocked: true, paymentRecorded: plan } })); } catch {}
+        body: JSON.stringify({ caseId: result.caseId, plan }),
+      }).then(r => r.json());
+
+      if (resp.success && resp.qrcode) {
+        setPayQrcode(resp.qrcode);
+        setPayOrderId(resp.orderId);
+        // 轮询支付状态
+        const timer = setInterval(async () => {
+          try {
+            const statusResp = await fetch('/api/pay/status/' + resp.orderId).then(r => r.json());
+            if (statusResp.status === 'paid') {
+              clearInterval(timer);
+              setPayQrcode(null);
+              setPayOrderId(null);
+              setAppState('paid_unlocked');
+              setResult((prev) => ({ ...prev, hasUnlocked: true }));
+              try { localStorage.setItem('fenqian_currentCase', JSON.stringify({ state: 'paid_unlocked', data: { ...result, hasUnlocked: true } })); } catch {}
+              // 获取完整报告
+              const ulResp = await fetch('/api/cases/' + result.caseId + '/unlocked-report').then(r => r.json());
+              if (ulResp.fullReport) {
+                setResult((prev) => ({ ...prev, previewMarkdown: ulResp.fullReport, hasUnlocked: true }));
+              }
+            }
+          } catch (e) { /* ignore */ }
+        }, 3000);
+        setPayPollTimer(timer);
+      } else {
+        alert('支付创建失败：' + (resp.message || '未知错误'));
+        setAppState('preview_ready');
+      }
     } catch (e) {
-      alert('记录失败：' + e.message);
+      alert('支付请求失败：' + e.message);
       setAppState('preview_ready');
     }
   };
@@ -1124,44 +1152,59 @@ useEffect(() => {
 
       {/* 支付弹窗 Modal */}
       {showPaymentModal && (
-        <div onClick={() => { setShowPaymentModal(false); setSelectedPlan(null); }}
+        <div onClick={() => { setShowPaymentModal(false); setSelectedPlan(null); if(payPollTimer) clearInterval(payPollTimer); }}
           style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
           <div onClick={(e) => e.stopPropagation()}
             style={{ background: "white", borderRadius: 16, padding: 24, maxWidth: 360, width: "100%", boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }}>
             
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
               <h3 style={{ fontSize: "1rem", fontWeight: 700, margin: 0 }}>{selectedPlan === "basic" ? "基础版" : "人工审核版"}</h3>
-              <button onClick={() => { setShowPaymentModal(false); setSelectedPlan(null); }}
+              <button onClick={() => { setShowPaymentModal(false); setSelectedPlan(null); if(payPollTimer) clearInterval(payPollTimer); }}
                 style={{ background: "none", border: "none", fontSize: "1.3rem", cursor: "pointer", color: "#999", padding: "4px 8px" }}>✕</button>
             </div>
 
             <p style={{ fontSize: "0.8rem", color: "#555", marginBottom: 16, lineHeight: 1.5 }}>
-              {selectedPlan === "basic"
-                ? "微信扫码支付 29.9 元，支付后点击下方「我已付款」解锁完整报告。"
-                : "微信扫码支付 99 元，支付后点击下方「我已付款」，客服将联系您。"
-              }
+              {payQrcode
+                ? "请使用微信或支付宝扫描下方二维码完成支付。支付成功后报告将自动解锁。"
+                : `${selectedPlan === "basic" ? "29.9" : "99"} 元扫码支付，点击「生成付款码」获取二维码。`}
             </p>
 
             <div style={{ background: "#f8fafc", borderRadius: 12, padding: 20, textAlign: "center", marginBottom: 16 }}>
               <div style={{ fontSize: "1.4rem", fontWeight: 700, color: "#059669", marginBottom: 2 }}>
                 {selectedPlan === "basic" ? "29.9" : "99"} 元
               </div>
-              <div style={{ fontSize: "0.75rem", color: "#888", marginBottom: 14 }}>微信扫码支付</div>
-              <div style={{ background: "white", border: "2px dashed #d1d5db", borderRadius: 12, padding: 12, display: "inline-block" }}>
-                <img src="/wechat-qr.png" alt="微信收款码"
-                  style={{ width: 160, height: 160, objectFit: "cover", borderRadius: 8, display: "block" }} />
-              </div>
+              {payQrcode ? (
+                <>
+                  <div style={{ fontSize: "0.75rem", color: "#888", marginBottom: 14 }}>请扫码支付</div>
+                  <div style={{ background: "white", border: "2px dashed #d1d5db", borderRadius: 12, padding: 8, display: "inline-block" }}>
+                    <img src={payQrcode} alt="支付二维码"
+                      style={{ width: 180, height: 180, objectFit: "contain", borderRadius: 8, display: "block" }} />
+                  </div>
+                  <div style={{ fontSize: "0.75rem", color: "#059669", marginTop: 8 }}>⏳ 等待支付完成...</div>
+                </>
+              ) : (
+                <div style={{ padding: "20px 0", color: "#999", fontSize: "0.85rem" }}>
+                  点击下方按钮生成二维码
+                </div>
+              )}
             </div>
 
             <div style={{ display: "flex", gap: 8 }}>
-              <button onClick={() => { setShowPaymentModal(false); setSelectedPlan(null); }}
+              <button onClick={() => { setShowPaymentModal(false); setSelectedPlan(null); if(payPollTimer) clearInterval(payPollTimer); }}
                 style={{ flex: 1, padding: "12px 0", fontSize: "0.85rem", color: "#059669", background: "white", border: "1px solid #059669", borderRadius: 8, cursor: "pointer" }}>
                 取消
               </button>
-              <button onClick={() => { handlePayment(selectedPlan === "basic" ? "basic" : "reviewed"); setShowPaymentModal(false); }}
-                style={{ flex: 1, padding: "12px 0", fontSize: "0.85rem", fontWeight: 600, color: "white", background: "#059669", border: "none", borderRadius: 8, cursor: "pointer" }}>
-                我已付款
-              </button>
+              {!payQrcode ? (
+                <button onClick={() => { handleCreatePayment(selectedPlan === "basic" ? "basic" : "reviewed"); }}
+                  style={{ flex: 1, padding: "12px 0", fontSize: "0.85rem", fontWeight: 600, color: "white", background: "#059669", border: "none", borderRadius: 8, cursor: "pointer" }}>
+                  生成付款码
+                </button>
+              ) : (
+                <button onClick={() => { window.location.reload(); }}
+                  style={{ flex: 1, padding: "12px 0", fontSize: "0.85rem", color: "white", background: "#059669", border: "none", borderRadius: 8, cursor: "pointer" }}>
+                  已完成支付 ✓
+                </button>
+              )}
             </div>
           </div>
         </div>
