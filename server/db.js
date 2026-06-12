@@ -34,7 +34,7 @@ async function initDb() {
   database.run('PRAGMA journal_mode=WAL');
   database.run('PRAGMA encoding="UTF-8"');
 
-  database.run(`
+  database.run (`
     CREATE TABLE IF NOT EXISTS cases (
       id TEXT PRIMARY KEY,
       created_at TEXT NOT NULL DEFAULT (datetime('now', '+8 hours')),
@@ -48,7 +48,7 @@ async function initDb() {
       review_note TEXT DEFAULT '',
       progress INTEGER NOT NULL DEFAULT 0
     );
-  \`);
+  `);
 
   // 恢复备份案例数据（部署重建后 SQLite 丢失时从 JSON 恢复）
   try {
@@ -76,7 +76,7 @@ async function initDb() {
   }
 
   // Knowledge cases table (curated, reusable cases)
-  database.run(`
+  database.run (`
     CREATE TABLE IF NOT EXISTS knowledge_cases (
       id TEXT PRIMARY KEY,
       created_at TEXT NOT NULL DEFAULT (datetime('now', '+8 hours')),
@@ -99,7 +99,7 @@ async function initDb() {
   `);
 
   // Rules table
-  database.run(`
+  database.run (`
     CREATE TABLE IF NOT EXISTS rules (
       id TEXT PRIMARY KEY,
       created_at TEXT NOT NULL DEFAULT (datetime('now', '+8 hours')),
@@ -113,7 +113,7 @@ async function initDb() {
   `);
 
   // Templates table
-  database.run(`
+  database.run (`
     CREATE TABLE IF NOT EXISTS templates (
       id TEXT PRIMARY KEY,
       created_at TEXT NOT NULL DEFAULT (datetime('now', '+8 hours')),
@@ -319,7 +319,7 @@ async function initDb() {
     }
     if (fields.length === 0) return;
     values.push(id);
-    database.run(`UPDATE knowledge_cases SET ${fields.join(', ')} WHERE id = ?`, values);
+    database.run (`UPDATE knowledge_cases SET ${fields.join(', ')} WHERE id = ?`, values);
     persist();
   }
 
@@ -371,7 +371,7 @@ async function initDb() {
     }
     if (fields.length === 0) return;
     values.push(id);
-    database.run(`UPDATE rules SET ${fields.join(', ')} WHERE id = ?`, values);
+    database.run (`UPDATE rules SET ${fields.join(', ')} WHERE id = ?`, values);
     persist();
   }
 
@@ -422,7 +422,7 @@ async function initDb() {
     }
     if (fields.length === 0) return;
     values.push(id);
-    database.run(`UPDATE templates SET ${fields.join(', ')} WHERE id = ?`, values);
+    database.run (`UPDATE templates SET ${fields.join(', ')} WHERE id = ?`, values);
     persist();
   }
 
