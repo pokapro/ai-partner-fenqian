@@ -561,6 +561,19 @@ initDb().then(database => {
   seedAdewoAgreement(db);
   // Start CopilotKit Agent runtime
   setupCopilotKit(app, db);
+
+  // Keepalive: 每 5 分钟自 ping，防止 Render 免费实例休眠
+  const KEEPALIVE_INTERVAL = 5 * 60 * 1000;
+  setInterval(() => {
+    const http = require('http');
+    const host = process.env.RENDER_EXTERNAL_URL || 'http://localhost:' + PORT;
+    http.get(host + '/api/health', (res) => {
+      console.log('[keepalive] ping ok, status:', res.statusCode);
+    }).on('error', (err) => {
+      console.log('[keepalive] ping error:', err.message);
+    });
+  }, KEEPALIVE_INTERVAL);
+  console.log('[keepalive] 已启动，每 5 分钟自 ping');
   app.listen(PORT, () => {
     console.log(`\n========================================`);
     console.log(`   AI 合伙分钱方案生成器 V0.4 (五权诊断+AI填表+报告编辑)`);

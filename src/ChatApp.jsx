@@ -227,7 +227,11 @@ export default function ChatApp() {
   const [worriesExit, setWorriesExit] = useState("");
   const [needsProtocolList, setNeedsProtocolList] = useState("");
 
-  const [result, setResult] = useState(null);
+  // 从 localStorage 恢复上次的报告结果，防止切换页面后空白
+const savedResult = (() => {
+  try { const r = JSON.parse(localStorage.getItem('fenqian_report')); return r; } catch { return null; }
+})();
+const [result, setResult] = useState(savedResult);
   const [error, setError] = useState("");
   const [showResult, setShowResult] = useState(false);
 
@@ -380,7 +384,9 @@ export default function ChatApp() {
             const fullMd = pData.previewMarkdown || '';
             const chapters = splitChapters(fullMd);
             chaptersRef.current = chapters;
+            // 保存到 localStorage 防止切换页面丢失
             setResult({ caseId, previewMarkdown: fullMd, hasUnlocked: false, status: 'pending_review' });
+            try { localStorage.setItem('fenqian_report', JSON.stringify({ caseId, previewMarkdown: fullMd, hasUnlocked: false, status: 'pending_review' })); } catch(e) {}
             setShowResult(true);
             setGenerating(false);
             setVisibleChapters(0);
@@ -599,7 +605,24 @@ export default function ChatApp() {
   // 已展示的段落索引（用于瀑布效果）
   const [visibleChapters, setVisibleChapters] = useState(0);
   const chaptersRef = useRef([]);
-  useEffect(() => {
+  // 页面切回时刷新报告状态
+useEffect(() => {
+  const handleVisibility = () => {
+    if (document.visibilityState === 'visible' && result?.caseId) {
+      fetch('/api/progress/' + result.caseId).then(r => r.json()).then(d => {
+        if (d.status === 'done' && d.previewMarkdown && d.previewMarkdown !== result.previewMarkdown) {
+          const updated = { caseId: result.caseId, previewMarkdown: d.previewMarkdown, hasUnlocked: d.hasUnlocked || result.hasUnlocked, status: 'done' };
+          setResult(updated);
+          try { localStorage.setItem('fenqian_report', JSON.stringify(updated)); } catch(e) {}
+        }
+      }).catch(() => {});
+    }
+  };
+  document.addEventListener('visibilitychange', handleVisibility);
+  return () => document.removeEventListener('visibilitychange', handleVisibility);
+}, [result?.caseId]);
+
+useEffect(() => {
     if (result?.previewMarkdown && chaptersRef.current.length > 0) {
       // 重置
       setVisibleChapters(0);
