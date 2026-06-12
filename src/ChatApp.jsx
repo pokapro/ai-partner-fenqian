@@ -192,7 +192,7 @@ function QArea({ label, current, setter }) {
   );
 }
 
-const APP_VERSION = 'v0.4.4'; // 瀑布式回复+AI思考动画
+const APP_VERSION = 'v0.5.0'; // 瀑布式回复+AI思考动画
 export default function ChatApp() {
   // AI一键填表
   const [aiFilling, setAiFilling] = useState(false);
@@ -936,7 +936,20 @@ useEffect(() => {
             </div>
 
             <div style={{ background: "white", border: "1px solid #e2e8f0", borderRadius: 12, padding: 20, marginBottom: 16, lineHeight: 1.6, fontSize: "0.9rem" }}>
-              {result.previewMarkdown ? renderPreview(result.previewMarkdown, result.hasUnlocked) : <p style={{ color: "#888" }}>报告内容加载中...</p>}
+              {result.previewMarkdown ? (
+                (() => {
+                  try {
+                    const rendered = renderPreview(result.previewMarkdown, result.hasUnlocked);
+                    if (!rendered) throw new Error('renderPreview returned null');
+                    return rendered;
+                  } catch(e) {
+                    console.error('渲染报告失败:', e);
+                    return <div className="prose prose-sm max-w-none" style={{ lineHeight: 1.6 }} dangerouslySetInnerHTML={{ __html: fixTables(sanitizeHtml(marked.parse(result.previewMarkdown))) }} />;
+                  }
+                })()
+              ) : (
+                <p style={{ color: "#888", textAlign: "center", padding: 20 }}>报告内容加载中...</p>
+              )}
             </div>
 
             {/* 修改报告区 */}
