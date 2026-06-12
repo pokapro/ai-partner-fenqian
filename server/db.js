@@ -125,6 +125,23 @@ async function initDb() {
     );
   `);
 
+  // Orders table (PayJS 支付订单)
+  database.run (`
+    CREATE TABLE IF NOT EXISTS orders (
+      id TEXT PRIMARY KEY,
+      case_id TEXT NOT NULL,
+      plan TEXT NOT NULL,
+      amount INTEGER NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      out_trade_no TEXT,
+      payjs_order_id TEXT,
+      payjs_qrcode TEXT,
+      paid_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now', '+8 hours')),
+      FOREIGN KEY (case_id) REFERENCES cases(id)
+    );
+  `);
+
   function persist() {
     const data = database.export();
     fs.writeFileSync(DB_PATH, Buffer.from(data));
@@ -645,6 +662,54 @@ async function initDb() {
         withPaymentIntent: withPayment,
         fundingModeDistribution: fundingModeCount
       };
+    },
+
+    // === Orders (PayJS 支付) ===
+    createOrder(caseId, plan, amount) {
+      const id = 'order_' + crypto.randomUUID().slice(0, 8);
+      const stmt = database.prepare('INSERT INTO orders (id, case_id, plan, amount, status) VALUES (?, ?, ?, ?, ?)');
+      stmt.run([id, caseId, plan, amount, 'pending']);
+      stmt.free();
+      persist();
+      return id;
+    },
+
+    getOrder(id) {
+      const stmt = database.prepare('SELECT * FROM orders WHERE id = ?');
+      stmt.bind([id]);
+      let row = null;
+      if (stmt.step()) row = stmt.getAsObject();
+      stmt.free();
+      return row;
+    },
+
+    updateOrder(id, updates) {
+      const fields = Object.keys(updates).filter(k => k !== 'id');
+      if (fields.length === 0) return;
+      const sql = `UPDATE orders SET ${fields.map(f => f + ' = ?').join(', ')} WHERE id = ?`;
+      const values = fields.map(f => updates[f]);
+      values.push(id);
+      const stmt = database.prepare(sql);
+      stmt.run(values);
+      stmt.free();
+      persist();
+    },
+
+    getOrdersByCase(caseId) {
+      const stmt = database.prepare('SELECT * FROM orders WHERE case_id = ? ORDER BY created_at DESC');
+      stmt.bind([caseId]);
+      const rows = [];
+      while (stmt.step()) rows.push(stmt.getAsObject());
+      stmt.free();
+      return rows;
+    },
+
+    getAllOrders() {
+      const stmt = database.prepare('SELECT * FROM orders ORDER BY created_at DESC');
+      const rows = [];
+      while (stmt.step()) rows.push(stmt.getAsObject());
+      stmt.free();
+      return rows;
     }
   };
 

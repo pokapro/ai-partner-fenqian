@@ -227,11 +227,55 @@ export default function ChatApp() {
   const [worriesExit, setWorriesExit] = useState("");
   const [needsProtocolList, setNeedsProtocolList] = useState("");
 
-  // 从 localStorage 恢复上次的报告结果，防止切换页面后空白
-const savedResult = (() => {
-  try { const r = JSON.parse(localStorage.getItem('fenqian_report')); return r; } catch { return null; }
-})();
-const [result, setResult] = useState(savedResult);
+  // === 前端统一状态机 ===
+  // idle | generating | preview_ready | payment_pending | paid_unlocked | error
+  const [appState, setAppState] = useState('idle');
+
+  // 从 localStorage + 后端 public-status 恢复会话
+  const savedResult = (() => {
+    try {
+      const r = JSON.parse(localStorage.getItem('fenqian_currentCase'));
+      if (r && r.caseId && r.state) return r;
+    } catch {}
+    return null;
+  })();
+
+  const [result, setResult] = useState(savedResult?.data || null);
+
+  // 如果 localStorage 中有 caseId，尝试从后端恢复完整状态
+  useEffect(() => {
+    const caseId = savedResult?.data?.caseId || localStorage.getItem('fenqian_lastCaseId');
+    if (!caseId) return;
+    if (appState !== 'idle') return;  // 已在活动中
+
+    fetch('/api/progress/' + caseId)
+      .then(r => r.json())
+      .then(prog => {
+        if (prog.status === 'done' && prog.previewMarkdown) {
+          const restored = { caseId, previewMarkdown: prog.previewMarkdown, hasUnlocked: false, status: 'done' };
+          setResult(restored);
+          setAppState('preview_ready');
+          setShowResult(true);
+          try { localStorage.setItem('fenqian_currentCase', JSON.stringify({ state: 'preview_ready', data: restored })); } catch {}
+        } else if (prog.status === 'unknown' || prog.status === 'failed') {
+          // 试试 public-status
+          fetch('/api/cases/' + caseId + '/public-status')
+            .then(r => r.json())
+            .then(s => {
+              if (s.status && s.previewMarkdown) {
+                const restored = { caseId: s.caseId, previewMarkdown: s.previewMarkdown, hasUnlocked: s.unlockStatus === 'unlocked', status: 'done' };
+                setResult(restored);
+                setAppState(s.unlockStatus === 'unlocked' ? 'paid_unlocked' : 'preview_ready');
+                setShowResult(true);
+                try { localStorage.setItem('fenqian_currentCase', JSON.stringify({ state: s.unlockStatus === 'unlocked' ? 'paid_unlocked' : 'preview_ready', data: restored })); } catch {}
+              }
+            })
+            .catch(() => {});
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   const [error, setError] = useState("");
   const [showResult, setShowResult] = useState(false);
 
@@ -384,9 +428,10 @@ const [result, setResult] = useState(savedResult);
             const fullMd = pData.previewMarkdown || '';
             const chapters = splitChapters(fullMd);
             chaptersRef.current = chapters;
-            // 保存到 localStorage 防止切换页面丢失
-            setResult({ caseId, previewMarkdown: fullMd, hasUnlocked: false, status: 'pending_review' });
-            try { localStorage.setItem('fenqian_report', JSON.stringify({ caseId, previewMarkdown: fullMd, hasUnlocked: false, status: 'pending_review' })); } catch(e) {}
+            const resultData = { caseId, previewMarkdown: fullMd, hasUnlocked: false, status: 'pending_review' };
+            setResult(resultData);
+            setAppState('preview_ready');
+            try { localStorage.setItem('fenqian_currentCase', JSON.stringify({ state: 'preview_ready', data: resultData })); } catch(e) {}
             setShowResult(true);
             setGenerating(false);
             setVisibleChapters(0);
@@ -479,17 +524,51 @@ const [result, setResult] = useState(savedResult);
     }
   };
 
-  const handlePayment = async (intent) => {
+  // === PayJS 支付状态 ===
+  const [payQrcode, setPayQrcode] = useState(null);
+  const [payOrderId, setPayOrderId] = useState(null);
+  const [payPollTimer, setPayPollTimer] = useState(null);
+
+  const handleCreatePayment = async (plan) => {
     if (!result?.caseId) return;
+    setAppState('payment_pending');
     try {
-      await fetch(`/api/cases/${result.caseId}/payment`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ paymentIntent: intent }),
-      });
-      setResult((prev) => ({ ...prev, paymentRecorded: intent }));
+      const resp = await fetch('/api/pay/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ caseId: result.caseId, plan }),
+      }).then(r => r.json());
+
+      if (resp.success && resp.qrcode) {
+        setPayQrcode(resp.qrcode);
+        setPayOrderId(resp.orderId);
+        // 轮询支付状态
+        const timer = setInterval(async () => {
+          try {
+            const statusResp = await fetch('/api/pay/status/' + resp.orderId).then(r => r.json());
+            if (statusResp.status === 'paid') {
+              clearInterval(timer);
+              setPayQrcode(null);
+              setPayOrderId(null);
+              setAppState('paid_unlocked');
+              setResult((prev) => ({ ...prev, hasUnlocked: true }));
+              try { localStorage.setItem('fenqian_currentCase', JSON.stringify({ state: 'paid_unlocked', data: { ...result, hasUnlocked: true } })); } catch {}
+              // 获取完整报告
+              const ulResp = await fetch('/api/cases/' + result.caseId + '/unlocked-report').then(r => r.json());
+              if (ulResp.fullReport) {
+                setResult((prev) => ({ ...prev, previewMarkdown: ulResp.fullReport, hasUnlocked: true }));
+              }
+            }
+          } catch (e) { /* ignore */ }
+        }, 3000);
+        setPayPollTimer(timer);
+      } else {
+        alert('支付创建失败：' + (resp.message || '未知错误'));
+        setAppState('preview_ready');
+      }
     } catch (e) {
-      console.error("Payment record failed", e);
+      alert('支付请求失败：' + e.message);
+      setAppState('preview_ready');
     }
   };
 
@@ -619,7 +698,8 @@ const [result, setResult] = useState(savedResult);
           if (d.status === 'done' && d.previewMarkdown) {
             const updated = { caseId: r.caseId, previewMarkdown: d.previewMarkdown, hasUnlocked: d.hasUnlocked || false, status: 'done' };
             setResult(updated);
-            try { localStorage.setItem('fenqian_report', JSON.stringify(updated)); } catch(e) {}
+            setAppState('preview_ready');
+            try { localStorage.setItem('fenqian_currentCase', JSON.stringify({ state: 'preview_ready', data: updated })); } catch(e) {}
           }
         }).catch(() => {});
       }
@@ -1072,43 +1152,59 @@ useEffect(() => {
 
       {/* 支付弹窗 Modal */}
       {showPaymentModal && (
-        <div onClick={() => { setShowPaymentModal(false); setSelectedPlan(null); }}
+        <div onClick={() => { setShowPaymentModal(false); setSelectedPlan(null); if(payPollTimer) clearInterval(payPollTimer); }}
           style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
           <div onClick={(e) => e.stopPropagation()}
             style={{ background: "white", borderRadius: 16, padding: 24, maxWidth: 360, width: "100%", boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }}>
             
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
               <h3 style={{ fontSize: "1rem", fontWeight: 700, margin: 0 }}>{selectedPlan === "basic" ? "基础版" : "人工审核版"}</h3>
-              <button onClick={() => { setShowPaymentModal(false); setSelectedPlan(null); }}
+              <button onClick={() => { setShowPaymentModal(false); setSelectedPlan(null); if(payPollTimer) clearInterval(payPollTimer); }}
                 style={{ background: "none", border: "none", fontSize: "1.3rem", cursor: "pointer", color: "#999", padding: "4px 8px" }}>✕</button>
             </div>
 
             <p style={{ fontSize: "0.8rem", color: "#555", marginBottom: 16, lineHeight: 1.5 }}>
-              {selectedPlan === "basic"
-                ? "选择基础版后请使用微信或支付宝扫码支付 29.9 元，支付完成后报告将自动解锁。"
-                : "选择人工审核版后请扫码支付 99 元，客服将审核您的报告。"}
+              {payQrcode
+                ? "请使用微信或支付宝扫描下方二维码完成支付。支付成功后报告将自动解锁。"
+                : `${selectedPlan === "basic" ? "29.9" : "99"} 元扫码支付，点击「生成付款码」获取二维码。`}
             </p>
 
             <div style={{ background: "#f8fafc", borderRadius: 12, padding: 20, textAlign: "center", marginBottom: 16 }}>
               <div style={{ fontSize: "1.4rem", fontWeight: 700, color: "#059669", marginBottom: 2 }}>
                 {selectedPlan === "basic" ? "29.9" : "99"} 元
               </div>
-              <div style={{ fontSize: "0.75rem", color: "#888", marginBottom: 14 }}>微信扫码支付</div>
-              <div style={{ background: "white", border: "2px dashed #d1d5db", borderRadius: 12, padding: 12, display: "inline-block" }}>
-                <img src="/wechat-qr.png" alt="微信收款码"
-                  style={{ width: 160, height: 160, objectFit: "cover", borderRadius: 8, display: "block" }} />
-              </div>
+              {payQrcode ? (
+                <>
+                  <div style={{ fontSize: "0.75rem", color: "#888", marginBottom: 14 }}>请扫码支付</div>
+                  <div style={{ background: "white", border: "2px dashed #d1d5db", borderRadius: 12, padding: 8, display: "inline-block" }}>
+                    <img src={payQrcode} alt="支付二维码"
+                      style={{ width: 180, height: 180, objectFit: "contain", borderRadius: 8, display: "block" }} />
+                  </div>
+                  <div style={{ fontSize: "0.75rem", color: "#059669", marginTop: 8 }}>⏳ 等待支付完成...</div>
+                </>
+              ) : (
+                <div style={{ padding: "20px 0", color: "#999", fontSize: "0.85rem" }}>
+                  点击下方按钮生成二维码
+                </div>
+              )}
             </div>
 
             <div style={{ display: "flex", gap: 8 }}>
-              <button onClick={() => { setShowPaymentModal(false); setSelectedPlan(null); }}
+              <button onClick={() => { setShowPaymentModal(false); setSelectedPlan(null); if(payPollTimer) clearInterval(payPollTimer); }}
                 style={{ flex: 1, padding: "12px 0", fontSize: "0.85rem", color: "#059669", background: "white", border: "1px solid #059669", borderRadius: 8, cursor: "pointer" }}>
                 取消
               </button>
-              <button onClick={() => { handlePayment(selectedPlan === "basic" ? "basic" : "reviewed"); setShowPaymentModal(false); }}
-                style={{ flex: 1, padding: "12px 0", fontSize: "0.85rem", fontWeight: 600, color: "white", background: "#059669", border: "none", borderRadius: 8, cursor: "pointer" }}>
-                我已付款
-              </button>
+              {!payQrcode ? (
+                <button onClick={() => { handleCreatePayment(selectedPlan === "basic" ? "basic" : "reviewed"); }}
+                  style={{ flex: 1, padding: "12px 0", fontSize: "0.85rem", fontWeight: 600, color: "white", background: "#059669", border: "none", borderRadius: 8, cursor: "pointer" }}>
+                  生成付款码
+                </button>
+              ) : (
+                <button onClick={() => { window.location.reload(); }}
+                  style={{ flex: 1, padding: "12px 0", fontSize: "0.85rem", color: "white", background: "#059669", border: "none", borderRadius: 8, cursor: "pointer" }}>
+                  已完成支付 ✓
+                </button>
+              )}
             </div>
           </div>
         </div>

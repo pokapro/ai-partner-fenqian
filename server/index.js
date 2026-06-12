@@ -283,6 +283,32 @@ app.get('/api/progress/:caseId', (req, res) => {
   res.json({ progress: Math.round(val), status: 'generating' });
 });
 
+// 公开案例状态接口（无需token），供前端页面恢复用
+app.get('/api/cases/:id/public-status', (req, res) => {
+  try {
+    const c = db.getCase(req.params.id);
+    if (!c) return res.status(404).json({ error: 'not_found', message: '案例不存在' });
+
+    // 获取后端记录的付款状态
+    let unlockStatus = 'locked';
+    if (c.payment_intent && c.payment_intent.includes('completed')) unlockStatus = 'unlocked';
+    // review_status 为 'paid_delivered' 或 review_note 含 'paid' 也视为已解锁
+    if (c.review_status === 'paid_delivered' || (c.review_note && c.review_note.includes('paid'))) unlockStatus = 'unlocked';
+
+    res.json({
+      caseId: c.id,
+      status: c.review_status || 'pending_review',
+      unlockStatus,
+      paymentStatus: c.payment_intent ? 'recorded' : 'none',
+      previewMarkdown: c.report_markdown ? c.report_markdown.slice(0, 2000) : '',
+      createdAt: c.created_at,
+      // 不返回完整报告
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'server_error', message: '获取案例状态失败' });
+  }
+});
+
 app.get('/api/cases', requireAdminToken, (req, res) => {
   try {
     const cases = db.getAllCases();
@@ -310,11 +336,11 @@ app.post('/api/regenerate', async (req, res) => {
       return res.status(400).json({ error: 'validation', message: 'caseId 和 instruction 必填' });
     }
 
-    const stmt = db.db ? db.db.prepare("SELECT previewMarkdown, fullReport FROM cases WHERE caseId = ? AND status = 'completed'") : null;
-    if (!stmt) return res.status(500).json({ error: 'server_error', message: '数据库不可用' });
+    // 统一字段映射：前端用 caseId/previewMarkdown，数据库用 id/report_markdown
+    const c = db.getCase(caseId);
+    if (!c) return res.status(404).json({ error: 'not_found', message: '未找到该案例' });
 
-    const row = stmt.get(caseId);
-    if (!row) return res.status(404).json({ error: 'not_found', message: '未找到该案例' });
+    const row = { previewMarkdown: c.report_markdown || '', fullReport: c.report_markdown || '' };
 
     const input = {
       partners: partners || [],
@@ -331,13 +357,144 @@ app.post('/api/regenerate', async (req, res) => {
     const updatedReport = await regenerateReport(input);
 
     // 🔒 付费保护已暂时禁用（等用户指令再开启）
-    const updateStmt = db.db.prepare("UPDATE cases SET previewMarkdown = ?, fullReport = ?, updatedAt = datetime('now') WHERE caseId = ?");
-    updateStmt.run(updatedReport, updatedReport, caseId);
+    // 统一字段映射：更新数据库字段 report_markdown
+    db.updateReport(caseId, updatedReport);
 
     res.json({ success: true, updatedReport });
   } catch (err) {
     console.error('[regenerate]', err);
     res.status(500).json({ error: 'server_error', message: err.message || '修改失败' });
+  }
+});
+
+// === PayJS 支付接口 ===
+// 创建支付订单
+app.post('/api/pay/create', async (req, res) => {
+  try {
+    const { caseId, plan } = req.body;
+    if (!caseId || !plan) return res.status(400).json({ error: 'validation', message: 'caseId 和 plan 必填' });
+
+    const amount = plan === 'reviewed' ? 9900 : 2990; // 99元 or 29.9元（单位：分）
+    const orderId = db.createOrder(caseId, plan, amount);
+
+    // PayJS 扫码支付
+    const PAYJS_MCHID = process.env.PAYJS_MCHID || '';
+    const PAYJS_KEY = process.env.PAYJS_KEY || '';
+
+    if (!PAYJS_MCHID || !PAYJS_KEY) {
+      return res.json({ success: true, orderId, amount, qrcode: null, message: '支付未配置，返回模拟数据' });
+    }
+
+    const crypto = require('crypto');
+    const params = {
+      mchid: PAYJS_MCHID,
+      total_fee: String(amount),
+      out_trade_no: orderId,
+      body: `合伙分钱报告-${plan === 'reviewed' ? '人工审核版' : '基础版'}`,
+      notify_url: `https://${req.hostname}/api/pay/notify`,
+    };
+
+    // 按 key 排序后生成签名
+    const keys = Object.keys(params).sort();
+    const signStr = keys.map(k => k + '=' + params[k]).join('&') + '&key=' + PAYJS_KEY;
+    params.sign = crypto.createHash('md5').update(signStr, 'utf-8').digest('hex').toUpperCase();
+
+    const payResp = await fetch('https://payjs.cn/api/native', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams(params).toString(),
+    }).then(r => r.json());
+
+    if (payResp.return_code === 1) {
+      db.updateOrder(orderId, { payjs_order_id: payResp.payjs_order_id, payjs_qrcode: payResp.qrcode, status: 'pending_pay' });
+      return res.json({ success: true, orderId, amount, qrcode: payResp.qrcode });
+    } else {
+      return res.json({ success: false, message: payResp.return_msg || '支付创建失败' });
+    }
+  } catch (err) {
+    console.error('[pay/create]', err);
+    res.status(500).json({ error: 'server_error', message: err.message });
+  }
+});
+
+// 查询订单状态
+app.get('/api/pay/status/:orderId', (req, res) => {
+  try {
+    const order = db.getOrder(req.params.orderId);
+    if (!order) return res.status(404).json({ error: 'not_found', message: '订单不存在' });
+    res.json({
+      orderId: order.id,
+      status: order.status,
+      plan: order.plan,
+      amount: order.amount,
+      paidAt: order.paid_at,
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'server_error', message: err.message });
+  }
+});
+
+// 支付回调通知（PayJS POST 到 notify_url）
+app.post('/api/pay/notify', (req, res) => {
+  try {
+    const { out_trade_no, total_fee, payjs_order_id, sign } = req.body || {};
+    if (!out_trade_no) return res.status(400).send('fail');
+
+    // 更新订单状态
+    db.updateOrder(out_trade_no, {
+      status: 'paid',
+      payjs_order_id: payjs_order_id || '',
+      paid_at: new Date().toISOString(),
+    });
+
+    console.log('[pay/notify] 支付成功:', out_trade_no, total_fee);
+    res.send('success');
+  } catch (err) {
+    console.error('[pay/notify]', err);
+    res.status(500).send('fail');
+  }
+});
+
+// 获取完整报告（付款后）
+app.get('/api/cases/:id/unlocked-report', (req, res) => {
+  try {
+    const c = db.getCase(req.params.id);
+    if (!c) return res.status(404).json({ error: 'not_found', message: '案例不存在' });
+
+    // 检查是否已付费
+    const orders = db.getOrdersByCase(req.params.id);
+    const hasPaid = orders.some(o => o.status === 'paid');
+    if (!hasPaid) {
+      return res.status(403).json({ error: 'payment_required', message: '请先完成支付' });
+    }
+
+    res.json({
+      caseId: c.id,
+      fullReport: c.report_markdown || '',
+      hasUnlocked: true,
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'server_error', message: err.message });
+  }
+});
+
+// 下载报告（付款后）
+app.get('/api/cases/:id/download', (req, res) => {
+  try {
+    const c = db.getCase(req.params.id);
+    if (!c) return res.status(404).json({ error: 'not_found', message: '案例不存在' });
+
+    const orders = db.getOrdersByCase(req.params.id);
+    const hasPaid = orders.some(o => o.status === 'paid');
+    if (!hasPaid) {
+      return res.status(403).json({ error: 'payment_required', message: '请先完成支付' });
+    }
+
+    res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="fenqian-report-' + req.params.id.slice(0,8) + '.md"');
+    res.send(c.report_markdown || '');
+  } catch (err) {
+    res.status(500).json({ error: 'server_error', message: err.message });
   }
 });
 
