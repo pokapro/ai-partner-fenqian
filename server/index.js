@@ -114,12 +114,30 @@ function requireAdminToken(req, res, next) {
   const wl = (() => {
     try { return JSON.parse(require('fs').readFileSync(path.join(__dirname, '..', 'data', 'admin_whitelist.json'), 'utf-8')); } catch { return []; }
   })();
+  // 尝试 Basic Auth
+  let user = '', pass = '';
   const auth = req.headers.authorization || '';
-  if (!auth.startsWith('Basic ')) {
-    return res.status(401).json({ error: 'auth_required', message: '需要登录。请在请求头添加 Basic Auth。' });
+  if (auth.startsWith('Basic ')) {
+    try {
+      const decoded = Buffer.from(auth.slice(6), 'base64').toString('utf-8');
+      const parts = decoded.split(':');
+      user = parts[0] || '';
+      pass = parts.slice(1).join(':') || '';
+    } catch (e) {}
+  } else if (auth.startsWith('Bearer ')) {
+    // 兼容 admin.html 之前保存的 base64 token
+    try {
+      const decoded = Buffer.from(auth.slice(7), 'base64').toString('utf-8');
+      const parts = decoded.split(':');
+      user = parts[0] || '';
+      pass = parts.slice(1).join(':') || '';
+    } catch (e) {}
   }
-  const decoded = Buffer.from(auth.slice(6), 'base64').toString('utf-8');
-  const [user, pass] = decoded.split(':');
+  // 也兼容 ?user&pass 查询参数方式
+  if (!user && req.query.user && req.query.pass) {
+    user = req.query.user;
+    pass = req.query.pass;
+  }
   const match = wl.find(w => w.username === user && w.password === pass);
   if (!match) {
     // 也兼容旧的 ?token=xxx 方式（保留过渡）

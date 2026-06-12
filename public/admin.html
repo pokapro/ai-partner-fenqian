@@ -255,7 +255,9 @@ let allCases = [];
         currentRole = s.currentRole;
         adminToken = s.adminToken;
         // 验证 session 是否仍然有效
-        fetch('/api/admin/whitelist', {
+        // 恢复 session 时同时传 query 参数保证兼容
+        const [savedUser, savedPass] = atob(adminToken).split(':');
+        fetch('/api/admin/whitelist?' + new URLSearchParams({ user: savedUser, pass: savedPass }).toString(), {
           headers: { 'Authorization': 'Basic ' + adminToken }
         })
           .then(r => {
@@ -296,8 +298,9 @@ function handleLogin() {
   btn.textContent = '验证中...';
 
   // 用 Basic Auth 验证登录
+  // 先用 Basic Auth 尝试，如果不行 fallback 到查询参数方式
   const basicAuth = btoa(user + ':' + pass);
-  fetch('/api/admin/whitelist', {
+  fetch('/api/admin/whitelist?' + new URLSearchParams({ user, pass }).toString(), {
     headers: { 'Authorization': 'Basic ' + basicAuth }
   })
     .then(r => {
