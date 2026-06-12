@@ -114,8 +114,6 @@ tr:hover { background: #f8fafc; }
     <input id="loginUser" placeholder="输入用户名" autocomplete="username" />
     <label for="loginPass">密码</label>
     <input id="loginPass" type="password" placeholder="输入密码" autocomplete="current-password" />
-    <label for="loginToken">管理令牌（Token）</label>
-    <input id="loginToken" placeholder="从管理员处获取" />
     <button id="loginBtn" onclick="handleLogin()">登录 →</button>
   </div>
 </div>
@@ -237,8 +235,10 @@ let allCases = [];
         currentUser = s.currentUser;
         currentRole = s.currentRole;
         adminToken = s.adminToken;
-        // 验证 token 是否仍然有效
-        fetch('/api/admin/whitelist?token=' + encodeURIComponent(adminToken))
+        // 验证 session 是否仍然有效
+        fetch('/api/admin/whitelist', {
+          headers: { 'Authorization': 'Basic ' + adminToken }
+        })
           .then(r => {
             if (r.ok) showDashboard();
             else localStorage.removeItem('fenqian_admin_session');
@@ -263,12 +263,11 @@ function toast(msg) {
 function handleLogin() {
   const user = document.getElementById('loginUser').value.trim();
   const pass = document.getElementById('loginPass').value.trim();
-  const token = document.getElementById('loginToken').value.trim();
   const btn = document.getElementById('loginBtn');
   const errEl = document.getElementById('loginError');
 
-  if (!user || !pass || !token) {
-    errEl.textContent = '请填写用户名、密码和 Token';
+  if (!user || !pass) {
+    errEl.textContent = '请填写用户名和密码';
     errEl.style.display = 'block';
     return;
   }
@@ -277,10 +276,13 @@ function handleLogin() {
   btn.disabled = true;
   btn.textContent = '验证中...';
 
-  // 先尝试用 token 拉取白名单数据来验证 token 是否有效
-  fetch('/api/admin/whitelist?token=' + encodeURIComponent(token))
+  // 用 Basic Auth 验证登录
+  const basicAuth = btoa(user + ':' + pass);
+  fetch('/api/admin/whitelist', {
+    headers: { 'Authorization': 'Basic ' + basicAuth }
+  })
     .then(r => {
-      if (!r.ok) throw new Error('Token 无效');
+      if (!r.ok) throw new Error('用户名或密码错误');
       return r.json();
     })
     .then(whitelist => {
@@ -291,7 +293,7 @@ function handleLogin() {
       // 登录成功
       currentUser = user;
       currentRole = match.role || 'viewer';
-      adminToken = token;
+      adminToken = basicAuth;
       // 持久化登录状态到 localStorage
       localStorage.setItem('fenqian_admin_session', JSON.stringify({ currentUser, currentRole, adminToken }));
       showDashboard();
@@ -327,13 +329,11 @@ function handleLogout() {
   document.getElementById('dashboard').style.display = 'none';
   document.getElementById('loginUser').value = '';
   document.getElementById('loginPass').value = '';
-  document.getElementById('loginToken').value = '';
 }
 
 // ===== API helper =====
 function apiCall(path, options) {
-  const url = path + (path.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(adminToken);
-  return fetch(url, { headers: { 'Content-Type': 'application/json' }, ...options }).then(r => {
+  return fetch(path, { headers: { 'Content-Type': 'application/json', 'Authorization': 'Basic ' + adminToken }, ...options }).then(r => {
     if (!r.ok) throw new Error('请求失败');
     return r.json();
   });
@@ -575,7 +575,6 @@ function delWhitelist(username) {
 }
 
 // ===== ENTER KEY ON LOGIN =====
-document.getElementById('loginToken').addEventListener('keydown', function(e) {
   if (e.key === 'Enter') handleLogin();
 });
 </script>

@@ -108,21 +108,29 @@ function validateInput(body) {
 let db = null;
 
 // Admin token middleware (protects sensitive routes)
-const ADMIN_TOKEN = process.env.ADMIN_TOKEN;
+// 白名单验证中间件（只验证账号密码，无需 token）
 function requireAdminToken(req, res, next) {
-  // If ADMIN_TOKEN is not set, allow localhost access without token for debugging
-  if (!ADMIN_TOKEN) {
-    const ip = req.ip || req.connection?.remoteAddress || '';
-    if (ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1' || ip === 'localhost') {
+  // 从 whitelist 文件加载
+  const wl = (() => {
+    try { return JSON.parse(require('fs').readFileSync(path.join(__dirname, '..', 'data', 'admin_whitelist.json'), 'utf-8')); } catch { return []; }
+  })();
+  const auth = req.headers.authorization || '';
+  if (!auth.startsWith('Basic ')) {
+    return res.status(401).json({ error: 'auth_required', message: '需要登录。请在请求头添加 Basic Auth。' });
+  }
+  const decoded = Buffer.from(auth.slice(6), 'base64').toString('utf-8');
+  const [user, pass] = decoded.split(':');
+  const match = wl.find(w => w.username === user && w.password === pass);
+  if (!match) {
+    // 也兼容旧的 ?token=xxx 方式（保留过渡）
+    const token = req.query.token || '';
+    if (token && (process.env.ADMIN_TOKEN && token === process.env.ADMIN_TOKEN)) {
+      req.adminUser = { username: 'admin', role: 'admin' };
       return next();
     }
-    return res.status(403).json({ error: 'forbidden', message: '接口未开放远程访问。请配置 ADMIN_TOKEN 后通过 ?token=xxx 访问。' });
+    return res.status(403).json({ error: 'forbidden', message: '用户名或密码错误' });
   }
-  // 支持 ?token=xxx 和 Authorization: Bearer xxx 两种方式
-  const token = req.query.token || (req.headers.authorization && req.headers.authorization.startsWith('Bearer ') ? req.headers.authorization.slice(7) : null);
-  if (!token || token !== ADMIN_TOKEN) {
-    return res.status(403).json({ error: 'forbidden', message: '无效的访问令牌（token）' });
-  }
+  req.adminUser = { username: match.username, role: match.role };
   next();
 }
 
