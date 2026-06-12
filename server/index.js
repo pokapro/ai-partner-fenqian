@@ -839,7 +839,8 @@ initDb().then(database => {
     console.log(`   服务已启动: http://localhost:${PORT}`);
     console.log(`   AI Provider: ${process.env.AI_PROVIDER || 'ollama'}`);
     console.log(`   数据目录: ${path.join(__dirname, '..', 'data')}`);
-    console.log(`   后台管理: http://localhost:${PORT}/api/cases?token=${ADMIN_TOKEN || '(未配置)'}`);
+    console.log(`   后台管理: https://ai-partner-fenqian.onrender.com/admin`);
+    console.log(`   后台登录: admin / afu_admin_2026`);
     console.log(`========================================\n`);
   });
 }).catch(err => {
