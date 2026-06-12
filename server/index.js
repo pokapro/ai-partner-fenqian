@@ -468,7 +468,7 @@ app.post('/api/admin/cases/:id/promote', requireAdminToken, (req, res) => {
 });
 
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', time: new Date().toISOString(), provider: process.env.AI_PROVIDER || 'ollama', version: '0.4.3' });
+  res.json({ status: 'ok', time: new Date().toISOString(), provider: process.env.AI_PROVIDER || 'ollama', version: '0.4.4' });
 });
 
 // === Admin Whitelist DB (首次启动自动初始化默认管理员) ===

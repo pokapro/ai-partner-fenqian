@@ -132,7 +132,7 @@ function QArea({ label, current, setter }) {
   );
 }
 
-const APP_VERSION = 'v0.4.2-waterfall'; // 瀑布式回复+AI思考动画
+const APP_VERSION = 'v0.4.4'; // 瀑布式回复+AI思考动画
 export default function ChatApp() {
   // AI一键填表
   const [aiFilling, setAiFilling] = useState(false);
@@ -576,6 +576,23 @@ export default function ChatApp() {
         .waterfall-item {
           animation: waterfall-in 0.4s ease-out both;
         }
+
+        /* 手机端响应式 */
+        @media (max-width: 480px) {
+          main { padding: 12px 10px 120px !important; }
+          h1 { font-size: 1.3rem !important; }
+          .waterfall-item { animation-duration: 0.3s !important; }
+        }
+        @media (min-width: 481px) and (max-width: 768px) {
+          main { padding: 16px 14px 100px !important; }
+        }
+        /* CopilotKit 侧边栏手机端宽度 */
+        @media (max-width: 640px) {
+          .__copilot_sidebar { width: 100% !important; }
+          .__copilot_sidebar .csdk-w-\[400px\] { width: 100% !important; max-width: 100vw !important; }
+        }
+        /* 报告区域滚动对齐 */
+        #report-section { scroll-margin-top: 16px; }
       `}</style>
       <header style={{ background: "#1e293b", color: "white", padding: "40px 20px 30px", textAlign: "center" }}>
         <h1 style={{ fontSize: "1.8rem", fontWeight: 700, marginBottom: 8 }}>斯塔管理 | 🤝 AI 合伙分钱诊断</h1>
@@ -828,7 +845,7 @@ export default function ChatApp() {
 
         {/* 报告区域 */}
         {showResult && result && (
-          <div ref={reportRef} id="result-section">
+          <div ref={reportRef} id="report-section">
             <div style={{ background: "#f0fdf4", border: "1px solid #a7f3d0", borderRadius: 10, padding: "12px 16px", marginBottom: 16, fontSize: "0.85rem", color: "#166534" }}>
               ✅ 方案已生成 · {new Date().toLocaleString("zh-CN", { timeZone: "Asia/Shanghai" })}
               {editHistory.length > 0 && <span style={{ marginLeft: 8, fontSize: "0.75rem", color: "#ff9800" }}>已修改 {editHistory.length} 次</span>}
