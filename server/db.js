@@ -5,7 +5,9 @@ const fs = require('fs');
 const crypto = require('crypto');
 const initSqlJs = require('sql.js');
 
-const DB_PATH = path.join(__dirname, '..', 'data', 'app.db');
+// 用 HOME 目录持久化数据库，避免 Render 部署重建时丢失
+const DB_PATH = process.env.PERSISTENT_DB_PATH || path.join(process.env.HOME || '/tmp', '.fenqian-data', 'app.db');
+console.log('[DB] 数据库路径:', DB_PATH);
 let db = null;
 
 function ensureDir(filePath) {
@@ -46,7 +48,32 @@ async function initDb() {
       review_note TEXT DEFAULT '',
       progress INTEGER NOT NULL DEFAULT 0
     );
-  `);
+  \`);
+
+  // 恢复备份案例数据（部署重建后 SQLite 丢失时从 JSON 恢复）
+  try {
+    const backupFile = path.join(__dirname, '..', 'data', 'cases_backup.json');
+    if (fs.existsSync(backupFile)) {
+      const backup = JSON.parse(fs.readFileSync(backupFile, 'utf-8'));
+      if (backup.cases && Array.isArray(backup.cases)) {
+        const count = database.prepare('SELECT COUNT(*) as c FROM cases').getAsObject().c;
+        if (count === 0) {
+          const stmt = database.prepare('INSERT OR IGNORE INTO cases (id, created_at, source, contact, partner_count, input_json, report_markdown, payment_intent, review_status, review_note, progress) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+          let restored = 0;
+          for (const c of backup.cases) {
+            if (c.id && c.created_at) {
+              stmt.run([c.id, c.created_at, c.source || 'restored', c.contact || '', c.partner_count || 2, c.input_json || '{}', c.report_markdown || '', c.payment_intent || '', c.review_status || 'pending_review', c.review_note || '', c.progress || 0]);
+              restored++;
+            }
+          }
+          stmt.free();
+          if (restored > 0) console.log('[DB] 从备份恢复案例:', restored, '条');
+        }
+      }
+    }
+  } catch(e) {
+    if (e.code !== 'ENOENT') console.log('[DB] 备份恢复跳过:', e.message);
+  }
 
   // Knowledge cases table (curated, reusable cases)
   database.run(`
@@ -101,6 +128,15 @@ async function initDb() {
   function persist() {
     const data = database.export();
     fs.writeFileSync(DB_PATH, Buffer.from(data));
+    // 同步备份到 JSON（部署重建后从 JSON 恢复）
+    try {
+      const backupDir = path.join(__dirname, '..', 'data');
+      const rows = [];
+      const stmt = database.prepare('SELECT * FROM cases ORDER BY created_at DESC');
+      while (stmt.step()) rows.push(stmt.getAsObject());
+      stmt.free();
+      fs.writeFileSync(path.join(backupDir, 'cases_backup.json'), JSON.stringify({ backup_time: new Date().toISOString(), count: rows.length, cases: rows }, null, 2));
+    } catch(e) { /* silent */ }
   }
 
   /**
