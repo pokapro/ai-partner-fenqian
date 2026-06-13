@@ -749,6 +749,87 @@ app.get('/api/health', (req, res) => {
 });
 
 // === Admin Whitelist DB (首次启动自动初始化默认管理员) ===
+// === 多版本备份 API ===
+app.get('/api/admin/backups', requireAdminToken, (req, res) => {
+  try {
+    const backupDir = path.join(process.env.HOME || '/tmp', '.fenqian-data');
+    const result = {
+      current: null,
+      versions: [],
+      daily: []
+    };
+    // 当前备份
+    const cur = path.join(backupDir, 'cases_backup.json');
+    if (fs.existsSync(cur)) {
+      const data = JSON.parse(fs.readFileSync(cur, 'utf-8'));
+      result.current = { time: data.backup_time, count: data.count };
+    }
+    // 版本列表
+    const versionDir = path.join(backupDir, 'versions');
+    if (fs.existsSync(versionDir)) {
+      result.versions = fs.readdirSync(versionDir).filter(f => f.endsWith('.json')).sort().reverse().slice(0, 30).map(f => {
+        const p = path.join(versionDir, f);
+        try {
+          const d = JSON.parse(fs.readFileSync(p, 'utf-8'));
+          return { file: f, time: d.backup_time, count: d.count };
+        } catch { return { file: f }; }
+      });
+    }
+    // 每日快照
+    const dailyDir = path.join(backupDir, 'daily');
+    if (fs.existsSync(dailyDir)) {
+      result.daily = fs.readdirSync(dailyDir).filter(f => f.endsWith('.json')).sort().reverse().slice(0, 30).map(f => {
+        const p = path.join(dailyDir, f);
+        try {
+          const d = JSON.parse(fs.readFileSync(p, 'utf-8'));
+          return { date: d.backup_time.slice(0,10), count: d.count };
+        } catch { return { date: f.replace('cases_','').replace('.json','') }; }
+      });
+    }
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: 'server_error', message: err.message });
+  }
+});
+
+// 从备份恢复
+app.post('/api/admin/backups/restore', requireAdminToken, (req, res) => {
+  try {
+    const { file } = req.body;
+    if (!file) return res.status(400).json({ error: 'validation', message: '请指定备份文件名' });
+    const backupDir = path.join(process.env.HOME || '/tmp', '.fenqian-data');
+    // 支持从 version 和 daily 恢复
+    let backupPath = path.join(backupDir, 'versions', file);
+    if (!fs.existsSync(backupPath)) {
+      backupPath = path.join(backupDir, 'daily', file);
+    }
+    if (!fs.existsSync(backupPath)) {
+      return res.status(404).json({ error: 'not_found', message: '未找到备份文件' });
+    }
+    const data = JSON.parse(fs.readFileSync(backupPath, 'utf-8'));
+    if (!data.cases || !Array.isArray(data.cases)) {
+      return res.status(400).json({ error: 'invalid', message: '备份文件格式无效' });
+    }
+    // 先清空当前 cases 表
+    database.run(`DELETE FROM cases`);
+    // 然后导入
+    const stmt = database.prepare('INSERT OR IGNORE INTO cases (id, created_at, source, contact, partner_count, input_json, report_markdown, payment_intent, review_status, review_note, progress, admin_note, followup_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+    let count = 0;
+    for (const c of data.cases) {
+      if (c.id && c.created_at) {
+        stmt.run([c.id, c.created_at, c.source || 'restored', c.contact || '', c.partner_count || 2, c.input_json || '{}', c.report_markdown || '', c.payment_intent || '', c.review_status || 'pending_review', c.review_note || '', c.progress || 0, c.admin_note || '', c.followup_status || '']);
+        count++;
+      }
+    }
+    stmt.free();
+    // 触发备份
+    persist();
+    res.json({ success: true, restored: count });
+  } catch (err) {
+    res.status(500).json({ error: 'server_error', message: err.message });
+  }
+});
+
 const WHITELIST_DB = path.join(__dirname, '..', 'data', 'admin_whitelist.json');
 const DEFAULT_ADMINS = [
   { username: 'admin', password: 'afu_admin_2026', role: 'admin', created_at: '2026-06-11T00:00:00.000Z' }

@@ -143,17 +143,51 @@ async function initDb() {
     );
   `);
 
+  // 多版本备份：保留最近 50 次 + 每天一个快照
   function persist() {
     const data = database.export();
     fs.writeFileSync(DB_PATH, Buffer.from(data));
     // 同步备份到 JSON（部署重建后从 JSON 恢复）
     try {
-      const backupDir2 = path.join(process.env.HOME || '/tmp', '.fenqian-data');
+      const backupDir = path.join(process.env.HOME || '/tmp', '.fenqian-data');
       const rows = [];
-      const stmt = database.prepare('SELECT * FROM cases ORDER BY created_at DESC');
-      while (stmt.step()) rows.push(stmt.getAsObject());
-      stmt.free();
-      fs.writeFileSync(path.join(backupDir2, 'cases_backup.json'), JSON.stringify({ backup_time: new Date().toISOString(), count: rows.length, cases: rows }, null, 2));
+      const stmt2 = database.prepare('SELECT * FROM cases ORDER BY created_at DESC');
+      while (stmt2.step()) rows.push(stmt2.getAsObject());
+      stmt2.free();
+      const now = new Date();
+      const ts = now.toISOString().replace(/[:.]/g, '-');
+      
+      // 1. 当前备份（最新，启动时从这里恢复）
+      fs.writeFileSync(path.join(backupDir, 'cases_backup.json'), JSON.stringify({ backup_time: now.toISOString(), count: rows.length, cases: rows }, null, 2));
+      
+      // 2. 多版本备份：保留最近 50 个版本（每分钟最多一次）
+      const versionDir = path.join(backupDir, 'versions');
+      if (!fs.existsSync(versionDir)) fs.mkdirSync(versionDir, { recursive: true });
+      fs.writeFileSync(path.join(versionDir, `cases_${ts}.json`), JSON.stringify({ backup_time: now.toISOString(), count: rows.length, cases: rows }, null, 2));
+      
+      // 3. 清理旧版本：保留最近 50 个
+      const files = fs.readdirSync(versionDir).filter(f => f.endsWith('.json')).sort().reverse();
+      if (files.length > 50) {
+        for (let i = 50; i < files.length; i++) {
+          fs.unlinkSync(path.join(versionDir, files[i]));
+        }
+      }
+      
+      // 4. 每天一个快照（保留最近 30 天）
+      const dateStr = now.toISOString().slice(0, 10);
+      const dailyDir = path.join(backupDir, 'daily');
+      if (!fs.existsSync(dailyDir)) fs.mkdirSync(dailyDir, { recursive: true });
+      const dailyFile = path.join(dailyDir, `cases_${dateStr}.json`);
+      if (!fs.existsSync(dailyFile)) {
+        fs.writeFileSync(dailyFile, JSON.stringify({ backup_time: now.toISOString(), count: rows.length, cases: rows }, null, 2));
+      }
+      // 清理 30 天前的每日快照
+      const dailyFiles = fs.readdirSync(dailyDir).filter(f => f.endsWith('.json')).sort();
+      const cutoff = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+      for (const f of dailyFiles) {
+        const d = f.replace('cases_', '').replace('.json', '');
+        if (d < cutoff) fs.unlinkSync(path.join(dailyDir, f));
+      }
     } catch(e) { /* silent */ }
   }
 
