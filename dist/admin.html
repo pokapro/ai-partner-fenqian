@@ -318,24 +318,19 @@ function handleLogin() {
   btn.disabled = true;
   btn.textContent = '验证中...';
 
-  // 用 Basic Auth 验证登录
-  // 先用 Basic Auth 尝试，如果不行 fallback 到查询参数方式
+  // 用 Basic Auth 验证登录（后端鉴权，前端只认 HTTP 状态码）
   const basicAuth = btoa(user + ':' + pass);
-  fetch('/api/admin/whitelist?' + new URLSearchParams({ user, pass }).toString(), {
+  fetch('/api/admin/stats', {
     headers: { 'Authorization': 'Basic ' + basicAuth }
   })
     .then(r => {
       if (!r.ok) throw new Error('用户名或密码错误');
       return r.json();
     })
-    .then(whitelist => {
-      const match = whitelist.find(w => w.username === user && w.password === pass);
-      if (!match) {
-        throw new Error('用户名或密码错误，或无权限访问');
-      }
-      // 登录成功
+    .then(stats => {
+      // 登录成功（后端已鉴权通过）
       currentUser = user;
-      currentRole = match.role || 'viewer';
+      currentRole = 'admin';
       adminToken = basicAuth;
       // 持久化登录状态到 localStorage
       localStorage.setItem('fenqian_admin_session', JSON.stringify({ currentUser, currentRole, adminToken }));
