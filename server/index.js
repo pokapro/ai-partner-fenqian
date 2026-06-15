@@ -923,6 +923,7 @@ app.delete('/api/admin/whitelist', requireAdminToken, (req, res) => {
 
 // Admin 管理页面
 app.get('/admin', (req, res) => {
+  res.set('Cache-Control', 'no-store');
   res.sendFile(path.join(__dirname, '..', 'public', 'admin.html'));
 });
 

@@ -139,7 +139,7 @@ tr:hover { background: #f8fafc; }
   <div class="tabs">
     <button class="tab active" data-tab="cases" onclick="switchTab('cases',this)">📋 案例</button>
     <button class="tab" data-tab="orders" onclick="switchTab('orders',this)">💰 订单</button>
-    <button class="tab" data-tab="backups" onclick="switchTab('backups',this)">💾 备份
+    <button class="tab" data-tab="backups" onclick="switchTab('backups',this)">💾 备份</button>
     <button class="tab" data-tab="whitelist" onclick="switchTab('whitelist',this)">🔐 白名单</button>
   </div>
 
@@ -692,12 +692,12 @@ function loadBackups() {
 }
 
 function restoreBackup(file, label) {
-  if (!confirm(`确定要从备份 [\${label}] 恢复？当前数据将被覆盖。`)) return;
+  if (!confirm(`确定要从备份 [${label}] 恢复？当前数据将被覆盖。`)) return;
   apiCall('/api/admin/backups/restore', {
     method: 'POST',
     body: JSON.stringify({ file })
   }).then(r => {
-    toast(`✅ 已从 \${label} 恢复 \${r.restored} 条案例数据`);
+    toast(`✅ 已从 ${label} 恢复 ${r.restored} 条案例数据`);
     loadBackups();
     loadCases();
   }).catch(e => toast('恢复失败: ' + e.message));
