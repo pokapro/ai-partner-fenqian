@@ -480,11 +480,16 @@ export default function ChatApp() {
     }
 
     try {
+      // 60秒超时（Render 免费实例冷启动最长达 50 秒）
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 65000);
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
 
       const data = await res.json();
 
@@ -567,7 +572,11 @@ export default function ChatApp() {
       };
       poll();
     } catch (e) {
-      setError("网络错误，请检查连接后重试");
+      if (e.name === 'AbortError') {
+        setError("请求超时，服务器正在启动，请稍后重试");
+      } else {
+        setError("网络错误，请检查连接后重试");
+      }
       setGenerating(false);
     }
   };
