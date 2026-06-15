@@ -134,7 +134,7 @@ ${exitConcern ? `关于退出机制方面：${exitConcern}` : ''}
   },
 
   deepseek: async (input, referenceContext, knowledgeContext, customSystem, customUser) => {
-    const apiKey = process.env.DEEPSEEK_API_KEY_P1 + process.env.DEEPSEEK_API_KEY_P2;
+    const apiKey = process.env.DEEPSEEK_API_KEY || (process.env.DEEPSEEK_API_KEY_P1 || '') + (process.env.DEEPSEEK_API_KEY_P2 || '');
     if (!apiKey) throw new Error('DEEPSEEK_API_KEY not set');
     const model = process.env.DEEPSEEK_MODEL || 'deepseek-chat';
     let messages;
