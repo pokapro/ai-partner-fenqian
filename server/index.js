@@ -49,7 +49,7 @@ app.use('/api/suggest-form', apiLimiter);
 app.use('/api/regenerate', apiLimiter);
 
 app.use(cors());
-app.use(express.json({ limit: '1mb' }));
+app.set('trust proxy', 1); app.use(express.json({ limit: '1mb' }));
 // Serve built frontend (Vite build → dist), fallback to legacy public/
 app.use(express.static(path.join(__dirname, '..', 'dist')));
 app.use(express.static(path.join(__dirname, '..', 'public')));
@@ -745,7 +745,7 @@ app.get('/api/admin/export/orders', requireAdminToken, (req, res) => {
 });
 
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', time: new Date().toISOString(), provider: process.env.AI_PROVIDER || 'ollama', version: '0.6.0' });
+  res.json({ status: 'ok', time: new Date().toISOString(), provider: process.env.AI_PROVIDER || 'ollama', version: require('../package.json').version });
 });
 
 // === Admin Whitelist DB (首次启动自动初始化默认管理员) ===
@@ -934,7 +934,7 @@ initDb().then(database => {
   console.log('[keepalive] 已启动，每 5 分钟自 ping');
   app.listen(PORT, () => {
     console.log(`\n========================================`);
-    console.log(`   AI 合伙分钱方案生成器 V0.4 (五权诊断+AI填表+报告编辑)`);
+    console.log(`   AI 合伙分钱方案生成器 V${require('../package.json').version} (五权诊断+AI填表+报告编辑)`);
     console.log(`   服务已启动: http://localhost:${PORT}`);
     console.log(`   AI Provider: ${process.env.AI_PROVIDER || 'ollama'}`);
     console.log(`   数据目录: ${path.join(__dirname, '..', 'data')}`);

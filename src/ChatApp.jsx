@@ -231,7 +231,7 @@ function QArea({ label, current, setter }) {
   );
 }
 
-const APP_VERSION = 'v0.6.0'; // 瀑布式回复+AI思考动画
+const APP_VERSION = 'v0.7.0'; // 瀑布式回复+AI思考动画
 export default function ChatApp() {
   // AI一键填表
   const [aiFilling, setAiFilling] = useState(false);

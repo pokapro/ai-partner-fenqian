@@ -1,6 +1,6 @@
 {
   "name": "ai-partnership-v0",
-  "version": "0.4.3",
+  "version": "0.7.0",
   "description": "AI 合伙分钱方案生成器 V0",
   "main": "server/index.js",
   "scripts": {
