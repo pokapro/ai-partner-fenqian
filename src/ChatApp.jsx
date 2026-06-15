@@ -45,13 +45,15 @@ function extractCellText(obj) {
 }
 
 renderer.table = ({ header, body }) => {
+  // 兼容 marked v18：header/body 可能是 tokens 对象，需要用 extractCellText 确保字符串
+  const headerStr = typeof header === 'string' ? header : (Array.isArray(header) ? header.map(t => typeof t === 'object' ? t.text || '' : t).join('') : '');
+  const bodyStr = typeof body === 'string' ? body : (Array.isArray(body) ? body.map(t => typeof t === 'object' ? t.text || '' : t).join('') : JSON.stringify(body || ''));
   // 提取表头和数据行，用 flex 卡片布局
-  const headRows = header ? header.replace(/<tr>/g, '').replace(/<\/tr>/g, '').replace(/<th[^>]*>/g, '').replace(/<\/th>/g, '|') : '';
+  const headRows = headerStr.replace(/<tr>/g, '').replace(/<\/tr>/g, '').replace(/<th[^>]*>/g, '').replace(/<\/th>/g, '|');
   const headCells = headRows.split('|').filter(Boolean).map(h => h.trim());
   
   // body 中的行
-  const bodyHtml = body || '';
-  const rowMatches = [...bodyHtml.matchAll(/<tr>(.*?)<\/tr>/gs)];
+  const rowMatches = [...bodyStr.matchAll(/<tr>(.*?)<\/tr>/gs)];
   const dataRows = rowMatches.map(m => {
     const cells = m[1].replace(/<td[^>]*>/g, '').replace(/<\/td>/g, '|').split('|').filter(Boolean).map(c => c.trim());
     return cells;
