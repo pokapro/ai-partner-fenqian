@@ -306,12 +306,16 @@ export default function ChatApp() {
     fetch('/api/progress/' + caseId)
       .then(r => r.json())
       .then(prog => {
-        if (prog.status === 'done' && prog.previewMarkdown) {
-          const restored = { caseId, previewMarkdown: prog.previewMarkdown, hasUnlocked: false, status: 'done' };
-          setResult(restored);
-          setAppState('preview_ready');
-          setShowResult(true);
-          try { writeLocalStorage('fenqian_currentCase', ({ state: 'preview_ready', data: restored })); } catch {}
+        if (prog.status === 'done') {
+          // 拉取预览（2000 字符）
+          let previewMd = prog.previewMarkdown || '';
+          if (previewMd) {
+            const restored = { caseId, previewMarkdown: previewMd, hasUnlocked: false, status: 'done' };
+            setResult(restored);
+            setAppState('preview_ready');
+            setShowResult(true);
+            try { writeLocalStorage('fenqian_currentCase', ({ state: 'preview_ready', data: restored })); } catch {}
+          }
         } else if (prog.status === 'unknown' || prog.status === 'failed') {
           // 试试 public-status
           fetch('/api/cases/' + caseId + '/public-status')
@@ -323,6 +327,13 @@ export default function ChatApp() {
                 setAppState(s.unlockStatus === 'unlocked' ? 'paid_unlocked' : 'preview_ready');
                 setShowResult(true);
                 try { writeLocalStorage('fenqian_currentCase', ({ state: s.unlockStatus === 'unlocked' ? 'paid_unlocked' : 'preview_ready', data: restored })); } catch {}
+                // 如果是已解锁状态，拉取完整报告
+                if (s.unlockStatus === 'unlocked') {
+                  fetch('/api/cases/' + caseId + '/unlocked-report', { credentials: 'include' })
+                    .then(r => r.ok ? r.json() : null)
+                    .then(d => { if (d && d.reportMarkdown) setResult((prev) => ({ ...prev, previewMarkdown: d.reportMarkdown })); })
+                    .catch(() => {});
+                }
               }
             })
             .catch(() => {});
@@ -592,7 +603,20 @@ export default function ChatApp() {
       // 手动确认：48小时内客服联系后手动解锁
       setResult((prev) => ({ ...prev, paymentRecorded: plan }));
       setAppState('paid_unlocked');
-      try { writeLocalStorage('fenqian_currentCase', ({ state: 'paid_unlocked', data: { ...result, hasUnlocked: true, paymentRecorded: plan } })); } catch {}
+      // 内容保护：localStorage 不存完整报告，只存 caseId/状态/未含报告的元数据
+      // 完整报告从后端 /api/cases/:id/unlocked-report 拉取
+      const safeMeta = { caseId: result.caseId, hasUnlocked: true, paymentRecorded: plan, partners: result.partners, sceneMode: result.sceneMode, annualProfit: result.annualProfit };
+      try { writeLocalStorage('fenqian_currentCase', ({ state: 'paid_unlocked', data: safeMeta })); } catch {}
+      // 拉取完整报告
+      try {
+        const unlockRes = await fetch('/api/cases/' + result.caseId + '/unlocked-report', { credentials: 'include' });
+        if (unlockRes.ok) {
+          const unlockData = await unlockRes.json();
+          if (unlockData.reportMarkdown) {
+            setResult((prev) => ({ ...prev, previewMarkdown: unlockData.reportMarkdown }));
+          }
+        }
+      } catch (e) { console.warn('拉取完整报告失败（未付款或网络问题）', e); }
     } catch (e) {
       alert('记录失败：' + e.message);
       setAppState('preview_ready');
@@ -708,10 +732,10 @@ export default function ChatApp() {
       boxShadow: '0 4px 16px rgba(15,23,42,0.15)'
     }}>
       <div style={{ fontSize: '0.7rem', color: '#94a3b8', letterSpacing: '0.15em', marginBottom: 8 }}>STARR 商业诊断书</div>
-      <div style={{ fontSize: '1.2rem', fontWeight: 800, marginBottom: 6, lineHeight: 1.4 }}>{result.partners?.length||2} 人合伙分���方案</div>
+      <div style={{ fontSize: '1.2rem', fontWeight: 800, marginBottom: 6, lineHeight: 1.4 }}>{result.partners?.length||2} 人合伙分钱诊断方案</div>
       <div style={{ fontSize: '0.78rem', color: '#cbd5e1', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
         <span>📅 {generatedAt}</span>
-        {result.sceneMode && <span>💼 {result.sceneMode === 'small' ? '小店' : result.sceneMode === 'standard' ? '标准' : '公司化'}</span>}
+        {result.sceneMode && <span>💼 {result.sceneMode === 'small_biz' ? '小店' : result.sceneMode === 'standard' ? '标准' : result.sceneMode === 'corporate' ? '公司化' : result.sceneMode}</span>}
         {result.annualProfit && <span>💰 年利润 ¥{Number(result.annualProfit).toLocaleString()}</span>}
       </div>
       <div style={{ position: 'absolute', top: -30, right: -30, fontSize: '5rem', opacity: 0.06, fontWeight: 900 }}>✦</div>

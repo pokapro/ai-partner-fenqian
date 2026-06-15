@@ -46,9 +46,25 @@ async function initDb() {
       payment_intent TEXT DEFAULT '',
       review_status TEXT NOT NULL DEFAULT 'pending_review',
       review_note TEXT DEFAULT '',
-      progress INTEGER NOT NULL DEFAULT 0
+      progress INTEGER NOT NULL DEFAULT 0,
+      admin_note TEXT DEFAULT '',
+      followup_status TEXT DEFAULT ''
     );
   `);
+
+  // 升级：补全旧库可能缺失的字段（兼容老库）
+  try {
+    const cols = database.exec("PRAGMA table_info(cases)");
+    const colNames = (cols[0]?.values || []).map(r => r[1]);
+    if (!colNames.includes('admin_note')) {
+      database.run ('ALTER TABLE cases ADD COLUMN admin_note TEXT DEFAULT ""');
+      console.log('[DB] 迁移: cases.admin_note 已添加');
+    }
+    if (!colNames.includes('followup_status')) {
+      database.run ('ALTER TABLE cases ADD COLUMN followup_status TEXT DEFAULT ""');
+      console.log('[DB] 迁移: cases.followup_status 已添加');
+    }
+  } catch(e) { console.warn('[DB] 字段迁移检查失败:', e.message); }
 
   // 恢复备份案例数据（部署重建后 SQLite 丢失时从 JSON 恢复）
   try {
@@ -756,6 +772,23 @@ async function initDb() {
       while (stmt.step()) rows.push(stmt.getAsObject());
       stmt.free();
       return rows;
+    },
+
+    // 从备份数据恢复：清空现有 cases 后插入
+    restoreFromBackup(cases) {
+      if (!Array.isArray(cases)) throw new Error('cases 必须是数组');
+      database.run (`DELETE FROM cases`);
+      const stmt = database.prepare('INSERT OR IGNORE INTO cases (id, created_at, source, contact, partner_count, input_json, report_markdown, payment_intent, review_status, review_note, progress, admin_note, followup_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+      let count = 0;
+      for (const c of cases) {
+        if (c.id && c.created_at) {
+          stmt.run([c.id, c.created_at, c.source || 'restored', c.contact || '', c.partner_count || 2, c.input_json || '{}', c.report_markdown || '', c.payment_intent || '', c.review_status || 'pending_review', c.review_note || '', c.progress || 0, c.admin_note || '', c.followup_status || '']);
+          count++;
+        }
+      }
+      stmt.free();
+      persist(); // 备份恢复后自动创建新的当前备份
+      return count;
     }
   };
 

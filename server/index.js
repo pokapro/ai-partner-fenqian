@@ -292,13 +292,17 @@ app.get('/api/progress/:caseId', (req, res) => {
       const timer = setTimeout(() => { progressStore.delete(req.params.caseId); progressStore._cleanupTimers.delete(req.params.caseId); }, 60000);
       progressStore._cleanupTimers.set(req.params.caseId, timer);
     }
-    return res.json({ progress: 100, status: 'done', caseId: req.params.caseId, previewMarkdown: entry.preview });
+    // 内容保护：只返回前 2000 字符预览，完整报告走 /api/cases/:id/unlocked-report
+    const preview = (entry.preview || '').slice(0, 2000);
+    return res.json({ progress: 100, status: 'done', caseId: req.params.caseId, previewMarkdown: preview, contentLocked: true });
   }
   if (typeof entry === 'number' && entry >= 100) {
     // 兼容：如果是数字100，尝试从数据库读
     const summary = db.getCaseReportSummary(req.params.caseId);
     if (summary) {
-      return res.json({ progress: 100, status: 'done', caseId: req.params.caseId, previewMarkdown: summary.previewMarkdown });
+      // 内容保护：只返预览，不返完整报告
+      const preview = (summary.previewMarkdown || '').slice(0, 2000);
+      return res.json({ progress: 100, status: 'done', caseId: req.params.caseId, previewMarkdown: preview, contentLocked: true });
     }
     return res.json({ progress: 100, status: 'done' });
   }
@@ -706,6 +710,7 @@ app.get('/api/admin/orders', requireAdminToken, (req, res) => {
 app.get('/api/admin/export/cases', requireAdminToken, (req, res) => {
   try {
     const cases = db.getAllCases();
+    const today = new Date();
     const header = '案例ID,提交时间,合伙人数,联系方式,付费意向,审核状态,跟进状态,管理员备注';
     const rows = cases.map(c => {
       const id = c.id || '';
@@ -731,6 +736,7 @@ app.get('/api/admin/export/cases', requireAdminToken, (req, res) => {
 app.get('/api/admin/export/orders', requireAdminToken, (req, res) => {
   try {
     const orders = db.getAllOrders();
+    const today = new Date();
     const header = '订单ID,案例ID,套餐,金额(分),状态,支付时间,创建时间';
     const rows = orders.map(o => {
       return [o.id, o.case_id, o.plan, o.amount, o.status, o.paid_at || '', o.created_at || ''].join(',');
@@ -810,20 +816,8 @@ app.post('/api/admin/backups/restore', requireAdminToken, (req, res) => {
     if (!data.cases || !Array.isArray(data.cases)) {
       return res.status(400).json({ error: 'invalid', message: '备份文件格式无效' });
     }
-    // 先清空当前 cases 表
-    database.run(`DELETE FROM cases`);
-    // 然后导入
-    const stmt = database.prepare('INSERT OR IGNORE INTO cases (id, created_at, source, contact, partner_count, input_json, report_markdown, payment_intent, review_status, review_note, progress, admin_note, followup_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-    let count = 0;
-    for (const c of data.cases) {
-      if (c.id && c.created_at) {
-        stmt.run([c.id, c.created_at, c.source || 'restored', c.contact || '', c.partner_count || 2, c.input_json || '{}', c.report_markdown || '', c.payment_intent || '', c.review_status || 'pending_review', c.review_note || '', c.progress || 0, c.admin_note || '', c.followup_status || '']);
-        count++;
-      }
-    }
-    stmt.free();
-    // 触发备份
-    persist();
+    // 通过 db.restoreFromBackup() 调用（不直接访问内部 database/persist）
+    const count = db.restoreFromBackup(data.cases);
     res.json({ success: true, restored: count });
   } catch (err) {
     res.status(500).json({ error: 'server_error', message: err.message });
