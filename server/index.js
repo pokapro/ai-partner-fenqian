@@ -1,4 +1,4 @@
-// AI 合伙分钱方案生成器 - V0.2 Server (案例库+规则库驱动)
+// AI 合伙分钱方案生成器 - V0.7 Server (案例库+规则库驱动)
 const path = require('path');
 const fs = require('fs');
 // 强制从项目根目录加载 .env，不依赖启动 cwd
@@ -58,10 +58,11 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 const progressStore = new Map();
 
 function validateInput(body) {
+  body = body || {};
   const errors = [];
 
   if (!body.partnerCount || ![2, 3, 4].includes(Number(body.partnerCount))) {
-    errors.push('合伙人数必须是 2 或 3');
+    errors.push('合伙人数必须是 2、3 或 4');
   }
 
   if (!body.partners || !Array.isArray(body.partners)) {
@@ -92,7 +93,7 @@ function validateInput(body) {
     errors.push('联系方式（微信或手机号）不能为空');
   }
 
-  const disputeKeywords = ['纠纷', '诉讼', '打官司', '法院', '律师正在', '已经打'];
+  const disputeKeywords = ['打官司', '律师正在', '已经起诉', '已经仲裁', '起诉状', '仲裁申请书', '法院已受理'];
   const allText = JSON.stringify(body);
   for (const kw of disputeKeywords) {
     if (allText.includes(kw)) {
@@ -137,6 +138,11 @@ function requireAdminToken(req, res, next) {
   if (!user && req.query.user && req.query.pass) {
     user = req.query.user;
     pass = req.query.pass;
+  }
+  // 兼容登录接口的 JSON body
+  if (!user && req.body && req.body.username && req.body.password) {
+    user = req.body.username;
+    pass = req.body.password;
   }
   const match = wl.find(w => w.username === user && w.password === pass);
   if (!match) {
@@ -219,26 +225,31 @@ app.post('/api/suggest-form', async (req, res) => {
 
 app.post('/api/generate', async (req, res) => {
   try {
+    const caseId = 'case_' + crypto.randomBytes(12).toString('hex');
+    const { partnerCount, partners, contact } = req.body || {};
+
+    // 数据安全优先：只要用户点击提交，先落库保存原始输入。
+    // 后续即使校验失败、AI失败或前端刷新，也能在后台看到这次提交。
+    db.createCase({
+      id: caseId,
+      partnerCount: Number(partnerCount) || 0,
+      contact: String(contact || '').trim(),
+      inputJson: req.body || {}
+    });
+
     const errors = validateInput(req.body);
     if (errors.length > 0) {
       if (errors.includes('dispute_detected')) {
+        db.updateReport(caseId, '提交内容涉及已发生纠纷或诉讼请求，系统已拒绝自动生成。原始信息已保留，建议人工跟进判断。', 'rejected');
         return res.status(400).json({
           error: 'dispute',
+          caseId,
           message: '⚠️ 检测到您描述的内容涉及已发生的纠纷。本工具不处理已发生纠纷的分配方案，建议您咨询专业律师。'
         });
       }
-      return res.status(400).json({ error: 'validation', message: errors.join('；') });
+      db.updateReport(caseId, '提交内容未通过表单校验：' + errors.join('；') + '\n\n原始信息已保留，可在后台查看。', 'rejected');
+      return res.status(400).json({ error: 'validation', caseId, message: errors.join('；') });
     }
-
-    const caseId = 'case_' + crypto.randomBytes(12).toString('hex');
-    const { partnerCount, partners, contact } = req.body;
-
-    db.createCase({
-      id: caseId,
-      partnerCount: Number(partnerCount),
-      contact: contact.trim(),
-      inputJson: req.body
-    });
 
     // 先返回 caseId，后端异步生成
     res.json({ caseId, progress: 0, status: 'generating' });
@@ -263,7 +274,7 @@ app.post('/api/generate', async (req, res) => {
         clearInterval(iv);
         progressStore.set(caseId, 80);
 
-        const profitTable = generateProfitTable(partners);
+        const profitTable = generateProfitTable(partners || []);
         const fullReport = reportMarkdown + '\n\n---\n\n## 利润模拟表（系统计算）\n\n' + profitTable;
         progressStore.set(caseId, 88);
 
@@ -327,8 +338,8 @@ app.get('/api/cases/:id/public-status', (req, res) => {
     // 获取后端记录的付款状态
     let unlockStatus = 'locked';
     if (c.payment_intent && c.payment_intent.includes('completed')) unlockStatus = 'unlocked';
-    // review_status 为 'paid_delivered' 或 review_note 含 'paid' 也视为已解锁
-    if (c.review_status === 'paid_delivered' || (c.review_note && c.review_note.includes('paid'))) unlockStatus = 'unlocked';
+    // review_status 为已交付/已支付交付，或人工备注含 paid/unlocked，也视为已解锁
+    if (['paid_delivered', 'delivered'].includes(c.review_status) || (c.review_note && /paid|unlocked|已解锁/.test(c.review_note))) unlockStatus = 'unlocked';
 
     res.json({
       caseId: c.id,
@@ -496,15 +507,19 @@ app.get('/api/cases/:id/unlocked-report', (req, res) => {
     const c = db.getCase(req.params.id);
     if (!c) return res.status(404).json({ error: 'not_found', message: '案例不存在' });
 
-    // 检查是否已付费
+    // 检查是否已解锁。支付暂未正式开通时，允许人工/后台记录完成状态后读取。
     const orders = db.getOrdersByCase(req.params.id);
     const hasPaid = orders.some(o => o.status === 'paid');
-    if (!hasPaid) {
+    const hasManualUnlock =
+      (c.payment_intent && /completed|manual_unlocked|unlocked/.test(c.payment_intent)) ||
+      ['paid_delivered', 'delivered'].includes(c.review_status);
+    if (!hasPaid && !hasManualUnlock) {
       return res.status(403).json({ error: 'payment_required', message: '请先完成支付' });
     }
 
     res.json({
       caseId: c.id,
+      reportMarkdown: c.report_markdown || '',
       fullReport: c.report_markdown || '',
       hasUnlocked: true,
     });
@@ -521,7 +536,10 @@ app.get('/api/cases/:id/download', (req, res) => {
 
     const orders = db.getOrdersByCase(req.params.id);
     const hasPaid = orders.some(o => o.status === 'paid');
-    if (!hasPaid) {
+    const hasManualUnlock =
+      (c.payment_intent && /completed|manual_unlocked|unlocked/.test(c.payment_intent)) ||
+      ['paid_delivered', 'delivered'].includes(c.review_status);
+    if (!hasPaid && !hasManualUnlock) {
       return res.status(403).json({ error: 'payment_required', message: '请先完成支付' });
     }
 
@@ -670,6 +688,15 @@ app.post('/api/admin/cases/:id/promote', requireAdminToken, (req, res) => {
   } catch (err) {
     res.status(500).json({ error: 'server_error', message: err.message || '提升为知识案例失败' });
   }
+});
+
+// === Admin 登录校验 ===
+app.post('/api/admin/login', requireAdminToken, (req, res) => {
+  res.json({
+    success: true,
+    user: req.adminUser?.username || 'admin',
+    role: req.adminUser?.role || 'admin'
+  });
 });
 
 // === Admin Dashboard 统计 ===
@@ -860,8 +887,7 @@ if (loadWhitelist().length === 0) {
 // GET whitelist
 app.get('/api/admin/whitelist', requireAdminToken, (req, res) => {
   const list = loadWhitelist();
-  // 不返回密码哈希，但为了前端验证也返回密码（内网自用场景可以接受）
-  res.json(list);
+  res.json(list.map(({ password, ...safe }) => safe));
 });
 
 // POST add to whitelist

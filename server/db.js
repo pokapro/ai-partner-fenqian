@@ -541,12 +541,20 @@ async function initDb() {
     },
 
     getProgress(id) {
-      const row = database.prepare(`SELECT progress FROM cases WHERE id = ?`).get(id);
+      const stmt = database.prepare(`SELECT progress FROM cases WHERE id = ?`);
+      stmt.bind([id]);
+      let row = null;
+      if (stmt.step()) row = stmt.getAsObject();
+      stmt.free();
       return row ? row.progress : null;
     },
 
     getCaseReportSummary(id) {
-      const row = database.prepare(`SELECT report_markdown FROM cases WHERE id = ?`).get(id);
+      const stmt = database.prepare(`SELECT report_markdown FROM cases WHERE id = ?`);
+      stmt.bind([id]);
+      let row = null;
+      if (stmt.step()) row = stmt.getAsObject();
+      stmt.free();
       if (!row || !row.report_markdown) return null;
       const md = row.report_markdown;
       // 前6000字截断

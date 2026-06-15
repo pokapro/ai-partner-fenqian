@@ -161,6 +161,25 @@ const SCENE_MODES = [
   { value: "corporate", label: "🏛️ 公司化合伙", desc: "多人合伙、大额出资，适合正式商业方案" },
 ];
 
+const PLAN_INFO = {
+  basic: {
+    name: "基础版",
+    price: "29.9",
+    intent: "request_basic",
+    title: "申请基础版完整报告",
+    intro: "内测阶段暂不开放自动支付。提交后，客服会按您填写的联系方式确认需求，再人工开放完整报告和下载。",
+    items: ["完整 AI 诊断报告", "三套分钱方案与利润模拟", "基础协议条款草稿", "后台人工确认后开放下载"],
+  },
+  reviewed: {
+    name: "人工审核版",
+    price: "99",
+    intent: "request_reviewed",
+    title: "申请人工审核版",
+    intro: "提交后进入人工审核队列。适合已经准备拿给合伙人沟通、需要降低表达风险的场景。",
+    items: ["包含基础版完整内容", "人工复核一次核心比例与风险点", "可按反馈补充信息后重生成", "重点协议条款与文件清单"],
+  },
+};
+
 // 场景预设（按类别分组）
 const SCENE_PRESETS = {
   small_biz: [
@@ -290,7 +309,7 @@ export default function ChatApp() {
   const savedResult = (() => {
     try {
       const r = JSON.parse(localStorage.getItem('fenqian_currentCase'));
-      if (r && r.caseId && r.state) return r;
+      if (r && r.state && (r.caseId || r.data?.caseId)) return r;
     } catch {}
     return null;
   })();
@@ -483,6 +502,13 @@ export default function ChatApp() {
 
       // 轮询进度
       const caseId = data.caseId;
+      try { localStorage.setItem('fenqian_lastCaseId', caseId); } catch(e) {}
+      try {
+        localStorage.setItem('fenqian_currentCase', JSON.stringify({
+          state: 'generating',
+          data: { caseId, hasUnlocked: false, status: 'generating' }
+        }));
+      } catch(e) {}
       const poll = async () => {
         try {
           const pRes = await fetch(`/api/progress/${caseId}`);
@@ -494,9 +520,18 @@ export default function ChatApp() {
             const fullMd = pData.previewMarkdown || '';
             const chapters = splitChapters(fullMd);
             chaptersRef.current = chapters;
-            const resultData = { caseId, previewMarkdown: fullMd, hasUnlocked: false, status: 'pending_review' };
+            const resultData = {
+              caseId,
+              previewMarkdown: fullMd,
+              hasUnlocked: false,
+              status: 'pending_review',
+              partners: body.partners,
+              sceneMode: body.sceneMode,
+              annualProfit: body.annualProfit,
+            };
             setResult(resultData);
             setAppState('preview_ready');
+            try { localStorage.setItem('fenqian_lastCaseId', caseId); } catch(e) {}
             try { writeLocalStorage('fenqian_currentCase', ({ state: 'preview_ready', data: resultData })); } catch(e) {}
             setShowResult(true);
             setGenerating(false);
@@ -580,7 +615,9 @@ export default function ChatApp() {
         return;
       }
 
-      setResult((prev) => ({ ...prev, previewMarkdown: data.updatedReport || data.previewMarkdown }));
+      const nextMarkdown = data.updatedReport || data.previewMarkdown || "";
+      chaptersRef.current = splitChapters(nextMarkdown);
+      setResult((prev) => ({ ...prev, previewMarkdown: nextMarkdown }));
       setEditHistory((prev) => [...prev, { prompt: editPrompt, target: editTarget, status: "success", error: null }]);
       setEditPrompt("");
       setEditLoading(false);
@@ -590,33 +627,21 @@ export default function ChatApp() {
     }
   };
 
-  // === 支付状态 ===
-  const handlePayment = async (plan) => {
+  // === 内测完整报告申请 ===
+  const handleUnlockRequest = async (plan) => {
     if (!result?.caseId) return;
+    const planInfo = PLAN_INFO[plan] || PLAN_INFO.basic;
     try {
-      // 记录付款意向
+      // 只记录申请意向，不触发真实支付/自动解锁
       await fetch('/api/cases/' + result.caseId + '/payment', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paymentIntent: plan }),
+        body: JSON.stringify({ paymentIntent: planInfo.intent }),
       });
-      // 手动确认：48小时内客服联系后手动解锁
-      setResult((prev) => ({ ...prev, paymentRecorded: plan }));
-      setAppState('paid_unlocked');
-      // 内容保护：localStorage 不存完整报告，只存 caseId/状态/未含报告的元数据
-      // 完整报告从后端 /api/cases/:id/unlocked-report 拉取
-      const safeMeta = { caseId: result.caseId, hasUnlocked: true, paymentRecorded: plan, partners: result.partners, sceneMode: result.sceneMode, annualProfit: result.annualProfit };
-      try { writeLocalStorage('fenqian_currentCase', ({ state: 'paid_unlocked', data: safeMeta })); } catch {}
-      // 拉取完整报告
-      try {
-        const unlockRes = await fetch('/api/cases/' + result.caseId + '/unlocked-report', { credentials: 'include' });
-        if (unlockRes.ok) {
-          const unlockData = await unlockRes.json();
-          if (unlockData.reportMarkdown) {
-            setResult((prev) => ({ ...prev, previewMarkdown: unlockData.reportMarkdown }));
-          }
-        }
-      } catch (e) { console.warn('拉取完整报告失败（未付款或网络问题）', e); }
+      setResult((prev) => ({ ...prev, paymentRecorded: planInfo.intent }));
+      setAppState('preview_ready');
+      const safeMeta = { caseId: result.caseId, hasUnlocked: false, paymentRecorded: planInfo.intent, partners: result.partners, sceneMode: result.sceneMode, annualProfit: result.annualProfit, previewMarkdown: result.previewMarkdown };
+      try { writeLocalStorage('fenqian_currentCase', ({ state: 'preview_ready', data: safeMeta })); } catch {}
     } catch (e) {
       alert('记录失败：' + e.message);
       setAppState('preview_ready');
@@ -684,6 +709,12 @@ export default function ChatApp() {
     return null;
   };
 
+  const getPreviewLimit = (hasUnlocked) => {
+    if (hasUnlocked) return Number.POSITIVE_INFINITY;
+    if (window.matchMedia && window.matchMedia('(max-width: 640px)').matches) return 3;
+    return 4;
+  };
+
   const renderPreview = (markdown, hasUnlocked) => {
     if (!markdown) return null;
 
@@ -705,14 +736,21 @@ export default function ChatApp() {
       })}{renderReportFooter()}</div>;
     }
 
-    // 未解锁：整段用 marked 渲染（支持表格/blockquote等富格式）
-    const chapters = chaptersRef.current;
+    // 未解锁：只展示前几章，后续内容做明确保护
+    const chapters = chaptersRef.current.length > 0 ? chaptersRef.current : splitChapters(markdown);
+    const shownCount = Math.min(visibleChapters, getPreviewLimit(false), chapters.length);
     return <div>
-      {chapters.slice(0, visibleChapters).map((ch, idx) => (
+      {chapters.slice(0, shownCount).map((ch, idx) => (
         <div key={idx} className="waterfall-item" style={{ animationDelay: `${idx * 0.04}s` }}>
-          <div className="prose prose-sm max-w-none" style={{ lineHeight: 1.5, fontSize: '0.85rem' }} dangerouslySetInnerHTML={{ __html: fixTables(sanitizeHtml(marked.parse(ch))) }} />
+          <div className="prose prose-sm max-w-none report-chapter" dangerouslySetInnerHTML={{ __html: fixTables(sanitizeHtml(marked.parse(ch))) }} />
         </div>
       ))}
+      {chapters.length > shownCount && (
+        <div className="locked-report-mask">
+          <div className="locked-title">完整报告已生成，以下内容已保护</div>
+          <div className="locked-text">剩余章节包含推荐比例、利润模拟、协议条款草稿、沟通话术和下一步行动。内测阶段提交申请后由人工确认开放。</div>
+        </div>
+      )}
       {renderReportFooter()}
     </div>;
   };
@@ -804,25 +842,24 @@ export default function ChatApp() {
     return () => document.removeEventListener('visibilitychange', fn);
   }, []);
 
-useEffect(() => {
-    if (result?.previewMarkdown && chaptersRef.current.length > 0) {
-      // 重置
-      setVisibleChapters(0);
-      const timer = setInterval(() => {
-        setVisibleChapters((prev) => {
-          if (prev >= chaptersRef.current.length) {
-            clearInterval(timer);
-            return prev;
-          }
-          return prev + 1;
-        });
-      }, 300);
-      return () => clearInterval(timer);
-    }
-  }, [result?.caseId]);
+  useEffect(() => {
+    if (!result?.previewMarkdown) return;
+    chaptersRef.current = splitChapters(result.previewMarkdown);
+    setVisibleChapters(0);
+    const timer = setInterval(() => {
+      setVisibleChapters((prev) => {
+        if (prev >= chaptersRef.current.length) {
+          clearInterval(timer);
+          return prev;
+        }
+        return prev + 1;
+      });
+    }, 300);
+    return () => clearInterval(timer);
+  }, [result?.caseId, result?.previewMarkdown]);
 
   return (
-    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+    <div className="app-shell" style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
       {/* 内联 CSS */}
       <style>{`
         @keyframes think-bounce {
@@ -841,11 +878,125 @@ useEffect(() => {
         .waterfall-item {
           animation: waterfall-in 0.4s ease-out both;
         }
+        .app-shell {
+          background: linear-gradient(180deg, #f8fafc 0%, #eef2f7 52%, #f8fafc 100%);
+        }
+        .top-hero {
+          background: #102033;
+          color: white;
+          padding: 34px 20px 26px;
+          text-align: center;
+          border-bottom: 1px solid rgba(255,255,255,.08);
+        }
+        .top-hero h1 {
+          font-size: 1.72rem;
+          font-weight: 800;
+          margin-bottom: 8px;
+          letter-spacing: 0;
+        }
+        .top-hero p {
+          font-size: .95rem;
+          opacity: .88;
+          max-width: 560px;
+          margin: 0 auto;
+          line-height: 1.65;
+        }
+        .section-title {
+          font-size: .82rem;
+          font-weight: 700;
+          color: #334155;
+          margin-bottom: 10px;
+          letter-spacing: 0;
+        }
+        .report-shell {
+          background: #fff;
+          border: 1px solid #dfe7ef;
+          border-radius: 12px;
+          padding: 18px;
+          margin-bottom: 16px;
+          line-height: 1.7;
+          font-size: .92rem;
+          box-shadow: 0 10px 30px rgba(15,23,42,.06);
+        }
+        .report-chapter {
+          line-height: 1.75 !important;
+          font-size: .92rem !important;
+          color: #263244;
+        }
+        .locked-report-mask {
+          margin: 16px 0 4px;
+          padding: 18px 16px;
+          border-radius: 12px;
+          border: 1px solid #cbd5e1;
+          background: linear-gradient(180deg, rgba(248,250,252,.72), #f8fafc);
+          color: #334155;
+          text-align: center;
+          position: relative;
+          overflow: hidden;
+        }
+        .locked-report-mask:before {
+          content: "";
+          position: absolute;
+          inset: 0;
+          background: repeating-linear-gradient(135deg, rgba(148,163,184,.09) 0, rgba(148,163,184,.09) 8px, transparent 8px, transparent 16px);
+          pointer-events: none;
+        }
+        .locked-title {
+          position: relative;
+          font-weight: 800;
+          font-size: .96rem;
+          margin-bottom: 6px;
+          color: #0f172a;
+        }
+        .locked-text {
+          position: relative;
+          font-size: .82rem;
+          line-height: 1.65;
+          color: #64748b;
+        }
+        .plan-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 12px;
+        }
+        .plan-card {
+          background: #fff;
+          border: 1px solid #d7dee8;
+          border-radius: 12px;
+          padding: 16px;
+          cursor: pointer;
+          text-align: left;
+          transition: transform .15s ease, border-color .15s ease, box-shadow .15s ease;
+        }
+        .plan-card:hover {
+          transform: translateY(-1px);
+          border-color: #059669;
+          box-shadow: 0 10px 24px rgba(15,23,42,.08);
+        }
+        .plan-card.featured {
+          background: #f6fbf8;
+          border: 2px solid #059669;
+        }
+        .modal-panel {
+          background: white;
+          border-radius: 16px;
+          padding: 24px;
+          max-width: 420px;
+          width: 100%;
+          max-height: calc(100vh - 40px);
+          overflow: auto;
+          box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+        }
 
         /* 手机端响应式 */
         @media (max-width: 480px) {
           main { padding: 12px 10px 120px !important; }
-          h1 { font-size: 1.3rem !important; }
+          .top-hero { padding: 24px 16px 18px !important; text-align: left !important; }
+          .top-hero h1 { font-size: 1.36rem !important; line-height: 1.35 !important; }
+          .top-hero p { font-size: .86rem !important; margin: 0 !important; }
+          .plan-grid { grid-template-columns: 1fr !important; }
+          .report-shell { padding: 14px !important; border-radius: 10px !important; }
+          .report-chapter { font-size: .94rem !important; line-height: 1.82 !important; }
           .waterfall-item { animation-duration: 0.3s !important; }
           /* 表格转竖排 */
           table { font-size: 0.72rem !important; }
@@ -853,13 +1004,15 @@ useEffect(() => {
           /* 代码块 */
           pre { font-size: 0.72rem !important; padding: 10px !important; }
           /* 按钮变大 */
-          button { min-height: 38px !important; }
+          button { min-height: 42px !important; }
           /* 报告封面 */
           h1[style*="1.35rem"] { font-size: 1.15rem !important; }
           h2[style*="1.12rem"] { font-size: 1rem !important; }
           h3[style*="0.98rem"] { font-size: 0.9rem !important; }
           /* 输入框/文本区 */
           input, textarea, select { font-size: 16px !important; }
+          [data-field-row="true"] { grid-template-columns: 1fr !important; gap: 6px !important; }
+          [data-field-row="true"] label { font-weight: 700 !important; color: #475569 !important; }
         }
         @media (min-width: 481px) and (max-width: 768px) {
           main { padding: 16px 14px 100px !important; }
@@ -877,9 +1030,9 @@ useEffect(() => {
         /* 报告区域滚动对齐 */
         #report-section { scroll-margin-top: 16px; }
       `}</style>
-      <header style={{ background: "#1e293b", color: "white", padding: "40px 20px 30px", textAlign: "center" }}>
-        <h1 style={{ fontSize: "1.8rem", fontWeight: 700, marginBottom: 8 }}>斯塔管理 | 🤝 AI 合伙分钱诊断</h1>
-        <p style={{ fontSize: "0.95rem", opacity: 0.9, maxWidth: 500, margin: "0 auto", lineHeight: 1.6 }}>
+      <header className="top-hero">
+        <h1>斯塔管理 | AI 合伙分钱诊断</h1>
+        <p>
           输入合伙人的出资、出力、利润预期，生成<strong>分钱方案 + 五权结构诊断 + 贡献估值 + 协议草稿</strong>。
         </p>
       </header>
@@ -887,7 +1040,7 @@ useEffect(() => {
       <main style={{ flex: 1, maxWidth: 720, margin: "0 auto", padding: "20px 16px 80px", width: "100%" }}>
         {/* 合伙人数 + 场景 */}
         <section style={{ marginBottom: 24 }}>
-          <h2 style={{ fontSize: "0.85rem", fontWeight: 600, color: "#475569", marginBottom: 8, textTransform: "uppercase", letterSpacing: 1 }}>选择合伙人数</h2>
+          <h2 className="section-title">第一步：选择合伙结构</h2>
           <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
             {[2, 3, 4].map((n) => (
               <button key={n} onClick={() => handlePartnerCountChange(n)}
@@ -983,17 +1136,17 @@ useEffect(() => {
 
         {/* 合伙人信息 */}
         <section style={{ marginBottom: 24 }}>
-          <h2 style={{ fontSize: "0.85rem", fontWeight: 600, color: "#475569", marginBottom: 12, textTransform: "uppercase", letterSpacing: 1 }}>合伙人信息</h2>
+          <h2 className="section-title">第二步：填写合伙人信息</h2>
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             {PARTNER_CONFIGS[partnerCount].map((cfg, idx) => (
               <div key={cfg.id} style={{ background: "white", border: "1px solid #e2e8f0", borderRadius: 12, padding: 16 }}>
                 <div style={{ fontWeight: 600, marginBottom: 10, color: "#444", fontSize: "0.9rem" }}>{cfg.label}</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  <div style={{ display: "grid", gridTemplateColumns: "100px 1fr", alignItems: "center", gap: 8 }}>
+                  <div data-field-row="true" style={{ display: "grid", gridTemplateColumns: "100px 1fr", alignItems: "center", gap: 8 }}>
                     <label style={{ fontSize: "0.8rem", color: "#777" }}>姓名</label>
                     <input type="text" placeholder={cfg.id} value={partners[idx]?.name || ""} onChange={(e) => updatePartner(idx, "name", e.target.value)} style={inputStyle} />
                   </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "100px 1fr", alignItems: "center", gap: 8 }}>
+                  <div data-field-row="true" style={{ display: "grid", gridTemplateColumns: "100px 1fr", alignItems: "center", gap: 8 }}>
                     <label style={{ fontSize: "0.8rem", color: "#777" }}>出资</label>
                     <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                       <input type="number" placeholder="0" value={partners[idx]?.capital || ""} onChange={(e) => updatePartner(idx, "capital", e.target.value)} style={{ ...inputStyle, flex: 1 }} />
@@ -1004,7 +1157,7 @@ useEffect(() => {
                       </select>
                     </div>
                   </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "100px 1fr", alignItems: "center", gap: 8 }}>
+                  <div data-field-row="true" style={{ display: "grid", gridTemplateColumns: "100px 1fr", alignItems: "center", gap: 8 }}>
                     <label style={{ fontSize: "0.8rem", color: "#777" }}>出力类型</label>
                     <select value={partners[idx]?.effortType || ""} onChange={(e) => updatePartner(idx, "effortType", e.target.value)}
                       style={{ ...inputStyle, background: "white", cursor: "pointer", color: !partners[idx]?.effortType ? "#999" : "#333" }}>
@@ -1012,7 +1165,7 @@ useEffect(() => {
                       {EFFORT_OPTIONS.map((opt) => (<option key={opt.value} value={opt.value}>{opt.label}</option>))}
                     </select>
                   </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "100px 1fr", alignItems: "center", gap: 8 }}>
+                  <div data-field-row="true" style={{ display: "grid", gridTemplateColumns: "100px 1fr", alignItems: "center", gap: 8 }}>
                     <label style={{ fontSize: "0.8rem", color: "#777" }}>职责</label>
                     <input type="text" placeholder="日常运营、技术开发等" value={partners[idx]?.responsibility || ""} onChange={(e) => updatePartner(idx, "responsibility", e.target.value)} style={inputStyle} />
                   </div>
@@ -1024,9 +1177,9 @@ useEffect(() => {
 
         {/* 经营预期 */}
         <section style={{ marginBottom: 24 }}>
-          <h2 style={{ fontSize: "0.85rem", fontWeight: 600, color: "#475569", marginBottom: 12, textTransform: "uppercase", letterSpacing: 1 }}>经营预期与顾虑</h2>
+          <h2 className="section-title">第三步：经营预期与顾虑</h2>
           <div style={{ background: "white", border: "1px solid #e2e8f0", borderRadius: 12, padding: 16 }}>
-            <div style={{ display: "grid", gridTemplateColumns: "100px 1fr", alignItems: "center", gap: 10, marginBottom: 12 }}>
+            <div data-field-row="true" style={{ display: "grid", gridTemplateColumns: "100px 1fr", alignItems: "center", gap: 10, marginBottom: 12 }}>
               <label style={{ fontSize: "0.8rem", color: "#777" }}>年利润</label>
               <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                 <input type="number" placeholder="0" value={annualProfit} onChange={(e) => setAnnualProfit(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
@@ -1037,7 +1190,7 @@ useEffect(() => {
                 </select>
               </div>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "100px 1fr", alignItems: "center", gap: 10, marginBottom: 12 }}>
+            <div data-field-row="true" style={{ display: "grid", gridTemplateColumns: "100px 1fr", alignItems: "center", gap: 10, marginBottom: 12 }}>
               <label style={{ fontSize: "0.8rem", color: "#777" }}>口头约定</label>
               <input type="text" placeholder="例如：五五分" value={oralAgreement} onChange={(e) => setOralAgreement(e.target.value)} style={inputStyle} />
             </div>
@@ -1068,15 +1221,15 @@ useEffect(() => {
                 <QArea label="需某一方保持控制权？" current={needsControlRight} setter={setNeedsControlRight} />
                 <QArea label="担心合伙人退出？" current={worriesExit} setter={setWorriesExit} />
                 <QArea label="需要协议文件清单？" current={needsProtocolList} setter={setNeedsProtocolList} />
-                <div style={{ display: "grid", gridTemplateColumns: "120px 1fr", alignItems: "center", gap: 8 }}>
+                <div data-field-row="true" style={{ display: "grid", gridTemplateColumns: "120px 1fr", alignItems: "center", gap: 8 }}>
                   <label style={{ fontSize: "0.8rem", color: "#777" }}>运营负责人</label>
                   <input type="text" placeholder="谁日常管公司" value={operatorPerson} onChange={(e) => setOperatorPerson(e.target.value)} style={inputStyle} />
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "120px 1fr", alignItems: "center", gap: 8 }}>
+                <div data-field-row="true" style={{ display: "grid", gridTemplateColumns: "120px 1fr", alignItems: "center", gap: 8 }}>
                   <label style={{ fontSize: "0.8rem", color: "#777" }}>财务负责人</label>
                   <input type="text" placeholder="谁掌握财务账户" value={financeController} onChange={(e) => setFinanceController(e.target.value)} style={inputStyle} />
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "120px 1fr", alignItems: "center", gap: 8 }}>
+                <div data-field-row="true" style={{ display: "grid", gridTemplateColumns: "120px 1fr", alignItems: "center", gap: 8 }}>
                   <label style={{ fontSize: "0.8rem", color: "#777" }}>谁拍板</label>
                   <input type="text" placeholder="重大事项谁说了算" value={decisionMaker} onChange={(e) => setDecisionMaker(e.target.value)} style={inputStyle} />
                 </div>
@@ -1087,9 +1240,9 @@ useEffect(() => {
 
         {/* 联系方式 */}
         <section style={{ marginBottom: 24 }}>
-          <h2 style={{ fontSize: "0.85rem", fontWeight: 600, color: "#475569", marginBottom: 12, textTransform: "uppercase", letterSpacing: 1 }}>联系方式</h2>
+          <h2 className="section-title">第四步：联系方式</h2>
           <div style={{ background: "white", border: "1px solid #e2e8f0", borderRadius: 12, padding: 16 }}>
-            <div style={{ display: "grid", gridTemplateColumns: "100px 1fr", alignItems: "center", gap: 10 }}>
+            <div data-field-row="true" style={{ display: "grid", gridTemplateColumns: "100px 1fr", alignItems: "center", gap: 10 }}>
               <label style={{ fontSize: "0.8rem", color: "#777" }}>微信/手机</label>
               <input type="text" placeholder="用于获取完整报告" value={contact} onChange={(e) => setContact(e.target.value)} style={inputStyle} />
             </div>
@@ -1136,7 +1289,7 @@ useEffect(() => {
             </div>
 
             {renderReportCover()}
-            <div style={{ background: "white", border: "1px solid #e2e8f0", borderRadius: 12, padding: 20, marginBottom: 16, lineHeight: 1.6, fontSize: "0.9rem" }}>
+            <div className="report-shell">
               {result.previewMarkdown ? (
                 (() => {
                   try {
@@ -1206,16 +1359,16 @@ useEffect(() => {
               )}
             </div>
 
-            {/* 付款转化 — 卡片式计费 */}
+            {/* 内测转化 — 完整报告申请 */}
             <div id="payment-section" style={{ background: "white", border: "1px solid #e2e8f0", borderRadius: 12, padding: "20px 16px", textAlign: "center" }}>
-              <h3 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: 4 }}>📋 获取完整报告</h3>
+              <h3 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: 4 }}>获取完整报告</h3>
               <p style={{ fontSize: "0.8rem", color: "#777", marginBottom: 16, lineHeight: 1.5 }}>
-                完整报告已生成，含全部数据、分析和协议条款
+                内测阶段先提交申请，由人工确认后开放完整报告和下载权限。
               </p>
-              <div style={{ display: "flex", gap: 10, flexDirection: "column" }}>
+              <div className="plan-grid">
                 {/* 基础版卡片 */}
                 <div onClick={() => { setSelectedPlan("basic"); setShowPaymentModal(true); }}
-                  style={{ background: "white", border: "1px solid #d1d5db", borderRadius: 12, padding: 16, cursor: "pointer", textAlign: "left" }}>
+                  className="plan-card">
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontWeight: 700, fontSize: "0.95rem", marginBottom: 4 }}>基础版</div>
@@ -1227,12 +1380,12 @@ useEffect(() => {
                         <li>PDF 下载可保存</li>
                       </ul>
                     </div>
-                    <div style={{ fontSize: "1.3rem", color: "#059669", marginTop: 8 }}>→</div>
+                    <div style={{ fontSize: "0.82rem", color: "#059669", marginTop: 8, fontWeight: 700 }}>申请</div>
                   </div>
                 </div>
                 {/* 人工审核版卡片 */}
                 <div onClick={() => { setSelectedPlan("reviewed"); setShowPaymentModal(true); }}
-                  style={{ background: "#fff8e1", border: "2px solid #059669", borderRadius: 12, padding: 16, cursor: "pointer", textAlign: "left" }}>
+                  className="plan-card featured">
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontWeight: 700, fontSize: "0.95rem", marginBottom: 4 }}>
@@ -1247,13 +1400,13 @@ useEffect(() => {
                         <li>重点协议条款草稿 + 完整协议清单</li>
                       </ul>
                     </div>
-                    <div style={{ fontSize: "1.3rem", color: "#059669", marginTop: 8 }}>→</div>
+                    <div style={{ fontSize: "0.82rem", color: "#059669", marginTop: 8, fontWeight: 700 }}>申请</div>
                   </div>
                 </div>
               </div>
               {result.paymentRecorded && (
                 <div style={{ marginTop: 12, padding: "10px 14px", background: "#f0fdf4", borderRadius: 8, fontSize: "0.8rem", color: "#166534", border: "1px solid #a7f3d0" }}>
-                  ✅ 已记录您的选择，客服会通过您填写的联系方式联系
+                  已记录您的完整报告申请，客服会通过您填写的联系方式联系。
                 </div>
               )}
             </div>
@@ -1265,35 +1418,36 @@ useEffect(() => {
         右侧聊天可 AI 顾问辅助 · 基于真实案例数据的商业分析参考
       </footer>
 
-      {/* 支付弹窗 Modal */}
+      {/* 内测申请弹窗 Modal */}
       {showPaymentModal && (
         <div onClick={() => { setShowPaymentModal(false); setSelectedPlan(null); }}
           style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
           <div onClick={(e) => e.stopPropagation()}
-            style={{ background: "white", borderRadius: 16, padding: 24, maxWidth: 360, width: "100%", boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }}>
+            className="modal-panel">
             
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-              <h3 style={{ fontSize: "1rem", fontWeight: 700, margin: 0 }}>{selectedPlan === "basic" ? "基础版" : "人工审核版"}</h3>
+              <h3 style={{ fontSize: "1rem", fontWeight: 700, margin: 0 }}>{(PLAN_INFO[selectedPlan] || PLAN_INFO.basic).title}</h3>
               <button onClick={() => { setShowPaymentModal(false); setSelectedPlan(null); }}
                 style={{ background: "none", border: "none", fontSize: "1.3rem", cursor: "pointer", color: "#999", padding: "4px 8px" }}>✕</button>
             </div>
 
             <p style={{ fontSize: "0.8rem", color: "#555", marginBottom: 16, lineHeight: 1.5 }}>
-              {selectedPlan === "basic"
-                ? "微信扫码支付 29.9 元，支付后点击下方「我已付款」解锁完整报告。"
-                : "微信扫码支付 99 元，支付后点击下方「我已付款」，客服将联系您。"
-              }
+              {(PLAN_INFO[selectedPlan] || PLAN_INFO.basic).intro}
             </p>
 
-            <div style={{ background: "#f8fafc", borderRadius: 12, padding: 20, textAlign: "center", marginBottom: 16 }}>
+            <div style={{ background: "#f8fafc", borderRadius: 12, padding: 16, textAlign: "left", marginBottom: 16 }}>
               <div style={{ fontSize: "1.4rem", fontWeight: 700, color: "#059669", marginBottom: 2 }}>
                 {selectedPlan === "basic" ? "29.9" : "99"} 元
               </div>
-              <div style={{ fontSize: "0.75rem", color: "#888", marginBottom: 14 }}>微信扫码支付</div>
-              <div style={{ background: "white", border: "2px dashed #d1d5db", borderRadius: 12, padding: 12, display: "inline-block" }}>
-                <img src="/wechat-qr.png" alt="微信收款码"
-                  style={{ width: 160, height: 160, objectFit: "cover", borderRadius: 8, display: "block" }} />
-              </div>
+              <div style={{ fontSize: "0.75rem", color: "#888", marginBottom: 12 }}>当前为内测申请价，最终以人工确认结果为准。</div>
+              <ul style={{ margin: 0, paddingLeft: 18, fontSize: ".82rem", color: "#475569", lineHeight: 1.75 }}>
+                {(PLAN_INFO[selectedPlan] || PLAN_INFO.basic).items.map((item) => <li key={item}>{item}</li>)}
+              </ul>
+              {!contact.trim() && (
+                <div style={{ marginTop: 12, padding: "10px 12px", borderRadius: 8, background: "#fff7ed", color: "#9a3412", fontSize: ".78rem", lineHeight: 1.5 }}>
+                  建议先在表单里填写微信或手机号，方便人工确认后发送完整报告。
+                </div>
+              )}
             </div>
 
             <div style={{ display: "flex", gap: 8 }}>
@@ -1301,9 +1455,9 @@ useEffect(() => {
                 style={{ flex: 1, padding: "12px 0", fontSize: "0.85rem", color: "#059669", background: "white", border: "1px solid #059669", borderRadius: 8, cursor: "pointer" }}>
                 取消
               </button>
-              <button onClick={() => { handlePayment(selectedPlan === "basic" ? "basic" : "reviewed"); setShowPaymentModal(false); }}
+              <button onClick={() => { handleUnlockRequest(selectedPlan === "basic" ? "basic" : "reviewed"); setShowPaymentModal(false); }}
                 style={{ flex: 1, padding: "12px 0", fontSize: "0.85rem", fontWeight: 600, color: "white", background: "#059669", border: "none", borderRadius: 8, cursor: "pointer" }}>
-                我已付款
+                提交申请
               </button>
             </div>
           </div>

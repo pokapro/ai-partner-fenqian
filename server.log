@@ -1,16 +1,62 @@
 [env] AI_PROVIDER = deepseek
-[seed] 插入规则种子数据...
-[seed] 已插入 5 条规则
-[seed] 插入知识案例种子数据...
-[seed] 已插入 3 条知识案例
-[seed] 插入条款模板种子数据...
-[seed] 已插入 5 条条款模板
+[DB] 数据库路径: /Users/susize/.fenqian-data/app.db
+[DB] 迁移: cases.admin_note 已添加
+[DB] 迁移: cases.followup_status 已添加
+[seed_adewo] 开始注入阿德沃成熟协议样本（脱敏）...
+[seed_adewo] ⏭️ 案例 "kc_mature_shareholder_agreement_4p" 已存在，跳过
+[seed_adewo] ⏭️ 规则 "rule_adewo_daichi" 已存在，跳过
+[seed_adewo] ⏭️ 规则 "rule_adewo_67percent" 已存在，跳过
+[seed_adewo] ⏭️ 规则 "rule_adewo_任职非任职" 已存在，跳过
+[seed_adewo] ⏭️ 规则 "rule_adewo_绩效不达标" 已存在，跳过
+[seed_adewo] ⏭️ 规则 "rule_adewo_红黄绿线" 已存在，跳过
+[seed_adewo] ⏭️ 规则 "rule_adewo_退出分类" 已存在，跳过
+[seed_adewo] ⏭️ 规则 "rule_adewo_竞业限制" 已存在，跳过
+[seed_adewo] ⏭️ 规则 "rule_adewo_公章财务监督" 已存在，跳过
+[seed_adewo] ⏭️ 模板 "tpl_adewo_总则" 已存在，跳过
+[seed_adewo] ⏭️ 模板 "tpl_adewo_股权结构" 已存在，跳过
+[seed_adewo] ⏭️ 模板 "tpl_adewo_代持提示" 已存在，跳过
+[seed_adewo] ⏭️ 模板 "tpl_adewo_股东权利义务" 已存在，跳过
+[seed_adewo] ⏭️ 模板 "tpl_adewo_重大事项表决" 已存在，跳过
+[seed_adewo] ⏭️ 模板 "tpl_adewo_经营管理职责" 已存在，跳过
+[seed_adewo] ⏭️ 模板 "tpl_adewo_任职股东考核" 已存在，跳过
+[seed_adewo] ⏭️ 模板 "tpl_adewo_红线行为强制退出" 已存在，跳过
+[seed_adewo] ⏭️ 模板 "tpl_adewo_股权转让优先购买" 已存在，跳过
+[seed_adewo] ⏭️ 模板 "tpl_adewo_主动退出" 已存在，跳过
+[seed_adewo] ⏭️ 模板 "tpl_adewo_被动退出" 已存在，跳过
+[seed_adewo] ⏭️ 模板 "tpl_adewo_竞业限制" 已存在，跳过
+[seed_adewo] ⏭️ 模板 "tpl_adewo_增资入股" 已存在，跳过
+[seed_adewo] ⏭️ 模板 "tpl_adewo_清算终止" 已存在，跳过
+[seed_adewo] ⏭️ 模板 "tpl_adewo_合同格式要求" 已存在，跳过
+[seed_adewo] 注入完成：0 案例 / 0 规则 / 0 模板
+[keepalive] 已启动，每 5 分钟自 ping
 
 ========================================
-   AI 合伙分钱方案生成器 V0.2
+   AI 合伙分钱方案生成器 V0.7.1 (五权诊断+AI填表+报告编辑)
    服务已启动: http://localhost:3000
    AI Provider: deepseek
    数据目录: /Users/susize/pot/ai在线合伙分钱服务/data
-   后台管理: http://localhost:3000/api/cases?token=dev-token-2026
+   后台管理: https://ai-partner-fenqian.onrender.com/admin
+   后台登录: admin / afu_admin_2026
 ========================================
 
+[keepalive] ping ok, status: 200
+[keepalive] ping ok, status: 200
+[keepalive] ping ok, status: 200
+[keepalive] ping ok, status: 200
+[keepalive] ping ok, status: 200
+[keepalive] ping ok, status: 200
+[keepalive] ping ok, status: 200
+[keepalive] ping ok, status: 200
+[keepalive] ping ok, status: 200
+[keepalive] ping ok, status: 200
+[keepalive] ping ok, status: 200
+[keepalive] ping ok, status: 200
+[keepalive] ping ok, status: 200
+[keepalive] ping ok, status: 200
+[keepalive] ping ok, status: 200
+[keepalive] ping ok, status: 200
+[keepalive] ping ok, status: 200
+[keepalive] ping ok, status: 200
+[keepalive] ping ok, status: 200
+[keepalive] ping ok, status: 200
+[keepalive] ping ok, status: 200

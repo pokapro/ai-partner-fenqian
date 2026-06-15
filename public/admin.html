@@ -260,24 +260,24 @@ tr:hover { background: #f8fafc; }
 
 <script>
 // ===== STATE =====
-let currentUser = null;
-let currentRole = 'viewer';
-let adminToken = '';
-let allCases = [];
+var currentUser = null;
+var currentRole = 'viewer';
+var adminToken = '';
+var allCases = [];
 
 // ===== 页面加载时恢复登录状态 =====
 (function() {
-  const saved = localStorage.getItem('fenqian_admin_session');
+  var saved = localStorage.getItem('fenqian_admin_session');
   if (saved) {
     try {
-      const s = JSON.parse(saved);
+      var s = JSON.parse(saved);
       if (s.adminToken && s.currentUser && s.currentRole) {
         currentUser = s.currentUser;
         currentRole = s.currentRole;
         adminToken = s.adminToken;
         // 验证 session 是否仍然有效
         // 恢复 session 时同时传 query 参数保证兼容
-        const [savedUser, savedPass] = atob(adminToken).split(':');
+        var [savedUser, savedPass] = atob(adminToken).split(':');
         fetch('/api/admin/whitelist?' + new URLSearchParams({ user: savedUser, pass: savedPass }).toString(), {
           headers: { 'Authorization': 'Basic ' + adminToken }
         })
@@ -295,7 +295,7 @@ let allCases = [];
 
 // ===== TOAST =====
 function toast(msg) {
-  const el = document.getElementById('toast');
+  var el = document.getElementById('toast');
   el.textContent = msg;
   el.classList.add('show');
   setTimeout(() => el.classList.remove('show'), 2000);
@@ -303,10 +303,10 @@ function toast(msg) {
 
 // ===== LOGIN =====
 function handleLogin() {
-  const user = document.getElementById('loginUser').value.trim();
-  const pass = document.getElementById('loginPass').value.trim();
-  const btn = document.getElementById('loginBtn');
-  const errEl = document.getElementById('loginError');
+  var user = document.getElementById('loginUser').value.trim();
+  var pass = document.getElementById('loginPass').value.trim();
+  var btn = document.getElementById('loginBtn');
+  var errEl = document.getElementById('loginError');
 
   if (!user || !pass) {
     errEl.textContent = '请填写用户名和密码';
@@ -319,7 +319,7 @@ function handleLogin() {
   btn.textContent = '验证中...';
 
   // 用 Basic Auth 验证登录（后端鉴权，前端只认 HTTP 状态码）
-  const basicAuth = btoa(user + ':' + pass);
+  var basicAuth = btoa(user + ':' + pass);
   fetch('/api/admin/stats', {
     headers: { 'Authorization': 'Basic ' + basicAuth }
   })
@@ -378,14 +378,14 @@ function apiCall(path, options) {
 }
 
 // ===== CLOCK =====
-let clockInterval = null;
+var clockInterval = null;
 function startClock() {
   updateClock();
   if (clockInterval) clearInterval(clockInterval);
   clockInterval = setInterval(updateClock, 1000);
 }
 function updateClock() {
-  const now = new Date();
+  var now = new Date();
   document.getElementById('clock').textContent = now.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false });
 }
 
@@ -404,10 +404,10 @@ function switchTab(name, btn) {
 function loadCases() {
   apiCall('/api/cases').then(data => {
     allCases = (data || []).map(c => {
-      const input = (() => { try { return JSON.parse(c.input_json || '{}'); } catch { return {}; } })();
-      const partners = input.partners || [];
-      const totalCapital = partners.reduce((s,p) => s + (Number(p.capital)||0), 0);
-      const profit = Number(input.annualProfit) || 0;
+      var input = (() => { try { return JSON.parse(c.input_json || '{}'); } catch { return {}; } })();
+      var partners = input.partners || [];
+      var totalCapital = partners.reduce((s,p) => s + (Number(p.capital)||0), 0);
+      var profit = Number(input.annualProfit) || 0;
       return { ...c, input, partners, totalCapital, profit };
     });
     renderStats();
@@ -420,8 +420,8 @@ function loadCases() {
 function renderStats() {
   // 从后端拉取统计
   apiCall('/api/admin/stats').then(stats => {
-    const totalCap = allCases.reduce((s,c) => s + (c.totalCapital||0), 0);
-    const paid = allCases.filter(c => c.payment_intent && c.payment_intent !== '').length;
+    var totalCap = allCases.reduce((s,c) => s + (c.totalCapital||0), 0);
+    var paid = allCases.filter(c => c.payment_intent && c.payment_intent !== '').length;
 
     document.getElementById('stats').innerHTML = [
       { num: stats.totalCases || allCases.length, label: '总提交' },
@@ -436,11 +436,11 @@ function renderStats() {
 }
 
 function renderTable() {
-  const q = document.getElementById('searchInput').value.trim().toLowerCase();
-  const s = document.getElementById('statusFilter').value;
-  const p = document.getElementById('paymentFilter').value;
+  var q = document.getElementById('searchInput').value.trim().toLowerCase();
+  var s = document.getElementById('statusFilter').value;
+  var p = document.getElementById('paymentFilter').value;
 
-  let filtered = allCases.filter(c => {
+  var filtered = allCases.filter(c => {
     if (s && c.review_status !== s) return false;
     if (p === 'paid' && !c.payment_intent) return false;
     if (p === 'not_paid' && c.payment_intent) return false;
@@ -449,18 +449,18 @@ function renderTable() {
   }).sort((a,b) => ((b.created_at||'') > (a.created_at||'') ? 1 : -1));
 
   document.getElementById('emptyState').style.display = filtered.length === 0 ? 'block' : 'none';
-  const tbody = document.getElementById('tableBody');
+  var tbody = document.getElementById('tableBody');
   if (filtered.length === 0) { tbody.innerHTML = ''; return; }
 
   tbody.innerHTML = filtered.map((c, i) => {
-    const peeps = c.partners.map(p => `${p.name||'?'}(${p.effortType||'?'})`).join('<br>');
-    const statusTag = (() => {
-      const map = { pending_review: '待审核', reviewed: '已审核', delivered: '已交付', rejected: '已拒绝' };
-      const cls = { pending_review: 'tag-pending', reviewed: 'tag-reviewed', delivered: 'tag-delivered', rejected: 'tag-rejected' };
+    var peeps = c.partners.map(p => `${p.name||'?'}(${p.effortType||'?'})`).join('<br>');
+    var statusTag = (() => {
+      var map = { pending_review: '待审核', reviewed: '已审核', delivered: '已交付', rejected: '已拒绝' };
+      var cls = { pending_review: 'tag-pending', reviewed: 'tag-reviewed', delivered: 'tag-delivered', rejected: 'tag-rejected' };
       return `<span class="tag ${cls[c.review_status]||'tag-pending'}">${map[c.review_status]||c.review_status}</span>`;
     })();
-    const paidTag = c.payment_intent ? `<span class="tag tag-paid">✓ 已付款</span>` : `<span class="tag tag-unpaid">○ 未付款</span>`;
-    const canReview = currentRole === 'admin' ? `
+    var paidTag = c.payment_intent ? `<span class="tag tag-paid">✓ 已付款</span>` : `<span class="tag tag-unpaid">○ 未付款</span>`;
+    var canReview = currentRole === 'admin' ? `
       <button class="btn-primary btn-sm" onclick="viewCase('${c.id}')">查看</button>
       <button class="btn-outline btn-sm" onclick="openReview('${c.id}')">审核</button>
     ` : `<button class="btn-primary btn-sm" onclick="viewCase('${c.id}')">查看</button>`;
@@ -481,25 +481,25 @@ function renderTable() {
 
 function fmtDate(s) {
   if (!s) return '-';
-  const d = new Date(s.replace(' ','T')+'Z');
-  const now = new Date();
-  const diff = Math.floor((now - d) / 60000);
+  var d = new Date(s.replace(' ','T')+'Z');
+  var now = new Date();
+  var diff = Math.floor((now - d) / 60000);
   if (diff < 1) return '刚刚';
   if (diff < 60) return diff + '分钟前';
-  const h = String(d.getHours()).padStart(2,'0');
-  const m = String(d.getMinutes()).padStart(2,'0');
+  var h = String(d.getHours()).padStart(2,'0');
+  var m = String(d.getMinutes()).padStart(2,'0');
   return `${d.getMonth()+1}/${d.getDate()} ${h}:${m}`;
 }
 
 // ===== VIEW CASE =====
 function viewCase(id) {
-  const c = allCases.find(x => x.id === id);
+  var c = allCases.find(x => x.id === id);
   if (!c) return toast('未找到案例');
-  const input = c.input;
-  const partnersHtml = (input.partners||[]).map((p,i) =>
+  var input = c.input;
+  var partnersHtml = (input.partners||[]).map((p,i) =>
     `<div class="field"><label>合伙人${String.fromCharCode(65+i)}</label><div class="val">${p.name||'?'} · ¥${(Number(p.capital)||0).toLocaleString()} · ${p.effortType||'?'} · ${p.responsibility||'?'}</div></div>`
   ).join('');
-  const payHtml = c.payment_intent ? `<div class="field"><label>付款记录</label><div class="val">${c.payment_intent}</div></div>` : '';
+  var payHtml = c.payment_intent ? `<div class="field"><label>付款记录</label><div class="val">${c.payment_intent}</div></div>` : '';
 
   document.getElementById('modalTitle').textContent = `案例 ${id.slice(0,12)}...`;
   document.getElementById('modalBody').innerHTML = `
@@ -543,8 +543,8 @@ function openReview(id) {
 }
 
 async function submitReview(id) {
-  const status = document.getElementById('reviewSelect').value;
-  const note = document.getElementById('reviewNote').value;
+  var status = document.getElementById('reviewSelect').value;
+  var note = document.getElementById('reviewNote').value;
   try {
     await apiCall(`/api/cases/${id}/review`, {
       method: 'PUT',
@@ -565,7 +565,7 @@ document.getElementById('modal').addEventListener('click', function(e) {
 // ===== WHITELIST =====
 function loadWhitelist() {
   apiCall('/api/admin/whitelist').then(data => {
-    const list = data || [];
+    var list = data || [];
     if (list.length === 0) {
       document.getElementById('wlEmpty').style.display = 'block';
       document.getElementById('wlBody').innerHTML = '';
@@ -584,9 +584,9 @@ function loadWhitelist() {
 }
 
 function addWhitelist() {
-  const user = document.getElementById('wlUser').value.trim();
-  const pass = document.getElementById('wlPass').value.trim();
-  const role = document.getElementById('wlRole').value.trim() || 'viewer';
+  var user = document.getElementById('wlUser').value.trim();
+  var pass = document.getElementById('wlPass').value.trim();
+  var role = document.getElementById('wlRole').value.trim() || 'viewer';
   if (!user || !pass) return toast('请填写用户名和密码');
 
   apiCall('/api/admin/whitelist', {
@@ -613,15 +613,15 @@ function delWhitelist(username) {
 }
 
 // ===== ORDERS =====
-let allOrders = [];
+var allOrders = [];
 function loadOrders() {
   apiCall('/api/admin/orders').then(data => {
     allOrders = data || [];
-    const tbody = document.getElementById('ordersBody');
+    var tbody = document.getElementById('ordersBody');
     document.getElementById('ordersEmpty').style.display = allOrders.length === 0 ? 'block' : 'none';
     tbody.innerHTML = allOrders.map(o => {
-      const statusMap = { pending: '⏳ 待支付', pending_pay: '待支付', paid: '✅ 已支付', completed: '已完成' };
-      const planMap = { basic: '基础版', reviewed: '人工审核版' };
+      var statusMap = { pending: '⏳ 待支付', pending_pay: '待支付', paid: '✅ 已支付', completed: '已完成' };
+      var planMap = { basic: '基础版', reviewed: '人工审核版' };
       return `<tr>
         <td style="font-size:.7rem">${o.id}</td>
         <td style="font-size:.7rem">${o.case_id}</td>
@@ -637,13 +637,13 @@ function loadOrders() {
 
 // ===== EXPORT =====
 function downloadWithAuth(url) {
-  const xhr = new XMLHttpRequest();
+  var xhr = new XMLHttpRequest();
   xhr.open('GET', url, true);
   xhr.setRequestHeader('Authorization', 'Basic ' + adminToken);
   xhr.responseType = 'blob';
   xhr.onload = function() {
     if (xhr.status === 200) {
-      const link = document.createElement('a');
+      var link = document.createElement('a');
       link.href = URL.createObjectURL(xhr.response);
       link.download = url.split('/').pop() + '-' + new Date().toISOString().slice(0,10) + '.csv';
       link.click();
@@ -665,10 +665,10 @@ function loadBackups() {
     } else {
       document.getElementById('backupCurrent').innerHTML = '暂无备份';
     }
-    const versionsEl = document.getElementById('backupVersions');
+    var versionsEl = document.getElementById('backupVersions');
     if (data.versions && data.versions.length > 0) {
       versionsEl.innerHTML = data.versions.map(v => {
-        const time = new Date(v.time).toLocaleString('zh-CN');
+        var time = new Date(v.time).toLocaleString('zh-CN');
         return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #f1f5f9">
           <span style="font-size:.75rem;color:#64748b">${time} · ${v.count} 条</span>
           <button class="btn-outline btn-sm" onclick="restoreBackup('${v.file}','${time}')">恢复</button>
@@ -677,7 +677,7 @@ function loadBackups() {
     } else {
       versionsEl.innerHTML = '<div style="color:#94a3b8;font-size:.78rem">暂无版本备份</div>';
     }
-    const dailyEl = document.getElementById('backupDaily');
+    var dailyEl = document.getElementById('backupDaily');
     if (data.daily && data.daily.length > 0) {
       dailyEl.innerHTML = data.daily.map(d => {
         return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #f1f5f9">
@@ -692,12 +692,12 @@ function loadBackups() {
 }
 
 function restoreBackup(file, label) {
-  if (!confirm(\`确定要从备份 [\${label}] 恢复？当前数据将被覆盖。\`)) return;
+  if (!confirm(`确定要从备份 [\${label}] 恢复？当前数据将被覆盖。`)) return;
   apiCall('/api/admin/backups/restore', {
     method: 'POST',
     body: JSON.stringify({ file })
   }).then(r => {
-    toast(\`✅ 已从 \${label} 恢复 \${r.restored} 条案例数据\`);
+    toast(`✅ 已从 \${label} 恢复 \${r.restored} 条案例数据`);
     loadBackups();
     loadCases();
   }).catch(e => toast('恢复失败: ' + e.message));
@@ -706,7 +706,7 @@ function restoreBackup(file, label) {
 // ===== ENTER KEY ON LOGIN =====
 document.addEventListener('keydown', function(e) {
   if (e.key === 'Enter') {
-    const loginPage = document.getElementById('loginPage');
+    var loginPage = document.getElementById('loginPage');
     if (loginPage && loginPage.style.display !== 'none') handleLogin();
   }
 });
