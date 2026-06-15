@@ -90,6 +90,45 @@ renderer.strong = ({ text }) => `<span style="font-weight:700;">${text}</span>`;
 renderer.blockquote = ({ text }) =>
   `<blockquote style="border-left:4px solid #059669;padding:8px 16px;margin:12px 0;background:#f0fdf4;color:#166534;font-style:italic;">${text}</blockquote>`;
 renderer.hr = () => `<hr style="border:none;border-top:1px solid #e2e8f0;margin:16px 0;">`;
+
+// 商业诊断书式标题与列表
+renderer.heading = function ({ tokens, depth }) {
+  const text = this.parser.parseInline(tokens);
+  const id = 'h' + depth;
+  if (depth === 1) {
+    return `<h${id} style="font-size:1.35rem;font-weight:800;color:#0f172a;margin:20px 0 12px;padding:0 0 0 14px;border-left:5px solid #059669;line-height:1.4;">${text}</h${id}>`;
+  }
+  if (depth === 2) {
+    return `<h${id} style="font-size:1.12rem;font-weight:700;color:#0f172a;margin:18px 0 10px;padding:0 0 0 12px;border-left:4px solid #10b981;line-height:1.4;">${text}</h${id}>`;
+  }
+  if (depth === 3) {
+    return `<h${id} style="font-size:0.98rem;font-weight:700;color:#1e293b;margin:14px 0 8px;padding:0 0 0 10px;border-left:3px solid #34d399;line-height:1.4;">${text}</h${id}>`;
+  }
+  return `<h${id} style="font-size:0.9rem;font-weight:700;color:#475569;margin:12px 0 6px;">${text}</h${id}>`;
+};
+renderer.paragraph = function ({ tokens }) {
+  const text = this.parser.parseInline(tokens);
+  return `<p style="margin:8px 0;line-height:1.7;color:#334155;font-size:0.92rem;">${text}</p>`;
+};
+renderer.list = function (token) {
+  const items = (token.items || []).map(item => {
+    let content;
+    if (typeof item.text === 'string') content = item.text;
+    else if (item.tokens) {
+      try { content = this.parser.parse(item.tokens); } catch(e) { content = JSON.stringify(item.tokens).slice(0,200); }
+    } else content = JSON.stringify(item).slice(0,200);
+    const style = 'margin:5px 0;line-height:1.65;color:#334155;font-size:0.9rem;padding-left:6px;list-style:none;position:relative;';
+    if (token.ordered) {
+      return `<li style="${style}"><span style="color:#059669;font-weight:700;margin-right:6px;">${(token.start||1) + (token.items.indexOf(item))}.</span>${content}</li>`;
+    }
+    return `<li style="${style}"><span style="color:#10b981;margin-right:6px;">●</span>${content}</li>`;
+  }).join('');
+  const tag = token.ordered ? 'ol' : 'ul';
+  const containerStyle = token.ordered
+    ? 'margin:10px 0;padding-left:8px;list-style:none;'
+    : 'margin:10px 0;padding-left:8px;list-style:none;';
+  return `<${tag} style="${containerStyle}">${items}</${tag}>`;
+};
 marked.use({ renderer });
 
 const PARTNER_CONFIGS = {
@@ -231,6 +270,22 @@ export default function ChatApp() {
   // idle | generating | preview_ready | payment_pending | paid_unlocked | error
   const [appState, setAppState] = useState('idle');
 
+  // localStorage 写入脱闪：防抖 800ms 合并多次写入
+  const writeLocalStorage = (key, value) => {
+    if (writeLocalStorage._t) clearTimeout(writeLocalStorage._t);
+    writeLocalStorage._t = setTimeout(() => {
+      try {
+        localStorage.setItem(key, JSON.stringify(value));
+      } catch (e) {
+        if (e.name === 'QuotaExceededError' || /quota/i.test(e.message)) {
+          // 配额超出：清理最旧的备份 key（保留 3 个历史会话点）
+          console.warn('[LocalStorage] 配额超出，清理历史会话');
+          try { localStorage.removeItem('fenqian_history_1'); } catch {}
+        }
+      }
+    }, 800);
+  };
+
   // 从 localStorage + 后端 public-status 恢复会话
   const savedResult = (() => {
     try {
@@ -256,7 +311,7 @@ export default function ChatApp() {
           setResult(restored);
           setAppState('preview_ready');
           setShowResult(true);
-          try { localStorage.setItem('fenqian_currentCase', JSON.stringify({ state: 'preview_ready', data: restored })); } catch {}
+          try { writeLocalStorage('fenqian_currentCase', ({ state: 'preview_ready', data: restored })); } catch {}
         } else if (prog.status === 'unknown' || prog.status === 'failed') {
           // 试试 public-status
           fetch('/api/cases/' + caseId + '/public-status')
@@ -267,7 +322,7 @@ export default function ChatApp() {
                 setResult(restored);
                 setAppState(s.unlockStatus === 'unlocked' ? 'paid_unlocked' : 'preview_ready');
                 setShowResult(true);
-                try { localStorage.setItem('fenqian_currentCase', JSON.stringify({ state: s.unlockStatus === 'unlocked' ? 'paid_unlocked' : 'preview_ready', data: restored })); } catch {}
+                try { writeLocalStorage('fenqian_currentCase', ({ state: s.unlockStatus === 'unlocked' ? 'paid_unlocked' : 'preview_ready', data: restored })); } catch {}
               }
             })
             .catch(() => {});
@@ -431,7 +486,7 @@ export default function ChatApp() {
             const resultData = { caseId, previewMarkdown: fullMd, hasUnlocked: false, status: 'pending_review' };
             setResult(resultData);
             setAppState('preview_ready');
-            try { localStorage.setItem('fenqian_currentCase', JSON.stringify({ state: 'preview_ready', data: resultData })); } catch(e) {}
+            try { writeLocalStorage('fenqian_currentCase', ({ state: 'preview_ready', data: resultData })); } catch(e) {}
             setShowResult(true);
             setGenerating(false);
             setVisibleChapters(0);
@@ -537,7 +592,7 @@ export default function ChatApp() {
       // 手动确认：48小时内客服联系后手动解锁
       setResult((prev) => ({ ...prev, paymentRecorded: plan }));
       setAppState('paid_unlocked');
-      try { localStorage.setItem('fenqian_currentCase', JSON.stringify({ state: 'paid_unlocked', data: { ...result, hasUnlocked: true, paymentRecorded: plan } })); } catch {}
+      try { writeLocalStorage('fenqian_currentCase', ({ state: 'paid_unlocked', data: { ...result, hasUnlocked: true, paymentRecorded: plan } })); } catch {}
     } catch (e) {
       alert('记录失败：' + e.message);
       setAppState('preview_ready');
@@ -623,16 +678,61 @@ export default function ChatApp() {
             <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: fixTables(sanitizeHtml(marked.parse(ch))) }} />
           )}
         </div>;
-      })}</div>;
+      })}{renderReportFooter()}</div>;
     }
 
     // 未解锁：整段用 marked 渲染（支持表格/blockquote等富格式）
     const chapters = chaptersRef.current;
-    return <div>{chapters.slice(0, visibleChapters).map((ch, idx) => (
-      <div key={idx} className="waterfall-item" style={{ animationDelay: `${idx * 0.04}s` }}>
-        <div className="prose prose-sm max-w-none" style={{ lineHeight: 1.5, fontSize: '0.85rem' }} dangerouslySetInnerHTML={{ __html: fixTables(sanitizeHtml(marked.parse(ch))) }} />
+    return <div>
+      {chapters.slice(0, visibleChapters).map((ch, idx) => (
+        <div key={idx} className="waterfall-item" style={{ animationDelay: `${idx * 0.04}s` }}>
+          <div className="prose prose-sm max-w-none" style={{ lineHeight: 1.5, fontSize: '0.85rem' }} dangerouslySetInnerHTML={{ __html: fixTables(sanitizeHtml(marked.parse(ch))) }} />
+        </div>
+      ))}
+      {renderReportFooter()}
+    </div>;
+  };
+
+  // 报告顶部封面 + 底部签名 (3. 报告顶部封面)
+  const renderReportCover = () => {
+    if (!result) return null;
+    const generatedAt = new Date().toLocaleString('zh-CN', { hour12: false });
+    return <div style={{
+      background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
+      color: 'white',
+      padding: '24px 20px',
+      borderRadius: 14,
+      marginBottom: 18,
+      position: 'relative',
+      overflow: 'hidden',
+      boxShadow: '0 4px 16px rgba(15,23,42,0.15)'
+    }}>
+      <div style={{ fontSize: '0.7rem', color: '#94a3b8', letterSpacing: '0.15em', marginBottom: 8 }}>STARR 商业诊断书</div>
+      <div style={{ fontSize: '1.2rem', fontWeight: 800, marginBottom: 6, lineHeight: 1.4 }}>{result.partners?.length||2} 人合伙分���方案</div>
+      <div style={{ fontSize: '0.78rem', color: '#cbd5e1', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+        <span>📅 {generatedAt}</span>
+        {result.sceneMode && <span>💼 {result.sceneMode === 'small' ? '小店' : result.sceneMode === 'standard' ? '标准' : '公司化'}</span>}
+        {result.annualProfit && <span>💰 年利润 ¥{Number(result.annualProfit).toLocaleString()}</span>}
       </div>
-    ))}</div>;
+      <div style={{ position: 'absolute', top: -30, right: -30, fontSize: '5rem', opacity: 0.06, fontWeight: 900 }}>✦</div>
+    </div>;
+  };
+
+  // 报告底部签名 (3. 报告底部签名)
+  const renderReportFooter = () => {
+    return <div style={{
+      marginTop: 20,
+      paddingTop: 14,
+      borderTop: '1px dashed #cbd5e1',
+      textAlign: 'center',
+      color: '#64748b',
+      fontSize: '0.75rem',
+      lineHeight: 1.6
+    }}>
+      <div style={{ fontWeight: 700, color: '#0f172a', marginBottom: 4 }}>——— 斯塔管理 STARR 商业诊断书 ———</div>
+      <div>本报告由 AI 生成，仅供参考。重大决策请咨询专业财务/法律顾问。</div>
+      <div style={{ marginTop: 4, fontSize: '0.7rem', color: '#94a3b8' }}>https://ai-partner-fenqian.onrender.com</div>
+    </div>;
   };
 
   // 瀑布式段落分割：将报告按 ## 标题切分为段落块
@@ -671,7 +771,7 @@ export default function ChatApp() {
             const updated = { caseId: r.caseId, previewMarkdown: d.previewMarkdown, hasUnlocked: d.hasUnlocked || false, status: 'done' };
             setResult(updated);
             setAppState('preview_ready');
-            try { localStorage.setItem('fenqian_currentCase', JSON.stringify({ state: 'preview_ready', data: updated })); } catch(e) {}
+            try { writeLocalStorage('fenqian_currentCase', ({ state: 'preview_ready', data: updated })); } catch(e) {}
           }
         }).catch(() => {});
       }
@@ -723,6 +823,19 @@ useEffect(() => {
           main { padding: 12px 10px 120px !important; }
           h1 { font-size: 1.3rem !important; }
           .waterfall-item { animation-duration: 0.3s !important; }
+          /* 表格转竖排 */
+          table { font-size: 0.72rem !important; }
+          th, td { padding: 6px 6px !important; }
+          /* 代码块 */
+          pre { font-size: 0.72rem !important; padding: 10px !important; }
+          /* 按钮变大 */
+          button { min-height: 38px !important; }
+          /* 报告封面 */
+          h1[style*="1.35rem"] { font-size: 1.15rem !important; }
+          h2[style*="1.12rem"] { font-size: 1rem !important; }
+          h3[style*="0.98rem"] { font-size: 0.9rem !important; }
+          /* 输入框/文本区 */
+          input, textarea, select { font-size: 16px !important; }
         }
         @media (min-width: 481px) and (max-width: 768px) {
           main { padding: 16px 14px 100px !important; }
@@ -731,6 +844,11 @@ useEffect(() => {
         @media (max-width: 640px) {
           .__copilot_sidebar { width: 100% !important; }
           .__copilot_sidebar .csdk-w-\[400px\] { width: 100% !important; max-width: 100vw !important; }
+        }
+        /* 触屏点击反馈 */
+        @media (hover: none) and (pointer: coarse) {
+          button:active { transform: scale(0.97); transition: transform 0.1s; }
+          .btn-primary:active, .btn-outline:active { opacity: 0.85; }
         }
         /* 报告区域滚动对齐 */
         #report-section { scroll-margin-top: 16px; }
@@ -993,6 +1111,7 @@ useEffect(() => {
               {result.caseId && <span style={{ fontSize: "0.75rem", color: "#888", marginLeft: 8 }}>ID: {result.caseId.slice(0, 8)}...</span>}
             </div>
 
+            {renderReportCover()}
             <div style={{ background: "white", border: "1px solid #e2e8f0", borderRadius: 12, padding: 20, marginBottom: 16, lineHeight: 1.6, fontSize: "0.9rem" }}>
               {result.previewMarkdown ? (
                 (() => {
