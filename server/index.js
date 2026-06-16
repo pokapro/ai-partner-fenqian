@@ -34,6 +34,22 @@ const { createCopilotKitHandler: setupCopilotKit } = require('./copilotkit');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const AI_TIMEOUT_MS = Number(process.env.AI_TIMEOUT_MS || 65000);
+
+async function fetchWithTimeout(url, options = {}, timeoutMs = AI_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      throw new Error('请求超时，服务器正在启动或 AI 响应较慢，请稍后重试');
+    }
+    throw new Error('AI 服务暂时连接失败，请稍后重试');
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 // API 请求频率限制（防止滥用 + API 费用爆炸）
 const rateLimit = require('express-rate-limit');
@@ -51,8 +67,16 @@ app.use('/api/regenerate', apiLimiter);
 app.use(cors());
 app.set('trust proxy', 1); app.use(express.json({ limit: '1mb' }));
 // Serve built frontend (Vite build → dist), fallback to legacy public/
-app.use(express.static(path.join(__dirname, '..', 'dist')));
-app.use(express.static(path.join(__dirname, '..', 'public')));
+app.use(express.static(path.join(__dirname, '..', 'dist'), {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.html')) res.setHeader('Cache-Control', 'no-store');
+  }
+}));
+app.use(express.static(path.join(__dirname, '..', 'public'), {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.html')) res.setHeader('Cache-Control', 'no-store');
+  }
+}));
 
 // 进度存储（内存 Map，不依赖 SQLite，确保异步读写正确）
 const progressStore = new Map();
@@ -186,7 +210,7 @@ app.post('/api/suggest-form', async (req, res) => {
       '{"partnerCount":2,"partners":[{"name":"张三","capital":200000,"effortType":"全职运营","responsibility":"日常管理"},{"name":"李四","capital":100000,"effortType":"不出力","responsibility":"仅出资"}],"annualProfit":500000}' +
       '规则：partnerCount必须是2/3/4；effortType取值(对应前端下拉选项)："全职运营"、"兼职"、"仅出资不出力"、"技术/开发"、"资源/渠道"；capital是数字（元）；annualProfit是数字（元）；无法推断的字段填null；只输出JSON，不要任何其他文字';
 
-    const res2 = await fetch('https://api.deepseek.com/v1/chat/completions', {
+    const res2 = await fetchWithTimeout('https://api.deepseek.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -219,7 +243,7 @@ app.post('/api/suggest-form', async (req, res) => {
     });
   } catch (err) {
     console.error('[suggest-form]', err);
-    res.status(500).json({ error: 'AI解析失败，请手动填写表单', needInput: false });
+    res.status(500).json({ error: err.message || 'AI解析失败，请手动填写表单', needInput: false });
   }
 });
 
@@ -322,8 +346,12 @@ app.get('/api/progress/:caseId', (req, res) => {
     }
     return res.json({ progress: 100, status: 'done' });
   }
-  if (typeof entry === 'number' && entry < 0) {
-    return res.json({ progress: 0, status: 'failed' });
+  if ((typeof entry === 'number' && entry < 0) || (typeof entry === 'object' && entry.pct < 0)) {
+    return res.json({
+      progress: 0,
+      status: 'failed',
+      error: typeof entry === 'object' ? entry.error || '' : ''
+    });
   }
   const val = typeof entry === 'object' ? (entry.pct || 0) : entry;
   res.json({ progress: Math.round(val), status: 'generating' });
@@ -337,9 +365,9 @@ app.get('/api/cases/:id/public-status', (req, res) => {
 
     // 获取后端记录的付款状态
     let unlockStatus = 'locked';
-    if (c.payment_intent && c.payment_intent.includes('completed')) unlockStatus = 'unlocked';
-    // review_status 为已交付/已支付交付，或人工备注含 paid/unlocked，也视为已解锁
-    if (['paid_delivered', 'delivered'].includes(c.review_status) || (c.review_note && /paid|unlocked|已解锁/.test(c.review_note))) unlockStatus = 'unlocked';
+    if (c.payment_intent && /completed|manual_unlocked|unlocked/.test(c.payment_intent)) unlockStatus = 'unlocked';
+    // review_status 为已审核/已交付，或人工备注含 paid/unlocked，也视为已解锁
+    if (['reviewed', 'paid_delivered', 'delivered'].includes(c.review_status) || (c.review_note && /paid|unlocked|已解锁/.test(c.review_note))) unlockStatus = 'unlocked';
 
     res.json({
       caseId: c.id,
@@ -512,7 +540,7 @@ app.get('/api/cases/:id/unlocked-report', (req, res) => {
     const hasPaid = orders.some(o => o.status === 'paid');
     const hasManualUnlock =
       (c.payment_intent && /completed|manual_unlocked|unlocked/.test(c.payment_intent)) ||
-      ['paid_delivered', 'delivered'].includes(c.review_status);
+      ['reviewed', 'paid_delivered', 'delivered'].includes(c.review_status);
     if (!hasPaid && !hasManualUnlock) {
       return res.status(403).json({ error: 'payment_required', message: '请先完成支付' });
     }
@@ -538,7 +566,7 @@ app.get('/api/cases/:id/download', (req, res) => {
     const hasPaid = orders.some(o => o.status === 'paid');
     const hasManualUnlock =
       (c.payment_intent && /completed|manual_unlocked|unlocked/.test(c.payment_intent)) ||
-      ['paid_delivered', 'delivered'].includes(c.review_status);
+      ['reviewed', 'paid_delivered', 'delivered'].includes(c.review_status);
     if (!hasPaid && !hasManualUnlock) {
       return res.status(403).json({ error: 'payment_required', message: '请先完成支付' });
     }
@@ -555,10 +583,28 @@ app.put('/api/cases/:id/payment', (req, res) => {
   try {
     const { paymentIntent } = req.body;
     if (!paymentIntent) return res.status(400).json({ error: 'validation', message: 'paymentIntent 必填' });
+    const allowedPublicIntents = ['request_basic', 'request_reviewed'];
+    if (!allowedPublicIntents.includes(paymentIntent)) {
+      return res.status(403).json({ error: 'forbidden', message: '当前接口只记录用户申请，不开放解锁操作' });
+    }
     db.updatePaymentIntent(req.params.id, paymentIntent);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'server_error', message: '记录付款意向失败' });
+  }
+});
+
+// Admin 手动确认解锁：内测期用于客服/后台确认申请后开放完整报告。
+app.put('/api/admin/cases/:id/unlock', requireAdminToken, (req, res) => {
+  try {
+    const existing = db.getCase(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'not_found', message: '案例不存在' });
+    const note = req.body?.reviewNote || req.body?.note || '后台已确认完整报告申请，开放查看和下载';
+    db.updatePaymentIntent(req.params.id, 'manual_unlocked');
+    db.updateReviewStatus(req.params.id, 'delivered', note);
+    res.json({ success: true, status: 'delivered', paymentIntent: 'manual_unlocked', note });
+  } catch (err) {
+    res.status(500).json({ error: 'server_error', message: '确认解锁失败' });
   }
 });
 
@@ -572,8 +618,22 @@ app.put('/api/cases/:id/review', requireAdminToken, (req, res) => {
     }
     const existing = db.getCase(req.params.id);
     if (!existing) return res.status(404).json({ error: 'not_found', message: '案例不存在' });
-    db.updateReviewStatus(req.params.id, reviewStatus, reviewNote || '');
-    res.json({ success: true, status: reviewStatus, note: reviewNote || '' });
+    const shouldUnlock = ['reviewed', 'delivered'].includes(reviewStatus);
+    const storedReviewStatus = shouldUnlock ? 'delivered' : reviewStatus;
+    const storedReviewNote = shouldUnlock
+      ? `${reviewNote ? reviewNote + '；' : ''}已解锁，开放完整报告查看和下载`
+      : (reviewNote || '');
+    if (shouldUnlock) {
+      db.updatePaymentIntent(req.params.id, 'manual_unlocked');
+    }
+    db.updateReviewStatus(req.params.id, storedReviewStatus, storedReviewNote);
+    res.json({
+      success: true,
+      status: storedReviewStatus,
+      note: storedReviewNote,
+      unlockStatus: shouldUnlock ? 'unlocked' : 'locked',
+      paymentIntent: shouldUnlock ? 'manual_unlocked' : existing.payment_intent || '',
+    });
   } catch (err) {
     res.status(500).json({ error: 'server_error', message: '更新审核状态失败' });
   }
@@ -692,10 +752,24 @@ app.post('/api/admin/cases/:id/promote', requireAdminToken, (req, res) => {
 
 // === Admin 登录校验 ===
 app.post('/api/admin/login', requireAdminToken, (req, res) => {
+  let localLedger = null;
+  let unlockNormalize = null;
+  try {
+    localLedger = db.replayLocalLedger();
+  } catch (err) {
+    console.warn('[admin/login] 本地流水回读失败:', err.message);
+  }
+  try {
+    unlockNormalize = db.normalizeUnlockStates ? db.normalizeUnlockStates() : null;
+  } catch (err) {
+    console.warn('[admin/login] 历史解锁状态修复失败:', err.message);
+  }
   res.json({
     success: true,
     user: req.adminUser?.username || 'admin',
-    role: req.adminUser?.role || 'admin'
+    role: req.adminUser?.role || 'admin',
+    localLedger,
+    unlockNormalize
   });
 });
 
@@ -723,6 +797,14 @@ app.get('/api/admin/stats', requireAdminToken, (req, res) => {
       pendingReview: allCases.filter(c => c.review_status === 'pending_review').length,
       unpaid: allCases.filter(c => !c.payment_intent || c.payment_intent === '').length,
     });
+  } catch (err) {
+    res.status(500).json({ error: 'server_error', message: err.message });
+  }
+});
+
+app.get('/api/admin/db-health', requireAdminToken, (req, res) => {
+  try {
+    res.json(db.getDbHealth ? db.getDbHealth() : { error: 'db_health_unavailable' });
   } catch (err) {
     res.status(500).json({ error: 'server_error', message: err.message });
   }
@@ -790,11 +872,14 @@ app.get('/api/health', (req, res) => {
 // === 多版本备份 API ===
 app.get('/api/admin/backups', requireAdminToken, (req, res) => {
   try {
-    const backupDir = path.join(process.env.HOME || '/tmp', '.fenqian-data');
+    const dbHealth = db.getDbHealth ? db.getDbHealth() : null;
+    const backupDir = dbHealth?.dbPath ? path.dirname(dbHealth.dbPath) : path.join(process.env.HOME || '/tmp', '.fenqian-data');
     const result = {
       current: null,
       versions: [],
-      daily: []
+      daily: [],
+      localLedger: db.getLocalLedgerStats ? db.getLocalLedgerStats() : null,
+      dbHealth
     };
     // 当前备份
     const cur = path.join(backupDir, 'cases_backup.json');
@@ -835,7 +920,8 @@ app.post('/api/admin/backups/restore', requireAdminToken, (req, res) => {
   try {
     const { file } = req.body;
     if (!file) return res.status(400).json({ error: 'validation', message: '请指定备份文件名' });
-    const backupDir = path.join(process.env.HOME || '/tmp', '.fenqian-data');
+    const dbHealth = db.getDbHealth ? db.getDbHealth() : null;
+    const backupDir = dbHealth?.dbPath ? path.dirname(dbHealth.dbPath) : path.join(process.env.HOME || '/tmp', '.fenqian-data');
     // 支持从 version 和 daily 恢复
     let backupPath = path.join(backupDir, 'versions', file);
     if (!fs.existsSync(backupPath)) {
@@ -940,6 +1026,14 @@ app.get('*', (req, res) => {
 // Start server after DB init
 initDb().then(database => {
   db = database;
+  try {
+    const normalized = db.normalizeUnlockStates ? db.normalizeUnlockStates() : null;
+    if (normalized && normalized.updated > 0) {
+      console.log('[unlock] 已修复历史解锁状态:', normalized);
+    }
+  } catch (err) {
+    console.warn('[unlock] 历史解锁状态修复失败:', err.message);
+  }
   // Run seed data on first start
   seedData(db);
   seedAdewoAgreement(db);

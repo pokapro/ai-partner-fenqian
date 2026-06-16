@@ -252,6 +252,36 @@ function QArea({ label, current, setter }) {
   );
 }
 
+function getFriendlyErrorMessage(error, fallback) {
+  const msg = error?.message || '';
+  if (error?.name === 'AbortError' || /timeout|timed out|超时/i.test(msg)) {
+    return "请求超时，服务器正在启动或 AI 响应较慢，请稍后重试";
+  }
+  if (/Failed to fetch|fetch failed|NetworkError|Load failed|ERR_|connection|network/i.test(msg)) {
+    return "服务正在启动或连接不稳定，请稍后重试";
+  }
+  return msg || fallback || "服务暂时不可用，请稍后重试";
+}
+
+async function fetchJson(url, options = {}, timeoutMs = 65000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { ...options, signal: controller.signal });
+    let data = {};
+    try { data = await res.json(); } catch {}
+    if (!res.ok || data.error) {
+      const err = new Error(data.message || data.error || `请求失败：${res.status}`);
+      err.status = res.status;
+      err.data = data;
+      throw err;
+    }
+    return data;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 const APP_VERSION = 'v0.7.0'; // 瀑布式回复+AI思考动画
 export default function ChatApp() {
   // AI一键填表
@@ -290,6 +320,7 @@ export default function ChatApp() {
   // === 前端统一状态机 ===
   // idle | generating | preview_ready | payment_pending | paid_unlocked | error
   const [appState, setAppState] = useState('idle');
+  const [unlockChecking, setUnlockChecking] = useState(false);
 
   // localStorage 写入脱闪：防抖 800ms 合并多次写入
   const writeLocalStorage = (key, value) => {
@@ -318,15 +349,50 @@ export default function ChatApp() {
 
   const [result, setResult] = useState(savedResult?.data || null);
 
+  const isServerUnlocked = (status) => {
+    if (!status) return false;
+    return status.unlockStatus === 'unlocked' ||
+      ['reviewed', 'paid_delivered', 'delivered'].includes(status.status) ||
+      ['reviewed', 'paid_delivered', 'delivered'].includes(status.reviewStatus);
+  };
+
+  const applyUnlockedReport = (caseId, status = {}, report = {}) => {
+    const fullMarkdown =
+      report.reportMarkdown ||
+      report.fullReport ||
+      status.fullReport ||
+      status.reportMarkdown ||
+      status.previewMarkdown ||
+      resultRef.current?.previewMarkdown ||
+      '';
+    const unlockedData = {
+      ...(resultRef.current || {}),
+      caseId: status.caseId || report.caseId || caseId,
+      previewMarkdown: fullMarkdown,
+      hasUnlocked: true,
+      reviewStatus: status.status || status.reviewStatus || resultRef.current?.reviewStatus,
+      status: 'done'
+    };
+    setResult(unlockedData);
+    setAppState('paid_unlocked');
+    setShowResult(true);
+    try { writeLocalStorage('fenqian_currentCase', ({ state: 'paid_unlocked', data: unlockedData })); } catch {}
+    return true;
+  };
+
   // 如果 localStorage 中有 caseId，尝试从后端恢复完整状态
   useEffect(() => {
     const caseId = savedResult?.data?.caseId || localStorage.getItem('fenqian_lastCaseId');
     if (!caseId) return;
     if (appState !== 'idle') return;  // 已在活动中
 
-    fetch('/api/progress/' + caseId)
-      .then(r => r.json())
-      .then(prog => {
+    (async () => {
+      const unlocked = await refreshCaseUnlockStatus(caseId, { silent: true });
+      if (unlocked) return;
+
+      fetch('/api/progress/' + caseId)
+        .then(r => r.json())
+        .then(prog => {
         if (prog.status === 'done') {
           // 拉取预览（2000 字符）
           let previewMd = prog.previewMarkdown || '';
@@ -343,16 +409,17 @@ export default function ChatApp() {
             .then(r => r.json())
             .then(s => {
               if (s.status && s.previewMarkdown) {
-                const restored = { caseId: s.caseId, previewMarkdown: s.previewMarkdown, hasUnlocked: s.unlockStatus === 'unlocked', status: 'done' };
+                const serverUnlocked = isServerUnlocked(s);
+                const restored = { caseId: s.caseId, previewMarkdown: s.previewMarkdown, hasUnlocked: serverUnlocked, reviewStatus: s.status, status: 'done' };
                 setResult(restored);
-                setAppState(s.unlockStatus === 'unlocked' ? 'paid_unlocked' : 'preview_ready');
+                setAppState(serverUnlocked ? 'paid_unlocked' : 'preview_ready');
                 setShowResult(true);
-                try { writeLocalStorage('fenqian_currentCase', ({ state: s.unlockStatus === 'unlocked' ? 'paid_unlocked' : 'preview_ready', data: restored })); } catch {}
+                try { writeLocalStorage('fenqian_currentCase', ({ state: serverUnlocked ? 'paid_unlocked' : 'preview_ready', data: restored })); } catch {}
                 // 如果是已解锁状态，拉取完整报告
-                if (s.unlockStatus === 'unlocked') {
+                if (serverUnlocked) {
                   fetch('/api/cases/' + caseId + '/unlocked-report', { credentials: 'include' })
                     .then(r => r.ok ? r.json() : null)
-                    .then(d => { if (d && d.reportMarkdown) setResult((prev) => ({ ...prev, previewMarkdown: d.reportMarkdown })); })
+                    .then(d => { if (d && (d.reportMarkdown || d.fullReport)) applyUnlockedReport(caseId, s, d); })
                     .catch(() => {});
                 }
               }
@@ -361,10 +428,65 @@ export default function ChatApp() {
         }
       })
       .catch(() => {});
+    })();
   }, []);
 
   const [error, setError] = useState("");
   const [showResult, setShowResult] = useState(false);
+
+  const refreshCaseUnlockStatus = async (caseId, options = {}) => {
+    if (!caseId) return false;
+    const silent = options.silent !== false;
+    try {
+      if (!silent) setUnlockChecking(true);
+      const directReportRes = await fetch('/api/cases/' + caseId + '/unlocked-report', {
+        cache: 'no-store',
+        credentials: 'include'
+      }).catch(() => null);
+      if (directReportRes && directReportRes.ok) {
+        const directReport = await directReportRes.json();
+        return applyUnlockedReport(caseId, { unlockStatus: 'unlocked' }, directReport);
+      }
+
+      const statusRes = await fetch('/api/cases/' + caseId + '/public-status', {
+        cache: 'no-store',
+        credentials: 'include'
+      });
+      if (!statusRes.ok) return false;
+      const status = await statusRes.json();
+      const isUnlocked = isServerUnlocked(status);
+
+      if (!isUnlocked) {
+        if (status.previewMarkdown) {
+          setResult((prev) => ({
+            ...(prev || {}),
+            caseId: status.caseId || caseId,
+            previewMarkdown: prev?.previewMarkdown || status.previewMarkdown,
+            hasUnlocked: false,
+            reviewStatus: status.status,
+            status: 'done'
+          }));
+          setAppState('preview_ready');
+          setShowResult(true);
+        }
+        return false;
+      }
+
+      const reportRes = await fetch('/api/cases/' + caseId + '/unlocked-report', {
+        cache: 'no-store',
+        credentials: 'include'
+      });
+      if (!reportRes.ok) {
+        return applyUnlockedReport(caseId, status, {});
+      }
+      const report = await reportRes.json();
+      return applyUnlockedReport(caseId, status, report);
+    } catch (e) {
+      return false;
+    } finally {
+      if (!silent) setUnlockChecking(false);
+    }
+  };
 
   // 修改报告
   const [showEditDialog, setShowEditDialog] = useState(false);
@@ -408,13 +530,11 @@ export default function ChatApp() {
     setAiFilling(true);
     setShowAiFillDialog(false);
     try {
-      const res = await fetch("/api/suggest-form", {
+      const data = await fetchJson("/api/suggest-form", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: msg.trim(), currencyUnit }),
       });
-      const data = await res.json();
-      if (!res.ok || data.error) { setAiFilling(false); return; }
 
       if (data.partnerCount) handlePartnerCountChange(data.partnerCount);
       if (data.partners) {
@@ -434,6 +554,7 @@ export default function ChatApp() {
       if (data.exitConcern) setExitConcern(data.exitConcern);
     } catch (e) {
       console.error("AI fill error", e);
+      setError(getFriendlyErrorMessage(e, "AI 填表失败，请手动填写"));
     }
     setAiFilling(false);
   };
@@ -482,24 +603,11 @@ export default function ChatApp() {
     }
 
     try {
-      // 60秒超时（Render 免费实例冷启动最长达 50 秒）
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 65000);
-      const res = await fetch("/api/generate", {
+      const data = await fetchJson("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-        signal: controller.signal,
+        body: JSON.stringify(body)
       });
-      clearTimeout(timeoutId);
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.message || data.error || "生成失败");
-        setGenerating(false);
-        return;
-      }
 
       if (!data.caseId) {
         setError("服务器返回异常，请重试");
@@ -555,7 +663,7 @@ export default function ChatApp() {
             return;
           }
           if (pData.status === 'failed') {
-            setError("报告生成失败，请稍后重试");
+            setError(getFriendlyErrorMessage({ message: pData.error }, "报告生成失败，请稍后重试"));
             setGenerating(false);
             return;
           }
@@ -574,11 +682,7 @@ export default function ChatApp() {
       };
       poll();
     } catch (e) {
-      if (e.name === 'AbortError') {
-        setError("请求超时，服务器正在启动，请稍后重试");
-      } else {
-        setError("网络错误，请检查连接后重试");
-      }
+      setError(getFriendlyErrorMessage(e, "生成失败，请稍后重试"));
       setGenerating(false);
     }
   };
@@ -589,7 +693,7 @@ export default function ChatApp() {
     setEditLoading(true);
 
     try {
-      const res = await fetch("/api/regenerate", {
+      const data = await fetchJson("/api/regenerate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -618,14 +722,6 @@ export default function ChatApp() {
         }),
       });
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        setEditHistory((prev) => [...prev, { prompt: editPrompt, target: editTarget, status: "error", error: data.message || "修改失败" }]);
-        setEditLoading(false);
-        return;
-      }
-
       const nextMarkdown = data.updatedReport || data.previewMarkdown || "";
       chaptersRef.current = splitChapters(nextMarkdown);
       setResult((prev) => ({ ...prev, previewMarkdown: nextMarkdown }));
@@ -633,7 +729,7 @@ export default function ChatApp() {
       setEditPrompt("");
       setEditLoading(false);
     } catch (e) {
-      setEditHistory((prev) => [...prev, { prompt: editPrompt, target: editTarget, status: "error", error: "网络错误" }]);
+      setEditHistory((prev) => [...prev, { prompt: editPrompt, target: editTarget, status: "error", error: getFriendlyErrorMessage(e, "修改失败，请稍后重试") }]);
       setEditLoading(false);
     }
   };
@@ -766,6 +862,12 @@ export default function ChatApp() {
     </div>;
   };
 
+  const isResultUnlocked = (r) => {
+    return Boolean(r?.hasUnlocked) ||
+      appState === 'paid_unlocked' ||
+      ['reviewed', 'paid_delivered', 'delivered'].includes(r?.reviewStatus);
+  };
+
   // 报告顶部封面 + 底部签名 (3. 报告顶部封面)
   const renderReportCover = () => {
     if (!result) return null;
@@ -839,19 +941,31 @@ export default function ChatApp() {
       if (document.visibilityState === 'visible') {
         const r = resultRef.current;
         if (!r?.caseId) return;
-        fetch('/api/progress/' + r.caseId).then(res => res.json()).then(d => {
-          if (d.status === 'done' && d.previewMarkdown) {
-            const updated = { caseId: r.caseId, previewMarkdown: d.previewMarkdown, hasUnlocked: d.hasUnlocked || false, status: 'done' };
-            setResult(updated);
-            setAppState('preview_ready');
-            try { writeLocalStorage('fenqian_currentCase', ({ state: 'preview_ready', data: updated })); } catch(e) {}
-          }
-        }).catch(() => {});
+        refreshCaseUnlockStatus(r.caseId, { silent: true }).then((unlocked) => {
+          if (unlocked) return;
+          fetch('/api/progress/' + r.caseId).then(res => res.json()).then(d => {
+            if (d.status === 'done' && d.previewMarkdown) {
+              const updated = { ...r, caseId: r.caseId, previewMarkdown: d.previewMarkdown, hasUnlocked: false, status: 'done' };
+              setResult(updated);
+              setAppState('preview_ready');
+              try { writeLocalStorage('fenqian_currentCase', ({ state: 'preview_ready', data: updated })); } catch(e) {}
+            }
+          }).catch(() => {});
+        });
       }
     };
     document.addEventListener('visibilitychange', fn);
     return () => document.removeEventListener('visibilitychange', fn);
   }, []);
+
+  // 内测人工审核轮询：后台标记 delivered 后，前端自动解锁完整报告。
+  useEffect(() => {
+    if (!result?.caseId || result?.hasUnlocked) return;
+    const timer = setInterval(() => {
+      refreshCaseUnlockStatus(result.caseId, { silent: true });
+    }, 8000);
+    return () => clearInterval(timer);
+  }, [result?.caseId, result?.hasUnlocked]);
 
   useEffect(() => {
     if (!result?.previewMarkdown) return;
@@ -1304,7 +1418,7 @@ export default function ChatApp() {
               {result.previewMarkdown ? (
                 (() => {
                   try {
-                    const rendered = renderPreview(result.previewMarkdown, result.hasUnlocked);
+                    const rendered = renderPreview(result.previewMarkdown, isResultUnlocked(result));
                     if (!rendered) throw new Error('renderPreview returned null');
                     return rendered;
                   } catch(e) {
@@ -1372,6 +1486,19 @@ export default function ChatApp() {
 
             {/* 内测转化 — 完整报告申请 */}
             <div id="payment-section" style={{ background: "white", border: "1px solid #e2e8f0", borderRadius: 12, padding: "20px 16px", textAlign: "center" }}>
+              {isResultUnlocked(result) ? (
+                <div style={{ padding: "8px 0" }}>
+                  <h3 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: 6, color: "#166534" }}>完整报告已开放</h3>
+                  <p style={{ fontSize: "0.82rem", color: "#475569", marginBottom: 14, lineHeight: 1.5 }}>
+                    后台已完成审核/交付，当前页面已展示完整内容。
+                  </p>
+                  <a href={`/api/cases/${result.caseId}/download`} target="_blank" rel="noreferrer"
+                    style={{ display: "inline-block", padding: "10px 18px", borderRadius: 8, background: "#059669", color: "white", fontSize: ".85rem", fontWeight: 700, textDecoration: "none" }}>
+                    下载完整报告
+                  </a>
+                </div>
+              ) : (
+                <>
               <h3 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: 4 }}>获取完整报告</h3>
               <p style={{ fontSize: "0.8rem", color: "#777", marginBottom: 16, lineHeight: 1.5 }}>
                 内测阶段先提交申请，由人工确认后开放完整报告和下载权限。
@@ -1419,6 +1546,13 @@ export default function ChatApp() {
                 <div style={{ marginTop: 12, padding: "10px 14px", background: "#f0fdf4", borderRadius: 8, fontSize: "0.8rem", color: "#166534", border: "1px solid #a7f3d0" }}>
                   已记录您的完整报告申请，客服会通过您填写的联系方式联系。
                 </div>
+              )}
+              <button onClick={() => refreshCaseUnlockStatus(result.caseId, { silent: false })}
+                disabled={unlockChecking}
+                style={{ marginTop: 12, padding: "9px 14px", borderRadius: 8, border: "1px solid #059669", background: unlockChecking ? "#f1f5f9" : "white", color: "#059669", fontSize: ".8rem", fontWeight: 700, cursor: unlockChecking ? "wait" : "pointer" }}>
+                {unlockChecking ? "正在检查..." : "我已提交/客服已确认，刷新解锁状态"}
+              </button>
+                </>
               )}
             </div>
           </div>

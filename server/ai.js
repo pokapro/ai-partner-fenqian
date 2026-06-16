@@ -4,6 +4,23 @@
 const { buildSystemPrompt, buildUserPrompt, buildReferenceContext } = require('./prompt');
 const { buildKnowledgeContext } = require('./matcher');
 
+const AI_TIMEOUT_MS = Number(process.env.AI_TIMEOUT_MS || 65000);
+
+async function fetchWithTimeout(url, options = {}, timeoutMs = AI_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      throw new Error('请求超时，服务器正在启动或 AI 响应较慢，请稍后重试');
+    }
+    throw new Error('AI 服务暂时连接失败，请稍后重试');
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 const PROVIDERS = {
   // Mock provider for development without AI API
   mock: async (input, referenceContext, knowledgeContext) => {
@@ -96,7 +113,7 @@ ${exitConcern ? `关于退出机制方面：${exitConcern}` : ''}
     const baseUrl = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
     const model = process.env.OLLAMA_MODEL || 'qwen2.5:7b';
     const messages = buildMessages(input, referenceContext, knowledgeContext);
-    const res = await fetch(`${baseUrl}/api/chat`, {
+    const res = await fetchWithTimeout(`${baseUrl}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -116,7 +133,7 @@ ${exitConcern ? `关于退出机制方面：${exitConcern}` : ''}
     if (!apiKey) throw new Error('GLM_API_KEY not set');
     const model = process.env.GLM_MODEL || 'glm-4-flash';
     const messages = buildMessages(input, referenceContext, knowledgeContext);
-    const res = await fetch('https://open.bigmodel.cn/api/paas/v4/chat/completions', {
+    const res = await fetchWithTimeout('https://open.bigmodel.cn/api/paas/v4/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -146,7 +163,7 @@ ${exitConcern ? `关于退出机制方面：${exitConcern}` : ''}
     } else {
       messages = buildMessages(input, referenceContext, knowledgeContext);
     }
-    const res = await fetch('https://api.deepseek.com/v1/chat/completions', {
+    const res = await fetchWithTimeout('https://api.deepseek.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -168,7 +185,7 @@ ${exitConcern ? `关于退出机制方面：${exitConcern}` : ''}
     if (!apiKey) throw new Error('QWEN_API_KEY not set');
     const model = process.env.QWEN_MODEL || 'qwen-turbo';
     const messages = buildMessages(input, referenceContext, knowledgeContext);
-    const res = await fetch('https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation', {
+    const res = await fetchWithTimeout('https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

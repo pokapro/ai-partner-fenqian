@@ -210,6 +210,7 @@ tr:hover { background: #f8fafc; }
         <button class="btn-primary btn-sm" onclick="loadBackups()">⟳ 刷新</button>
       </div>
       <div id="backupCurrent" style="font-size:.85rem;margin-bottom:16px;padding:10px 14px;background:#f0fdf4;border-radius:8px"></div>
+      <div id="localLedgerInfo" style="font-size:.82rem;margin-bottom:16px;padding:10px 14px;background:#eff6ff;border-radius:8px;color:#1e3a8a"></div>
       <div style="margin-bottom:20px">
         <h4 style="font-size:.85rem;margin-bottom:8px">版本历史（最近30个）</h4>
         <div id="backupVersions" style="font-size:.78rem"></div>
@@ -278,8 +279,10 @@ var allCases = [];
         // 验证 session 是否仍然有效
         // 恢复 session 时同时传 query 参数保证兼容
         var [savedUser, savedPass] = atob(adminToken).split(':');
-        fetch('/api/admin/whitelist?' + new URLSearchParams({ user: savedUser, pass: savedPass }).toString(), {
-          headers: { 'Authorization': 'Basic ' + adminToken }
+        fetch('/api/admin/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Basic ' + adminToken },
+          body: JSON.stringify({ username: savedUser, password: savedPass })
         })
           .then(r => {
             if (r.ok) showDashboard();
@@ -320,20 +323,25 @@ function handleLogin() {
 
   // 用 Basic Auth 验证登录（后端鉴权，前端只认 HTTP 状态码）
   var basicAuth = btoa(user + ':' + pass);
-  fetch('/api/admin/stats', {
-    headers: { 'Authorization': 'Basic ' + basicAuth }
+  fetch('/api/admin/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Basic ' + basicAuth },
+    body: JSON.stringify({ username: user, password: pass })
   })
     .then(r => {
       if (!r.ok) throw new Error('用户名或密码错误');
       return r.json();
     })
-    .then(stats => {
+    .then(result => {
       // 登录成功（后端已鉴权通过）
-      currentUser = user;
-      currentRole = 'admin';
+      currentUser = result.user || user;
+      currentRole = result.role || 'admin';
       adminToken = basicAuth;
       // 持久化登录状态到 localStorage
       localStorage.setItem('fenqian_admin_session', JSON.stringify({ currentUser, currentRole, adminToken }));
+      if (result.localLedger && result.localLedger.restored > 0) {
+        toast(`已从本地流水恢复 ${result.localLedger.restored} 条案例`);
+      }
       showDashboard();
     })
     .catch(e => {
@@ -524,7 +532,8 @@ function viewCase(id) {
         <option value="rejected" ${c.review_status==='rejected'?'selected':''}>✕ 拒绝</option>
       </select>
       <input id="reviewNote" placeholder="备注" value="${c.review_note||''}" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:.78rem;width:140px" />
-      <button class="btn-primary btn-sm" onclick="submitReview('${c.id}')">提交</button>
+      <button class="btn-primary btn-sm" onclick="submitReview('${c.id}')">提交审核并解锁</button>
+      <button class="btn-warning btn-sm" onclick="unlockCase('${c.id}')">确认解锁</button>
       <button class="btn-outline btn-sm" onclick="closeModal()">关闭</button>
     `;
   } else {
@@ -550,11 +559,33 @@ async function submitReview(id) {
       method: 'PUT',
       body: JSON.stringify({ reviewStatus: status, reviewNote: note })
     });
-    toast('审核已提交 ✅');
+    if (status === 'reviewed' || status === 'delivered') {
+      await apiCall(`/api/admin/cases/${id}/unlock`, {
+        method: 'PUT',
+        body: JSON.stringify({ reviewNote: note || '已解锁，开放完整报告查看和下载' })
+      });
+    }
+    toast(status === 'rejected' ? '审核已提交 ✅' : '审核已提交并解锁 ✅');
     closeModal();
     loadCases();
   } catch(e) {
     toast('审核提交失败');
+  }
+}
+
+async function unlockCase(id) {
+  var noteEl = document.getElementById('reviewNote');
+  var note = noteEl && noteEl.value ? noteEl.value : '后台已确认完整报告申请，开放查看和下载';
+  try {
+    await apiCall(`/api/admin/cases/${id}/unlock`, {
+      method: 'PUT',
+      body: JSON.stringify({ reviewNote: note })
+    });
+    toast('已确认解锁 ✅');
+    closeModal();
+    loadCases();
+  } catch(e) {
+    toast('确认解锁失败');
   }
 }
 
@@ -664,6 +695,19 @@ function loadBackups() {
         `<strong>当前备份：</strong> ${new Date(data.current.time).toLocaleString('zh-CN')} · ${data.current.count} 条案例`;
     } else {
       document.getElementById('backupCurrent').innerHTML = '暂无备份';
+    }
+    var ledgerEl = document.getElementById('localLedgerInfo');
+    var dbLine = '';
+    if (data.dbHealth) {
+      var dbKb = ((data.dbHealth.dbSizeBytes || 0) / 1024).toFixed(1);
+      dbLine = `<strong>当前主库：</strong> ${data.dbHealth.caseCount || 0} 条案例 · ${dbKb} KB<br><span style="font-size:.72rem;color:#475569">${data.dbHealth.dbPath || ''}</span><br>`;
+    }
+    if (data.localLedger && data.localLedger.exists) {
+      var lastAt = data.localLedger.lastEventAt ? new Date(data.localLedger.lastEventAt).toLocaleString('zh-CN') : '-';
+      var kb = ((data.localLedger.sizeBytes || 0) / 1024).toFixed(1);
+      ledgerEl.innerHTML = dbLine + `<strong>本地追加流水：</strong> ${data.localLedger.events || 0} 条事件 · ${kb} KB · 最后写入 ${lastAt}<br><span style="font-size:.72rem;color:#475569">${data.localLedger.path || ''}</span>`;
+    } else {
+      ledgerEl.innerHTML = dbLine + '<strong>本地追加流水：</strong> 暂无记录。用户提交后会自动写入。';
     }
     var versionsEl = document.getElementById('backupVersions');
     if (data.versions && data.versions.length > 0) {

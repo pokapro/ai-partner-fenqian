@@ -5,15 +5,95 @@ const fs = require('fs');
 const crypto = require('crypto');
 const initSqlJs = require('sql.js');
 
-// 用 HOME 目录持久化数据库，避免 Render 部署重建时丢失
-const DB_PATH = process.env.PERSISTENT_DB_PATH || path.join(process.env.HOME || '/tmp', '.fenqian-data', 'app.db');
+const PROJECT_ROOT = path.join(__dirname, '..');
+const LOCAL_DATA_DIR = path.join(__dirname, '..', '本地数据库');
+// V0 内测阶段默认使用项目内本地数据库，确保用户/后台/重启都读同一份本地文件。
+const DB_PATH = process.env.PERSISTENT_DB_PATH || path.join(LOCAL_DATA_DIR, 'app.db');
+const LOCAL_LEDGER_PATH = process.env.LOCAL_LEDGER_PATH || path.join(LOCAL_DATA_DIR, 'local_cases_ledger.jsonl');
+const LEGACY_DB_PATHS = [
+  path.join(process.env.HOME || '/tmp', '.fenqian-data', 'app.db'),
+  path.join(PROJECT_ROOT, 'data', 'app.db')
+].filter(p => p !== DB_PATH);
 console.log('[DB] 数据库路径:', DB_PATH);
+console.log('[DB] 本地案例流水:', LOCAL_LEDGER_PATH);
 let db = null;
 
 function ensureDir(filePath) {
   const dir = path.dirname(filePath);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
+  }
+}
+
+function appendLocalLedger(event) {
+  try {
+    ensureDir(LOCAL_LEDGER_PATH);
+    const line = JSON.stringify({
+      ts: new Date().toISOString(),
+      ...event
+    });
+    fs.appendFileSync(LOCAL_LEDGER_PATH, line + '\n', 'utf-8');
+  } catch (e) {
+    console.warn('[DB] 本地流水写入失败:', e.message);
+  }
+}
+
+function readLocalLedgerEvents() {
+  try {
+    if (!fs.existsSync(LOCAL_LEDGER_PATH)) return [];
+    return fs.readFileSync(LOCAL_LEDGER_PATH, 'utf-8')
+      .split(/\r?\n/)
+      .filter(Boolean)
+      .map((line, index) => {
+        try {
+          return JSON.parse(line);
+        } catch (e) {
+          console.warn('[DB] 本地流水第', index + 1, '行解析失败，已跳过');
+          return null;
+        }
+      })
+      .filter(Boolean);
+  } catch (e) {
+    console.warn('[DB] 本地流水读取失败:', e.message);
+    return [];
+  }
+}
+
+function getLocalLedgerStats() {
+  try {
+    if (!fs.existsSync(LOCAL_LEDGER_PATH)) {
+      return { path: LOCAL_LEDGER_PATH, exists: false, events: 0, sizeBytes: 0, lastEventAt: null };
+    }
+    const events = readLocalLedgerEvents();
+    const stat = fs.statSync(LOCAL_LEDGER_PATH);
+    return {
+      path: LOCAL_LEDGER_PATH,
+      exists: true,
+      events: events.length,
+      sizeBytes: stat.size,
+      lastEventAt: events.length ? events[events.length - 1].ts || null : null
+    };
+  } catch (e) {
+    return { path: LOCAL_LEDGER_PATH, exists: false, events: 0, sizeBytes: 0, lastEventAt: null, error: e.message };
+  }
+}
+
+function safeInputJson(value) {
+  if (!value) return '{}';
+  if (typeof value === 'string') return value;
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return '{}';
+  }
+}
+
+function readJsonFile(filePath, fallback = null) {
+  try {
+    if (!fs.existsSync(filePath)) return fallback;
+    return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+  } catch {
+    return fallback;
   }
 }
 
@@ -159,13 +239,104 @@ async function initDb() {
     );
   `);
 
+  function getCaseCount() {
+    try {
+      const stmt = database.prepare('SELECT COUNT(*) as c FROM cases');
+      const row = stmt.step() ? stmt.getAsObject() : { c: 0 };
+      stmt.free();
+      return Number(row.c || 0);
+    } catch {
+      return 0;
+    }
+  }
+
+  function insertCaseIfMissing(c, source = 'imported') {
+    if (!c || !c.id) return false;
+    const before = database.prepare('SELECT COUNT(*) as c FROM cases WHERE id = ?');
+    before.bind([c.id]);
+    const existed = before.step() ? Number(before.getAsObject().c) > 0 : false;
+    before.free();
+    if (existed) return false;
+
+    database.run(
+      `INSERT OR IGNORE INTO cases
+       (id, created_at, source, contact, partner_count, input_json, report_markdown, payment_intent, review_status, review_note, progress, admin_note, followup_status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        c.id,
+        c.created_at || new Date().toISOString(),
+        c.source || source,
+        c.contact || '',
+        Number(c.partner_count ?? c.partnerCount ?? 0) || 0,
+        safeInputJson(c.input_json ?? c.inputJson),
+        c.report_markdown || '',
+        c.payment_intent || '',
+        c.review_status || 'pending_review',
+        c.review_note || '',
+        Number(c.progress || 0),
+        c.admin_note || '',
+        c.followup_status || ''
+      ]
+    );
+    return true;
+  }
+
+  function importCasesFromDbFile(filePath) {
+    if (!filePath || !fs.existsSync(filePath)) return { path: filePath, imported: 0, rows: 0, skipped: true };
+    let other = null;
+    let imported = 0;
+    let rows = 0;
+    try {
+      other = new SQL.Database(fs.readFileSync(filePath));
+      const result = other.exec('SELECT * FROM cases ORDER BY created_at ASC');
+      if (!result[0]) return { path: filePath, imported: 0, rows: 0 };
+      const columns = result[0].columns;
+      rows = result[0].values.length;
+      for (const values of result[0].values) {
+        const row = Object.fromEntries(columns.map((col, idx) => [col, values[idx]]));
+        if (insertCaseIfMissing(row, 'legacy_import')) imported++;
+      }
+      return { path: filePath, imported, rows };
+    } catch (e) {
+      return { path: filePath, imported, rows, error: e.message };
+    } finally {
+      try { other && other.close && other.close(); } catch {}
+    }
+  }
+
+  function importCasesFromBackupFile(filePath) {
+    const data = readJsonFile(filePath);
+    if (!data || !Array.isArray(data.cases)) return { path: filePath, imported: 0, rows: 0, skipped: true };
+    let imported = 0;
+    for (const row of data.cases) {
+      if (insertCaseIfMissing(row, 'backup_import')) imported++;
+    }
+    return { path: filePath, imported, rows: data.cases.length };
+  }
+
+  function importLegacyData() {
+    const results = [];
+    for (const filePath of LEGACY_DB_PATHS) {
+      results.push(importCasesFromDbFile(filePath));
+    }
+    results.push(importCasesFromBackupFile(path.join(process.env.HOME || '/tmp', '.fenqian-data', 'cases_backup.json')));
+    const imported = results.reduce((sum, r) => sum + (Number(r.imported) || 0), 0);
+    if (imported > 0) {
+      persist();
+      console.log('[DB] 已合并旧数据库案例:', imported, results);
+    }
+    return { imported, sources: results };
+  }
+
   // 多版本备份：保留最近 50 次 + 每天一个快照
   function persist() {
     const data = database.export();
+    ensureDir(DB_PATH);
     fs.writeFileSync(DB_PATH, Buffer.from(data));
     // 同步备份到 JSON（部署重建后从 JSON 恢复）
     try {
-      const backupDir = path.join(process.env.HOME || '/tmp', '.fenqian-data');
+      const backupDir = path.dirname(DB_PATH);
+      if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
       const rows = [];
       const stmt2 = database.prepare('SELECT * FROM cases ORDER BY created_at DESC');
       while (stmt2.step()) rows.push(stmt2.getAsObject());
@@ -173,8 +344,13 @@ async function initDb() {
       const now = new Date();
       const ts = now.toISOString().replace(/[:.]/g, '-');
       
-      // 1. 当前备份（最新，启动时从这里恢复）
-      fs.writeFileSync(path.join(backupDir, 'cases_backup.json'), JSON.stringify({ backup_time: now.toISOString(), count: rows.length, cases: rows }, null, 2));
+      // 1. 当前备份（最新，启动时从这里恢复）。禁止空库覆盖已有有效备份。
+      const currentBackupPath = path.join(backupDir, 'cases_backup.json');
+      const existingBackup = readJsonFile(currentBackupPath, null);
+      const existingCount = Number(existingBackup?.count || existingBackup?.cases?.length || 0);
+      if (rows.length > 0 || existingCount === 0) {
+        fs.writeFileSync(currentBackupPath, JSON.stringify({ backup_time: now.toISOString(), count: rows.length, cases: rows }, null, 2));
+      }
       
       // 2. 多版本备份：保留最近 50 个版本（每分钟最多一次）
       const versionDir = path.join(backupDir, 'versions');
@@ -206,6 +382,126 @@ async function initDb() {
       }
     } catch(e) { /* silent */ }
   }
+
+  function replayLocalLedger() {
+    const events = readLocalLedgerEvents();
+    if (events.length === 0) {
+      return { restored: 0, events: 0, path: LOCAL_LEDGER_PATH };
+    }
+
+    let restored = 0;
+    const insertCase = database.prepare(
+      `INSERT OR IGNORE INTO cases
+       (id, created_at, source, contact, partner_count, input_json, report_markdown, payment_intent, review_status, review_note, progress, admin_note, followup_status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    );
+
+    try {
+      for (const event of events) {
+        const type = event.type;
+        const c = event.case || {};
+
+        if (type === 'case_created' || type === 'case_restored') {
+          if (!c.id) continue;
+          const before = database.prepare('SELECT COUNT(*) as c FROM cases WHERE id = ?');
+          before.bind([c.id]);
+          const existed = before.step() ? Number(before.getAsObject().c) > 0 : false;
+          before.free();
+
+          insertCase.run([
+            c.id,
+            c.created_at || event.ts || new Date().toISOString(),
+            c.source || (type === 'case_restored' ? 'restored' : 'manual_test'),
+            c.contact || '',
+            Number(c.partner_count ?? c.partnerCount ?? 0) || 0,
+            safeInputJson(c.input_json ?? c.inputJson),
+            c.report_markdown || '',
+            c.payment_intent || '',
+            c.review_status || 'pending_review',
+            c.review_note || '',
+            Number(c.progress || 0),
+            c.admin_note || '',
+            c.followup_status || ''
+          ]);
+
+          database.run(
+            `UPDATE cases SET contact = ?, partner_count = ?, input_json = ? WHERE id = ?`,
+            [
+              c.contact || '',
+              Number(c.partner_count ?? c.partnerCount ?? 0) || 0,
+              safeInputJson(c.input_json ?? c.inputJson),
+              c.id
+            ]
+          );
+          if (type === 'case_restored') {
+            database.run(
+              `UPDATE cases
+               SET source = ?, report_markdown = ?, payment_intent = ?, review_status = ?, review_note = ?, progress = ?, admin_note = ?, followup_status = ?
+               WHERE id = ?`,
+              [
+                c.source || 'restored',
+                c.report_markdown || '',
+                c.payment_intent || '',
+                c.review_status || 'pending_review',
+                c.review_note || '',
+                Number(c.progress || 0),
+                c.admin_note || '',
+                c.followup_status || '',
+                c.id
+              ]
+            );
+          }
+          if (!existed) restored++;
+        } else if (type === 'report_updated' && event.caseId) {
+          database.run(
+            `UPDATE cases SET report_markdown = ?, review_status = ? WHERE id = ?`,
+            [event.reportMarkdown || '', event.reviewStatus || 'pending_review', event.caseId]
+          );
+        } else if (type === 'payment_updated' && event.caseId) {
+          database.run(
+            `UPDATE cases SET payment_intent = ? WHERE id = ?`,
+            [event.paymentIntent || '', event.caseId]
+          );
+        } else if (type === 'review_updated' && event.caseId) {
+          database.run(
+            `UPDATE cases SET review_status = ?, review_note = ? WHERE id = ?`,
+            [event.reviewStatus || 'pending_review', event.reviewNote || '', event.caseId]
+          );
+        } else if (type === 'unlock_normalized' && event.caseId) {
+          database.run(
+            `UPDATE cases SET review_status = ?, payment_intent = ?, review_note = ? WHERE id = ?`,
+            [event.reviewStatus || 'delivered', event.paymentIntent || 'manual_unlocked', event.reviewNote || '已解锁，开放完整报告查看和下载', event.caseId]
+          );
+        } else if (type === 'notes_updated' && event.caseId) {
+          const fields = [];
+          const values = [];
+          if (Object.prototype.hasOwnProperty.call(event, 'adminNote')) {
+            fields.push('admin_note = ?');
+            values.push(event.adminNote || '');
+          }
+          if (Object.prototype.hasOwnProperty.call(event, 'followupStatus')) {
+            fields.push('followup_status = ?');
+            values.push(event.followupStatus || '');
+          }
+          if (fields.length > 0) {
+            values.push(event.caseId);
+            database.run(`UPDATE cases SET ${fields.join(', ')} WHERE id = ?`, values);
+          }
+        }
+      }
+    } finally {
+      insertCase.free();
+    }
+
+    if (restored > 0) {
+      persist();
+      console.log('[DB] 从本地流水恢复案例:', restored, '条；事件:', events.length);
+    }
+    return { restored, events: events.length, path: LOCAL_LEDGER_PATH };
+  }
+
+  const legacyImport = importLegacyData();
+  replayLocalLedger();
 
   /**
    * Classify a case's funding mode and effort profile from its input_json.
@@ -522,6 +818,17 @@ async function initDb() {
         [id, partnerCount, contact, JSON.stringify(inputJson)]
       );
       persist();
+      const row = db.getCase(id);
+      appendLocalLedger({
+        type: 'case_created',
+        case: row || {
+          id,
+          partner_count: partnerCount,
+          contact,
+          input_json: inputJson,
+          review_status: 'pending_review'
+        }
+      });
     },
 
     updateReport(id, reportMarkdown, reviewStatus = 'pending_review') {
@@ -530,6 +837,12 @@ async function initDb() {
         [reportMarkdown, reviewStatus, id]
       );
       persist();
+      appendLocalLedger({
+        type: 'report_updated',
+        caseId: id,
+        reportMarkdown,
+        reviewStatus
+      });
     },
 
     updateProgress(id, progress) {
@@ -568,6 +881,11 @@ async function initDb() {
         [paymentIntent, id]
       );
       persist();
+      appendLocalLedger({
+        type: 'payment_updated',
+        caseId: id,
+        paymentIntent
+      });
     },
 
     updateCaseNotes(id, adminNote, followupStatus = '') {
@@ -579,6 +897,12 @@ async function initDb() {
       values.push(id);
       database.run(`UPDATE cases SET ${fields.join(', ')} WHERE id = ?`, values);
       persist();
+      appendLocalLedger({
+        type: 'notes_updated',
+        caseId: id,
+        adminNote,
+        followupStatus
+      });
     },
 
     updateReviewStatus(id, status, note = '') {
@@ -587,6 +911,70 @@ async function initDb() {
         [status, note, id]
       );
       persist();
+      appendLocalLedger({
+        type: 'review_updated',
+        caseId: id,
+        reviewStatus: status,
+        reviewNote: note
+      });
+    },
+
+    normalizeUnlockStates() {
+      const rows = [];
+      const stmt = database.prepare(
+        `SELECT id, review_status, review_note, payment_intent
+         FROM cases
+         WHERE review_status IN ('reviewed', 'delivered', 'paid_delivered')
+            OR payment_intent IN ('manual_unlocked', 'unlocked')`
+      );
+      while (stmt.step()) rows.push(stmt.getAsObject());
+      stmt.free();
+
+      let updated = 0;
+      for (const row of rows) {
+        const note = String(row.review_note || '');
+        const needsDelivered = row.review_status !== 'delivered' && row.review_status !== 'paid_delivered';
+        const needsPayment = !/manual_unlocked|unlocked|completed/.test(String(row.payment_intent || ''));
+        const needsNote = !/已解锁|unlocked|开放完整报告/.test(note);
+        if (!needsDelivered && !needsPayment && !needsNote) continue;
+
+        const nextNote = note ? `${note}；已解锁，开放完整报告查看和下载` : '已解锁，开放完整报告查看和下载';
+        database.run(
+          `UPDATE cases
+           SET review_status = ?, payment_intent = ?, review_note = ?
+           WHERE id = ?`,
+          ['delivered', 'manual_unlocked', nextNote, row.id]
+        );
+        appendLocalLedger({
+          type: 'unlock_normalized',
+          caseId: row.id,
+          reviewStatus: 'delivered',
+          paymentIntent: 'manual_unlocked',
+          reviewNote: nextNote
+        });
+        updated++;
+      }
+      if (updated > 0) persist();
+      return { updated, scanned: rows.length };
+    },
+
+    getDbHealth() {
+      const backupPath = path.join(path.dirname(DB_PATH), 'cases_backup.json');
+      const backup = readJsonFile(backupPath, null);
+      return {
+        dbPath: DB_PATH,
+        dbExists: fs.existsSync(DB_PATH),
+        dbSizeBytes: fs.existsSync(DB_PATH) ? fs.statSync(DB_PATH).size : 0,
+        caseCount: getCaseCount(),
+        localLedger: getLocalLedgerStats(),
+        backup: backup ? {
+          path: backupPath,
+          count: Number(backup.count || backup.cases?.length || 0),
+          backupTime: backup.backup_time || null
+        } : { path: backupPath, count: 0, backupTime: null },
+        legacyImport,
+        legacyDbPaths: LEGACY_DB_PATHS
+      };
     },
 
     getCase(id) {
@@ -782,6 +1170,9 @@ async function initDb() {
       return rows;
     },
 
+    replayLocalLedger,
+    getLocalLedgerStats,
+
     // 从备份数据恢复：清空现有 cases 后插入
     restoreFromBackup(cases) {
       if (!Array.isArray(cases)) throw new Error('cases 必须是数组');
@@ -796,6 +1187,11 @@ async function initDb() {
       }
       stmt.free();
       persist(); // 备份恢复后自动创建新的当前备份
+      for (const c of cases) {
+        if (c.id && c.created_at) {
+          appendLocalLedger({ type: 'case_restored', case: c });
+        }
+      }
       return count;
     }
   };
