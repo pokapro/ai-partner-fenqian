@@ -699,11 +699,11 @@ function renderMdToPdf(doc, md) {
       }
       y += 4;
     } else if (token.type === 'paragraph') {
-      checkPage(24);
       doc.font(regularFont).fontSize(11).fillColor('#222');
       const text = token.tokens ? token.tokens.map(t => t.text || t.raw || '').join('') : token.text || token.raw;
       const lines = wrapText(text, 11);
       for (const line of lines) {
+        checkPage(16);
         doc.text(line, marginLeft, y, { width: contentWidth });
         y += 16;
       }
@@ -718,9 +718,9 @@ function renderMdToPdf(doc, md) {
       }
       const colW = contentWidth / (token.header ? token.header.length : 1);
       const rowH = 22;
-      checkPage(rows.length * rowH + 12);
       y += 4;
       for (let ri = 0; ri < rows.length; ri++) {
+        checkPage(rowH + 4);
         const isHeader = ri === 0 && token.header && token.header.length > 0;
         const cells = rows[ri];
         const cellY = y;
@@ -750,7 +750,6 @@ function renderMdToPdf(doc, md) {
       }
       y += 6;
     } else if (token.type === 'list') {
-      checkPage(20);
       doc.font(regularFont).fontSize(11).fillColor('#222');
       for (let li = 0; li < (token.items || []).length; li++) {
         const item = token.items[li];
@@ -759,6 +758,7 @@ function renderMdToPdf(doc, md) {
           const bullet = token.ordered ? `${token.start + li}. ` : '• ';
           const lines = wrapText(bullet + text, 11);
           for (const line of lines) {
+            checkPage(16);
             doc.text(line, marginLeft + 12, y, { width: contentWidth - 12 });
             y += 16;
           }
@@ -779,6 +779,7 @@ function renderMdToPdf(doc, md) {
       doc.font(italicFont).fontSize(10).fillColor('#555');
       const lines = wrapText(text, 10);
       for (const line of lines) {
+        checkPage(16);
         doc.text(line, marginLeft + 12, y, { width: contentWidth - 12 });
         y += 16;
       }
