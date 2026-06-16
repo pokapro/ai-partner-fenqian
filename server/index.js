@@ -600,23 +600,42 @@ app.get('/api/cases/:id/download/word', async (req, res) => {
   }
 });
 
+// 注册中文字体（用于 PDF 渲染，防止中文乱码）
+const fontDir = path.join(__dirname, '..', 'assets', 'fonts');
+function getChineseFont(type) {
+  const regular = path.join(fontDir, 'NotoSansSC-Regular.ttf');
+  const bold = path.join(fontDir, 'NotoSansSC-Bold.ttf');
+  if (type === 'bold' && fs.existsSync(bold)) return bold;
+  return fs.existsSync(regular) ? regular : null;
+}
+
 // PDF 渲染工具函数 — Markdown tokens → pdfkit 纯 JS 渲染（无需浏览器）
 function renderMdToPdf(doc, md) {
   const tokens = marked.lexer(md);
-  const pageWidth = 595.28; // A4 width pt
-  const marginLeft = 56;
-  const marginRight = 56;
-  const marginTop = 56;
-  const marginBottom = 56;
+  const pageWidth = 595.28;
+  const marginLeft = 56, marginRight = 56, marginTop = 56, marginBottom = 56;
   const contentWidth = pageWidth - marginLeft - marginRight;
   let y = marginTop;
 
+  const cnFont = getChineseFont();
+  const cnFontBold = getChineseFont('bold') || getChineseFont();
+  const hasCn = !!(cnFont);
+
+  // 注册中文字体
+  if (hasCn) {
+    try {
+      doc.registerFont('CnFont', cnFont);
+      doc.registerFont('CnFontBold', cnFontBold || cnFont);
+    } catch (e) {
+      // fallback silently
+    }
+  }
+
   function wrapText(text, size) {
     doc.fontSize(size);
-    const words = text.split('');
-    let lines = [];
-    let currentLine = '';
-    for (const ch of words) {
+    const chars = text.split('');
+    let lines = [], currentLine = '';
+    for (const ch of chars) {
       const test = currentLine + ch;
       if (doc.widthOfString(test) > contentWidth) {
         lines.push(currentLine);
@@ -636,13 +655,19 @@ function renderMdToPdf(doc, md) {
     }
   }
 
+  // 选择合适的字体名
+  const regularFont = hasCn ? 'CnFont' : 'Helvetica';
+  const boldFont = hasCn ? 'CnFontBold' : 'Helvetica-Bold';
+  const monoFont = 'Courier';
+  const italicFont = hasCn ? 'CnFont' : 'Helvetica-Oblique';
+
   for (const token of tokens) {
     if (token.type === 'heading') {
       const sizes = { 1: 22, 2: 16, 3: 13 };
       const size = sizes[token.depth] || 12;
       checkPage(size + 10);
       y += 8;
-      doc.font('Helvetica-Bold').fontSize(size).fillColor(token.depth === 1 ? '#2563eb' : '#222');
+      doc.font(boldFont).fontSize(size).fillColor(token.depth === 1 ? '#2563eb' : '#222');
       const lines = wrapText(token.text, size);
       for (const line of lines) {
         doc.text(line, marginLeft, y, { width: contentWidth });
@@ -655,7 +680,7 @@ function renderMdToPdf(doc, md) {
       y += 4;
     } else if (token.type === 'paragraph') {
       checkPage(24);
-      doc.font('Helvetica').fontSize(11).fillColor('#222');
+      doc.font(regularFont).fontSize(11).fillColor('#222');
       const text = token.tokens ? token.tokens.map(t => t.text || t.raw || '').join('') : token.text || token.raw;
       const lines = wrapText(text, 11);
       for (const line of lines) {
@@ -673,8 +698,7 @@ function renderMdToPdf(doc, md) {
       }
       const colW = contentWidth / (token.header ? token.header.length : 1);
       const rowH = 22;
-      const tableH = rows.length * rowH + 4;
-      checkPage(tableH + 8);
+      checkPage(rows.length * rowH + 12);
       y += 4;
       for (let ri = 0; ri < rows.length; ri++) {
         const isHeader = ri === 0 && token.header && token.header.length > 0;
@@ -686,7 +710,7 @@ function renderMdToPdf(doc, md) {
           if (isHeader) {
             doc.rect(cx, cellY, colW, rowH).fillColor('#eff6ff').fill().strokeColor('#ccc').lineWidth(0.5).stroke();
           }
-          doc.font(isHeader ? 'Helvetica-Bold' : 'Helvetica').fontSize(9).fillColor('#222');
+          doc.font(isHeader ? boldFont : regularFont).fontSize(9).fillColor('#222');
           doc.text(cells[ci] || '', cx + 4, cellY + 5, { width: colW - 8, height: rowH - 4 });
         }
         y += rowH;
@@ -699,7 +723,7 @@ function renderMdToPdf(doc, md) {
       checkPage(codeH + 4);
       doc.rect(marginLeft, y, contentWidth, codeH).fillColor('#f8f8f8').fill().strokeColor('#ddd').lineWidth(0.5).stroke();
       y += 6;
-      doc.font('Courier').fontSize(9).fillColor('#333');
+      doc.font(monoFont).fontSize(9).fillColor('#333');
       for (const line of codeLines) {
         doc.text(line, marginLeft + 8, y, { width: contentWidth - 16 });
         y += lineH;
@@ -707,7 +731,7 @@ function renderMdToPdf(doc, md) {
       y += 6;
     } else if (token.type === 'list') {
       checkPage(20);
-      doc.font('Helvetica').fontSize(11).fillColor('#222');
+      doc.font(regularFont).fontSize(11).fillColor('#222');
       for (let li = 0; li < (token.items || []).length; li++) {
         const item = token.items[li];
         if (item) {
@@ -732,7 +756,7 @@ function renderMdToPdf(doc, md) {
       checkPage(20);
       const text = token.tokens ? token.tokens.map(t => t.text || t.raw || '').join('') : token.text || token.raw || '';
       doc.rect(marginLeft, y, 4, 20).fillColor('#2563eb').fill();
-      doc.font('Helvetica-Oblique').fontSize(10).fillColor('#555');
+      doc.font(italicFont).fontSize(10).fillColor('#555');
       const lines = wrapText(text, 10);
       for (const line of lines) {
         doc.text(line, marginLeft + 12, y, { width: contentWidth - 12 });
@@ -752,7 +776,7 @@ app.get('/api/cases/:id/download/pdf', async (req, res) => {
       return res.status(403).json({ error: 'payment_required', message: '请先完成支付' });
     }
     const md = c.report_markdown || '';
-    const doc = new PDFDocument({ size: 'A4', margins: { top: 56, bottom: 56, left: 56, right: 56 }, info: { Title: '合伙分钱方案报告', Creator: 'AI合伙分钱方案生成器 v0.7' } });
+    const doc = new PDFDocument({ size: 'A4', margins: { top: 56, bottom: 56, left: 56, right: 56 }, info: { Title: '合伙分钱方案报告', Creator: 'AI合伙分钱方案生成器' } });
     const chunks = [];
     doc.on('data', c => chunks.push(c));
     doc.on('end', () => {
