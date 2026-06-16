@@ -6,23 +6,18 @@ echo "=== Building Frontend (clean) ==="
 rm -rf dist node_modules/.vite
 npx vite build
 
-echo "=== Downloading Chinese Font for PDF ==="
+echo "=== Installing Chinese Font for PDF ==="
 mkdir -p assets/fonts
-FONT_REG="assets/fonts/NotoSansSC-Regular.ttf"
-FONT_BOLD="assets/fonts/NotoSansSC-Bold.ttf"
-if [ ! -f "$FONT_REG" ]; then
-  curl -sL --max-time 60 -o "$FONT_REG" \
-    "https://fonts.gstatic.com/s/notosanssc/v40/k3kCo84MPvpLmixcA63oeAL7Iqp5IZJF9bmaG9_FnYw.ttf"
+if command -v apt-get &>/dev/null; then
+  sudo apt-get install -y fonts-noto-cjk 2>/dev/null && echo "fonts-noto-cjk installed via apt"
 fi
-if [ ! -f "$FONT_BOLD" ]; then
-  curl -sL --max-time 60 -o "$FONT_BOLD" \
-    "https://fonts.gstatic.com/s/notosanssc/v40/k3kCo84MPvpLmixcA63oeAL7Iqp5IZJF9bmaGzjCnYw.ttf"
+# Download fallback (if apt fails, e.g. non-Ubuntu env)
+if [ ! -f "assets/fonts/NotoSansSC-Regular.ttf" ]; then
+  curl -sL --max-time 60 -o "assets/fonts/NotoSansSC-Regular.ttf" \
+    "https://github.com/notofonts/noto-cjk/releases/download/Sans2.004/08_NotoSansCJKsc-Regular.otf" 2>/dev/null || true
 fi
-if [ -f "$FONT_REG" ]; then
-  echo "Font files size: $(ls -lh "$FONT_REG" | awk '{print $5}') + $(ls -lh "$FONT_BOLD" | awk '{print $5}')"
-else
-  echo "[WARN] 中文字体下载失败，PDF中文可能乱码"
-fi
+ls -lh assets/fonts/ 2>/dev/null || true
+rm -f .gitignore.tmp
 
 echo "=== Starting Backend ==="
 node server/index.js

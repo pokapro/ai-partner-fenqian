@@ -602,11 +602,32 @@ app.get('/api/cases/:id/download/word', async (req, res) => {
 
 // 注册中文字体（用于 PDF 渲染，防止中文乱码）
 const fontDir = path.join(__dirname, '..', 'assets', 'fonts');
-function getChineseFont(type) {
-  const regular = path.join(fontDir, 'NotoSansSC-Regular.ttf');
-  const bold = path.join(fontDir, 'NotoSansSC-Bold.ttf');
-  if (type === 'bold' && fs.existsSync(bold)) return bold;
-  return fs.existsSync(regular) ? regular : null;
+function getChineseFontPath() {
+  // 1. 项目本地 assets/fonts/NotoSansSC-Regular.ttf（git 提交的 10MB 中文字体）
+  const localFont = path.join(fontDir, 'NotoSansSC-Regular.ttf');
+  if (fs.existsSync(localFont)) return localFont;
+  // 2. 扫描系统字体目录
+  const searchPaths = [
+    '/usr/share/fonts',
+    '/usr/local/share/fonts',
+    '/opt/render/.render/fonts',
+    '/System/Library/Fonts',
+    '/Library/Fonts',
+  ];
+  for (const sp of searchPaths) {
+    if (!fs.existsSync(sp)) continue;
+    try {
+      const entries = fs.readdirSync(sp, { recursive: true });
+      for (const entry of entries) {
+        const fullPath = path.join(sp, entry);
+        if (!fullPath.endsWith('.ttf') && !fullPath.endsWith('.otf')) continue;
+        const lower = fullPath.toLowerCase();
+        if (!lower.includes('cjk') && !lower.includes('noto') && !lower.includes('chinese') && !lower.includes('sc') && !lower.includes('wqy') && !lower.includes('han')) continue;
+        return fullPath;
+      }
+    } catch (e) { /* skip */ }
+  }
+  return null;
 }
 
 // PDF 渲染工具函数 — Markdown tokens → pdfkit 纯 JS 渲染（无需浏览器）
@@ -617,15 +638,14 @@ function renderMdToPdf(doc, md) {
   const contentWidth = pageWidth - marginLeft - marginRight;
   let y = marginTop;
 
-  const cnFont = getChineseFont();
-  const cnFontBold = getChineseFont('bold') || getChineseFont();
-  const hasCn = !!(cnFont);
+  const cnFontPath = getChineseFontPath();
+  const hasCn = !!(cnFontPath);
 
   // 注册中文字体
   if (hasCn) {
     try {
-      doc.registerFont('CnFont', cnFont);
-      doc.registerFont('CnFontBold', cnFontBold || cnFont);
+      doc.registerFont('CnFont', cnFontPath);
+      doc.registerFont('CnFontBold', cnFontPath);
     } catch (e) {
       // fallback silently
     }
