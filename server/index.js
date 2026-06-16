@@ -1,6 +1,9 @@
 // AI 合伙分钱方案生成器 - V0.7 Server (案例库+规则库驱动)
 const path = require('path');
 const fs = require('fs');
+const { marked } = require('marked');
+const htmlToDocx = require('html-to-docx');
+const puppeteer = require('puppeteer');
 // 强制从项目根目录加载 .env，不依赖启动 cwd
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
@@ -556,24 +559,77 @@ app.get('/api/cases/:id/unlocked-report', (req, res) => {
   }
 });
 
-// 下载报告（付款后）
-app.get('/api/cases/:id/download', (req, res) => {
+// 下载报告（付款后）— 统一权限校验
+function checkDownloadAuth(c) {
+  const orders = db.getOrdersByCase(c.id);
+  const hasPaid = orders.some(o => o.status === 'paid');
+  const hasManualUnlock =
+    (c.payment_intent && /completed|manual_unlocked|unlocked/.test(c.payment_intent)) ||
+    ['reviewed', 'paid_delivered', 'delivered'].includes(c.review_status);
+  return hasPaid || hasManualUnlock;
+}
+
+// 下载 Word 版
+app.get('/api/cases/:id/download/word', async (req, res) => {
   try {
     const c = db.getCase(req.params.id);
     if (!c) return res.status(404).json({ error: 'not_found', message: '案例不存在' });
-
-    const orders = db.getOrdersByCase(req.params.id);
-    const hasPaid = orders.some(o => o.status === 'paid');
-    const hasManualUnlock =
-      (c.payment_intent && /completed|manual_unlocked|unlocked/.test(c.payment_intent)) ||
-      ['reviewed', 'paid_delivered', 'delivered'].includes(c.review_status);
-    if (!hasPaid && !hasManualUnlock) {
+    if (!checkDownloadAuth(c)) {
       return res.status(403).json({ error: 'payment_required', message: '请先完成支付' });
     }
+    const md = c.report_markdown || '';
+    const html = marked.parse(md);
+    const styledHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+      body { font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif; line-height: 1.8; color: #222; padding: 30px; max-width: 900px; margin: auto; }
+      h1 { font-size: 1.6em; border-bottom: 2px solid #2563eb; padding-bottom: 8px; margin-top: 30px; }
+      h2 { font-size: 1.3em; color: #2563eb; margin-top: 24px; }
+      h3 { font-size: 1.1em; color: #333; margin-top: 18px; }
+      table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+      th, td { border: 1px solid #ccc; padding: 8px 10px; text-align: left; font-size: 0.9em; }
+      th { background: #f0f4ff; font-weight: 700; }
+      code { background: #f4f4f4; padding: 2px 5px; border-radius: 3px; font-size: 0.9em; }
+      pre { background: #f8f8f8; border: 1px solid #ddd; padding: 12px; border-radius: 6px; overflow-x: auto; }
+    </style></head><body>${html}</body></html>`;
+    const docxBuffer = await htmlToDocx(styledHtml, { table: { maxRow: 999 } });
+    const filename = 'fenqian-report-' + req.params.id.slice(0, 8) + '.docx';
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    res.setHeader('Content-Disposition', 'attachment; filename="' + filename + '"');
+    res.send(Buffer.from(docxBuffer));
+  } catch (err) {
+    res.status(500).json({ error: 'server_error', message: err.message });
+  }
+});
 
-    res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
-    res.setHeader('Content-Disposition', 'attachment; filename="fenqian-report-' + req.params.id.slice(0,8) + '.md"');
-    res.send(c.report_markdown || '');
+// 下载 PDF 版（puppeteer 渲染）
+app.get('/api/cases/:id/download/pdf', async (req, res) => {
+  try {
+    const c = db.getCase(req.params.id);
+    if (!c) return res.status(404).json({ error: 'not_found', message: '案例不存在' });
+    if (!checkDownloadAuth(c)) {
+      return res.status(403).json({ error: 'payment_required', message: '请先完成支付' });
+    }
+    const md = c.report_markdown || '';
+    const html = marked.parse(md);
+    const styledHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+      body { font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif; line-height: 1.8; color: #222; padding: 30px; max-width: 900px; margin: auto; }
+      h1 { font-size: 1.6em; border-bottom: 2px solid #2563eb; padding-bottom: 8px; margin-top: 30px; }
+      h2 { font-size: 1.3em; color: #2563eb; margin-top: 24px; }
+      h3 { font-size: 1.1em; color: #333; margin-top: 18px; }
+      table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+      th, td { border: 1px solid #ccc; padding: 8px 10px; text-align: left; font-size: 0.9em; }
+      th { background: #f0f4ff; font-weight: 700; }
+      code { background: #f4f4f4; padding: 2px 5px; border-radius: 3px; font-size: 0.9em; }
+      pre { background: #f8f8f8; border: 1px solid #ddd; padding: 12px; border-radius: 6px; overflow-x: auto; }
+    </style></head><body>${html}</body></html>`;
+    const browser = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+    const page = await browser.newPage();
+    await page.setContent(styledHtml, { waitUntil: 'networkidle0' });
+    const pdfBuffer = await page.pdf({ format: 'A4', margin: { top: '20mm', bottom: '20mm', left: '15mm', right: '15mm' } });
+    await browser.close();
+    const filename = 'fenqian-report-' + req.params.id.slice(0, 8) + '.pdf';
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename="' + filename + '"');
+    res.send(pdfBuffer);
   } catch (err) {
     res.status(500).json({ error: 'server_error', message: err.message });
   }

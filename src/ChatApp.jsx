@@ -1492,10 +1492,16 @@ export default function ChatApp() {
                   <p style={{ fontSize: "0.82rem", color: "#475569", marginBottom: 14, lineHeight: 1.5 }}>
                     后台已完成审核/交付，当前页面已展示完整内容。
                   </p>
-                  <a href={`/api/cases/${result.caseId}/download`} target="_blank" rel="noreferrer"
-                    style={{ display: "inline-block", padding: "10px 18px", borderRadius: 8, background: "#059669", color: "white", fontSize: ".85rem", fontWeight: 700, textDecoration: "none" }}>
-                    下载完整报告
-                  </a>
+                  <div style={{ display: "flex", gap: "10px", justifyContent: "center", flexWrap: "wrap" }}>
+                    <a href={`/api/cases/${result.caseId}/download/word`} target="_blank" rel="noreferrer"
+                      style={{ display: "inline-block", padding: "10px 18px", borderRadius: 8, background: "#2563eb", color: "white", fontSize: ".85rem", fontWeight: 700, textDecoration: "none" }}>
+                      📄 下载 Word 版
+                    </a>
+                    <a href={`/api/cases/${result.caseId}/download/pdf`} target="_blank" rel="noreferrer"
+                      style={{ display: "inline-block", padding: "10px 18px", borderRadius: 8, background: "#dc2626", color: "white", fontSize: ".85rem", fontWeight: 700, textDecoration: "none" }}>
+                      📕 下载 PDF 版
+                    </a>
+                  </div>
                 </div>
               ) : (
                 <>
