@@ -3,7 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const { marked } = require('marked');
 const htmlToDocx = require('html-to-docx');
-const puppeteer = require('puppeteer');
+const PDFDocument = require('pdfkit');
 // 强制从项目根目录加载 .env，不依赖启动 cwd
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
@@ -600,7 +600,150 @@ app.get('/api/cases/:id/download/word', async (req, res) => {
   }
 });
 
-// 下载 PDF 版（puppeteer 渲染）
+// PDF 渲染工具函数 — Markdown tokens → pdfkit 纯 JS 渲染（无需浏览器）
+function renderMdToPdf(doc, md) {
+  const tokens = marked.lexer(md);
+  const pageWidth = 595.28; // A4 width pt
+  const marginLeft = 56;
+  const marginRight = 56;
+  const marginTop = 56;
+  const marginBottom = 56;
+  const contentWidth = pageWidth - marginLeft - marginRight;
+  let y = marginTop;
+
+  function wrapText(text, size) {
+    doc.fontSize(size);
+    const words = text.split('');
+    let lines = [];
+    let currentLine = '';
+    for (const ch of words) {
+      const test = currentLine + ch;
+      if (doc.widthOfString(test) > contentWidth) {
+        lines.push(currentLine);
+        currentLine = ch;
+      } else {
+        currentLine = test;
+      }
+    }
+    if (currentLine) lines.push(currentLine);
+    return lines;
+  }
+
+  function checkPage(needed) {
+    if (y + needed > doc.page.height - marginBottom) {
+      doc.addPage();
+      y = marginTop;
+    }
+  }
+
+  for (const token of tokens) {
+    if (token.type === 'heading') {
+      const sizes = { 1: 22, 2: 16, 3: 13 };
+      const size = sizes[token.depth] || 12;
+      checkPage(size + 10);
+      y += 8;
+      doc.font('Helvetica-Bold').fontSize(size).fillColor(token.depth === 1 ? '#2563eb' : '#222');
+      const lines = wrapText(token.text, size);
+      for (const line of lines) {
+        doc.text(line, marginLeft, y, { width: contentWidth });
+        y += size * 1.4;
+      }
+      if (token.depth === 1) {
+        doc.moveTo(marginLeft, y).lineTo(pageWidth - marginRight, y).strokeColor('#2563eb').lineWidth(1.5).stroke();
+        y += 8;
+      }
+      y += 4;
+    } else if (token.type === 'paragraph') {
+      checkPage(24);
+      doc.font('Helvetica').fontSize(11).fillColor('#222');
+      const text = token.tokens ? token.tokens.map(t => t.text || t.raw || '').join('') : token.text || token.raw;
+      const lines = wrapText(text, 11);
+      for (const line of lines) {
+        doc.text(line, marginLeft, y, { width: contentWidth });
+        y += 16;
+      }
+      y += 4;
+    } else if (token.type === 'table') {
+      const rows = [];
+      if (token.header && token.header.length) {
+        rows.push(token.header.map(c => c.text || c));
+      }
+      for (const row of token.rows || []) {
+        rows.push(row.map(c => c.text || c));
+      }
+      const colW = contentWidth / (token.header ? token.header.length : 1);
+      const rowH = 22;
+      const tableH = rows.length * rowH + 4;
+      checkPage(tableH + 8);
+      y += 4;
+      for (let ri = 0; ri < rows.length; ri++) {
+        const isHeader = ri === 0 && token.header && token.header.length > 0;
+        const cells = rows[ri];
+        const cellY = y;
+        for (let ci = 0; ci < cells.length; ci++) {
+          const cx = marginLeft + ci * colW;
+          doc.rect(cx, cellY, colW, rowH).strokeColor('#ccc').lineWidth(0.5).stroke();
+          if (isHeader) {
+            doc.rect(cx, cellY, colW, rowH).fillColor('#eff6ff').fill().strokeColor('#ccc').lineWidth(0.5).stroke();
+          }
+          doc.font(isHeader ? 'Helvetica-Bold' : 'Helvetica').fontSize(9).fillColor('#222');
+          doc.text(cells[ci] || '', cx + 4, cellY + 5, { width: colW - 8, height: rowH - 4 });
+        }
+        y += rowH;
+      }
+      y += 6;
+    } else if (token.type === 'code') {
+      const codeLines = (token.text || '').split('\n');
+      const lineH = 14;
+      const codeH = codeLines.length * lineH + 12;
+      checkPage(codeH + 4);
+      doc.rect(marginLeft, y, contentWidth, codeH).fillColor('#f8f8f8').fill().strokeColor('#ddd').lineWidth(0.5).stroke();
+      y += 6;
+      doc.font('Courier').fontSize(9).fillColor('#333');
+      for (const line of codeLines) {
+        doc.text(line, marginLeft + 8, y, { width: contentWidth - 16 });
+        y += lineH;
+      }
+      y += 6;
+    } else if (token.type === 'list') {
+      checkPage(20);
+      doc.font('Helvetica').fontSize(11).fillColor('#222');
+      for (let li = 0; li < (token.items || []).length; li++) {
+        const item = token.items[li];
+        if (item) {
+          const text = item.tokens ? item.tokens.map(t => t.text || t.raw || '').join('') : item.text || item.raw || '';
+          const bullet = token.ordered ? `${token.start + li}. ` : '• ';
+          const lines = wrapText(bullet + text, 11);
+          for (const line of lines) {
+            doc.text(line, marginLeft + 12, y, { width: contentWidth - 12 });
+            y += 16;
+          }
+        }
+      }
+      y += 4;
+    } else if (token.type === 'hr') {
+      checkPage(10);
+      y += 4;
+      doc.moveTo(marginLeft, y).lineTo(pageWidth - marginRight, y).strokeColor('#ddd').lineWidth(1).stroke();
+      y += 8;
+    } else if (token.type === 'space') {
+      y += 8;
+    } else if (token.type === 'blockquote') {
+      checkPage(20);
+      const text = token.tokens ? token.tokens.map(t => t.text || t.raw || '').join('') : token.text || token.raw || '';
+      doc.rect(marginLeft, y, 4, 20).fillColor('#2563eb').fill();
+      doc.font('Helvetica-Oblique').fontSize(10).fillColor('#555');
+      const lines = wrapText(text, 10);
+      for (const line of lines) {
+        doc.text(line, marginLeft + 12, y, { width: contentWidth - 12 });
+        y += 16;
+      }
+      y += 4;
+    }
+  }
+}
+
+// 下载 PDF 版（纯 JS 渲染，无需浏览器）
 app.get('/api/cases/:id/download/pdf', async (req, res) => {
   try {
     const c = db.getCase(req.params.id);
@@ -609,27 +752,18 @@ app.get('/api/cases/:id/download/pdf', async (req, res) => {
       return res.status(403).json({ error: 'payment_required', message: '请先完成支付' });
     }
     const md = c.report_markdown || '';
-    const html = marked.parse(md);
-    const styledHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
-      body { font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif; line-height: 1.8; color: #222; padding: 30px; max-width: 900px; margin: auto; }
-      h1 { font-size: 1.6em; border-bottom: 2px solid #2563eb; padding-bottom: 8px; margin-top: 30px; }
-      h2 { font-size: 1.3em; color: #2563eb; margin-top: 24px; }
-      h3 { font-size: 1.1em; color: #333; margin-top: 18px; }
-      table { border-collapse: collapse; width: 100%; margin: 12px 0; }
-      th, td { border: 1px solid #ccc; padding: 8px 10px; text-align: left; font-size: 0.9em; }
-      th { background: #f0f4ff; font-weight: 700; }
-      code { background: #f4f4f4; padding: 2px 5px; border-radius: 3px; font-size: 0.9em; }
-      pre { background: #f8f8f8; border: 1px solid #ddd; padding: 12px; border-radius: 6px; overflow-x: auto; }
-    </style></head><body>${html}</body></html>`;
-    const browser = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setuid-sandbox'] });
-    const page = await browser.newPage();
-    await page.setContent(styledHtml, { waitUntil: 'networkidle0' });
-    const pdfBuffer = await page.pdf({ format: 'A4', margin: { top: '20mm', bottom: '20mm', left: '15mm', right: '15mm' } });
-    await browser.close();
-    const filename = 'fenqian-report-' + req.params.id.slice(0, 8) + '.pdf';
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', 'attachment; filename="' + filename + '"');
-    res.send(pdfBuffer);
+    const doc = new PDFDocument({ size: 'A4', margins: { top: 56, bottom: 56, left: 56, right: 56 }, info: { Title: '合伙分钱方案报告', Creator: 'AI合伙分钱方案生成器 v0.7' } });
+    const chunks = [];
+    doc.on('data', c => chunks.push(c));
+    doc.on('end', () => {
+      const pdfBuffer = Buffer.concat(chunks);
+      const filename = 'fenqian-report-' + req.params.id.slice(0, 8) + '.pdf';
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'attachment; filename="' + filename + '"');
+      res.send(pdfBuffer);
+    });
+    renderMdToPdf(doc, md);
+    doc.end();
   } catch (err) {
     res.status(500).json({ error: 'server_error', message: err.message });
   }
