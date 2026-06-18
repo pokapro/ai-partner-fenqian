@@ -7,6 +7,14 @@ const PDFDocument = require('pdfkit');
 // 强制从项目根目录加载 .env，不依赖启动 cwd
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
+// 🛡️ 全局崩溃兜底 — 防止 CopilotKit/DeepSeek 异常拖垮整个进程
+process.on('uncaughtException', (err) => {
+  console.error('[FATAL] uncaughtException:', err.message);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[FATAL] unhandledRejection:', reason);
+});
+
 // Render Secret Files fallback - 尝试多个路径
 const secretPaths = [
   '/etc/secrets/.env',
@@ -1273,7 +1281,12 @@ initDb().then(database => {
   seedData(db);
   seedAdewoAgreement(db);
   // Start CopilotKit Agent runtime
-  setupCopilotKit(app, db);
+  try {
+    setupCopilotKit(app, db);
+    console.log('[startup] CopilotKit 初始化成功');
+  } catch (e) {
+    console.error('[startup] CopilotKit 初始化失败（不阻塞主服务）:', e.message);
+  }
 
   // Keepalive: 每 5 分钟自 ping，防止 Render 免费实例休眠
   const KEEPALIVE_INTERVAL = 5 * 60 * 1000;
