@@ -26,7 +26,7 @@ const PROVIDERS = {
   mock: async (input, referenceContext, knowledgeContext) => {
     const { partnerCount, partners, expectedProfit, oralAgreement, lossConcern, exitConcern } = input;
     const names = partners.map(p => p.name).join('、');
-    const caps = partners.map(p => `${p.name}（${p.capital}元，${p.effortType}）`).join('、');
+    const caps = partners.map(p => `${p.name}（${(p.capital/10000).toFixed(p.capital%10000===0?0:2)}万元，${p.effortType}）`).join('、');
 
     // Build a summary of reference data insights
     let refInsight = '';
@@ -64,8 +64,8 @@ ${exitConcern ? `关于退出机制方面：${exitConcern}` : ''}
 
 **核心逻辑**：以出资比例为主要分配依据。
 
-- 合伙人 A（${partners[0].capital}元）：按出资比例获得 ${Math.round(partners[0].capital / partners.reduce((s,p) => s + Number(p.capital), 0) * 100)}% 利润
-- 合伙人 B（${partners[1].capital}元）：按出资比例获得 ${Math.round(partners[1].capital / partners.reduce((s,p) => s + Number(p.capital), 0) * 100)}% 利润
+- 合伙人 A（${(partners[0].capital/10000).toFixed(0)}万元）：按出资比例获得 ${Math.round(partners[0].capital / partners.reduce((s,p) => s + Number(p.capital), 0) * 100)}% 利润
+- 合伙人 B（${(partners[1].capital/10000).toFixed(0)}万元）：按出资比例获得 ${Math.round(partners[1].capital / partners.reduce((s,p) => s + Number(p.capital), 0) * 100)}% 利润
 
 **适用场景**：双方都偏保守，希望投资风险与回报成正比。
 
@@ -295,7 +295,8 @@ async function regenerateReport(input) {
   const { partners, partnerCount, instruction, target, originalReport, hasAdvanced, advancedFields } = input;
 
   let partnerDesc = partners.map((p, i) => {
-    return `合伙人${p.name || String.fromCharCode(65 + i)}：出资 ${p.capital} 元，出力：${p.effortType}，职责：${p.responsibility}`;
+    const wan = (v) => (Number(v) / 10000).toFixed(v % 10000 === 0 ? 0 : 2) + '万元';
+    return `合伙人${p.name || String.fromCharCode(65 + i)}：出资 ${wan(p.capital)}，出力：${p.effortType}，职责：${p.responsibility}`;
   }).join('\n');
 
   const advancedNote = hasAdvanced && advancedFields

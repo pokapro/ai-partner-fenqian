@@ -239,9 +239,10 @@ function buildUserPrompt(input) {
 4. 协议条款包含出资股权、利润分配、决策机制、退出机制、行为规范`;
   }
 
+  const wan = (v) => (Number(v) / 10000).toFixed(v % 10000 === 0 ? 0 : 2) + '万元';
   let partnerDesc = partners.map((p, i) => {
     return `合伙人${p.name || String.fromCharCode(65 + i)}：
-- 出资金额：${p.capital}元
+- 出资金额：${wan(p.capital)}
 - 出力类型：${p.effortType}
 - 职责描述：${p.responsibility}`;
   }).join('\n\n');
@@ -270,7 +271,7 @@ function buildUserPrompt(input) {
 
 ${partnerDesc}
 
-预期年利润范围：${expectedProfit}
+预期年利润范围：${wan(Number(expectedProfit) || 0)}
 口头约定情况：${oralAgreement || '无'}
 亏损承担担忧：${lossConcern || '无'}
 退出机制需求：${exitConcern || '无'}
