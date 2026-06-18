@@ -296,7 +296,7 @@ export default function ChatApp() {
   // 基础表单
   const [partnerCount, setPartnerCount] = useState(2);
   const [sceneMode, setSceneMode] = useState("standard"); // small_biz / standard / corporate
-  const [partners, setPartners] = useState(PARTNER_CONFIGS[2].map(() => ({ name: "", capital: 0, effortType: "", responsibility: "" })));
+  const [partners, setPartners] = useState(PARTNER_CONFIGS[2].map(() => ({ name: "", capital: 0, effortType: "", responsibility: "", equity: "" })));
   const [currencyUnit, setCurrencyUnit] = useState("元");
   const [annualProfit, setAnnualProfit] = useState("");
   const [oralAgreement, setOralAgreement] = useState("");
@@ -316,6 +316,8 @@ export default function ChatApp() {
   const [needsControlRight, setNeedsControlRight] = useState("");
   const [worriesExit, setWorriesExit] = useState("");
   const [needsProtocolList, setNeedsProtocolList] = useState("");
+  const [nomineeDetail, setNomineeDetail] = useState("");
+  const [needsAgreements, setNeedsAgreements] = useState("");
 
   // === 前端统一状态机 ===
   // idle | generating | preview_ready | payment_pending | paid_unlocked | error
@@ -521,7 +523,7 @@ export default function ChatApp() {
 
   const handlePartnerCountChange = (count) => {
     setPartnerCount(count);
-    setPartners(PARTNER_CONFIGS[count].map(() => ({ name: "", capital: 0, effortType: "", responsibility: "" })));
+    setPartners(PARTNER_CONFIGS[count].map(() => ({ name: "", capital: 0, effortType: "", responsibility: "", equity: "" })));
   };
 
   // AI一键填表
@@ -580,12 +582,15 @@ export default function ChatApp() {
         capital: (Number(p.capital) || 0) * (currencyUnit === "万元" ? 10000 : 1),
         effortType: p.effortType,
         responsibility: p.responsibility,
+        equity: p.equity || "",
       })),
       annualProfit: (Number(annualProfit) || 0) * (currencyUnit === "万元" ? 10000 : 1),
       contact: contact.trim(),
     };
 
     if (oralAgreement) body.oralAgreement = oralAgreement;
+    body.hasNomineeHolding = hasNomineeHolding === "是" && showAdvanced;
+    body.nomineeDetail = nomineeDetail || "";
     if (exitConcern) body.exitConcern = exitConcern;
     if (lossConcern) body.lossConcern = lossConcern;
 
@@ -600,6 +605,7 @@ export default function ChatApp() {
       if (needsControlRight) body.needsControlRight = needsControlRight === "是";
       if (worriesExit) body.worriesExit = worriesExit === "是";
       if (needsProtocolList) body.needsProtocolList = needsProtocolList === "是";
+      body.needsAgreements = needsAgreements;
     }
 
     try {
@@ -1291,6 +1297,13 @@ export default function ChatApp() {
                     </select>
                   </div>
                   <div data-field-row="true" style={{ display: "grid", gridTemplateColumns: "100px 1fr", alignItems: "center", gap: 8 }}>
+                    <label style={{ fontSize: "0.8rem", color: "#777" }}>持股比例</label>
+                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                      <input type="number" placeholder="如15" value={partners[idx]?.equity || ""} onChange={(e) => updatePartner(idx, "equity", e.target.value)} style={{ ...inputStyle, flex: 1 }} />
+                      <span style={{ fontSize: "0.76rem", color: "#999" }}>%</span>
+                    </div>
+                  </div>
+                  <div data-field-row="true" style={{ display: "grid", gridTemplateColumns: "100px 1fr", alignItems: "center", gap: 8 }}>
                     <label style={{ fontSize: "0.8rem", color: "#777" }}>职责</label>
                     <input type="text" placeholder="日常运营、技术开发等" value={partners[idx]?.responsibility || ""} onChange={(e) => updatePartner(idx, "responsibility", e.target.value)} style={inputStyle} />
                   </div>
@@ -1358,6 +1371,18 @@ export default function ChatApp() {
                   <label style={{ fontSize: "0.8rem", color: "#777" }}>谁拍板</label>
                   <input type="text" placeholder="重大事项谁说了算" value={decisionMaker} onChange={(e) => setDecisionMaker(e.target.value)} style={inputStyle} />
                 </div>
+              </div>
+
+              {/* 新增：代持详情 */}
+              <div data-field-row="true" style={{ display: "grid", gridTemplateColumns: "120px 1fr", alignItems: "center", gap: 8, marginTop: 12 }}>
+                <label style={{ fontSize: "0.8rem", color: "#777" }}>代持关系说明</label>
+                <input type="text" placeholder="例:小林和老李的股份由小张代持" value={nomineeDetail} onChange={(e) => setNomineeDetail(e.target.value)} style={inputStyle} />
+              </div>
+
+              {/* 新增：需要什么协议 */}
+              <div data-field-row="true" style={{ display: "grid", gridTemplateColumns: "120px 1fr", alignItems: "center", gap: 8, marginTop: 4 }}>
+                <label style={{ fontSize: "0.8rem", color: "#777" }}>需要哪些协议</label>
+                <input type="text" placeholder="例:股东协议、一致行动人、代持协议" value={needsAgreements} onChange={(e) => setNeedsAgreements(e.target.value)} style={inputStyle} />
               </div>
             </div>
           )}
