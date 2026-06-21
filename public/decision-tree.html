@@ -86,6 +86,7 @@
     <div class="mt-3 text-xs text-gray-500">
       ✅ 已自动填充到表单字段（待回主页面继续生成完整报告）
     </div>
+    <div id="model-used" class="mt-2 text-xs text-gray-400"></div>
     <a href="/" class="inline-block mt-3 bg-indigo-600 hover:bg-indigo-700 text-white text-sm px-4 py-2 rounded-lg">
       回到主页面 →
     </a>
@@ -331,6 +332,9 @@ async function doFinalize() {
     if (data.ok) {
       $('result-area').classList.remove('hidden');
       $('result-json').textContent = JSON.stringify(data.formData, null, 2);
+      if (data.modelUsed) {
+        $('model-used').textContent = '🤖 使用模型：' + data.modelUsed;
+      }
       
       // 把表单数据存到 localStorage，让主页能读取
       localStorage.setItem('dt_prefill', JSON.stringify({
@@ -343,7 +347,7 @@ async function doFinalize() {
       // 滚动到底
       $('result-area').scrollIntoView({ behavior: 'smooth' });
     } else {
-      alert('生成失败：' + (data.error || '未知错误'));
+      alert('生成失败：\n' + (data.error || '未知错误') + '\n\n提示：' + (data.hint || ''));
       btn.disabled = false;
       btn.textContent = '🚀 生成完整方案';
     }

@@ -222,35 +222,61 @@ app.post('/api/suggest-form', async (req, res) => {
       '{"partnerCount":2,"partners":[{"name":"张三","capital":200000,"effortType":"全职运营","responsibility":"日常管理"},{"name":"李四","capital":100000,"effortType":"不出力","responsibility":"仅出资"}],"annualProfit":500000}' +
       '规则：partnerCount必须是2/3/4；effortType取值(对应前端下拉选项)："全职运营"、"兼职"、"仅出资不出力"、"技术/开发"、"资源/渠道"；capital是数字（元）；annualProfit是数字（元）；无法推断的字段填null；只输出JSON，不要任何其他文字';
 
-    const res2 = await fetchWithTimeout('https://api.deepseek.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + apiKey
-      },
-      body: JSON.stringify({
-        model: process.env.DEEPSEEK_MODEL || 'deepseek-chat',
-        messages: [
-          { role: 'system', content: sysPrompt },
-          { role: 'user', content: message }
-        ],
-        temperature: 0.3
-      })
-    });
+    const candidateModels = [
+      process.env.DEEPSEEK_MODEL,
+      'deepseek-v4-pro',
+      'deepseek-v4-flash',
+      'deepseek-chat',
+      'deepseek-reasoner'
+    ].filter(Boolean);
+    let parsed = null;
+    let lastError = null;
+    let modelUsed = null;
+    for (const model of candidateModels) {
+      try {
+        const res2 = await fetchWithTimeout('https://api.deepseek.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + apiKey
+          },
+          body: JSON.stringify({
+            model,
+            messages: [
+              { role: 'system', content: sysPrompt },
+              { role: 'user', content: message }
+            ],
+            temperature: 0.3,
+            max_tokens: 800
+          })
+        });
+        if (!res2.ok) {
+          lastError = `${model}: HTTP ${res2.status}`;
+          continue;
+        }
+        const data = await res2.json();
+        const content = data.choices?.[0]?.message?.content || '';
+        if (!content) {
+          lastError = `${model}: empty content`;
+          continue;
+        }
+        let cleaned = content.trim();
+        cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
+        const braceMatch = cleaned.match(/\{[\s\S]*\}/);
+        if (braceMatch) cleaned = braceMatch[0];
+        parsed = JSON.parse(cleaned);
+        modelUsed = model;
+        break;
+      } catch (e) {
+        lastError = `${model}: ${e.message}`;
+      }
+    }
 
-    if (!res2.ok) throw new Error('API error: ' + res2.status);
-    const data = await res2.json();
-    const content = data.choices?.[0]?.message?.content || '';
-
-    // 解析JSON
-    let cleaned = content.trim();
-    cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
-    const braceMatch = cleaned.match(/\{[\s\S]*\}/);
-    if (braceMatch) cleaned = braceMatch[0];
-    const parsed = JSON.parse(cleaned);
+    if (!parsed) throw new Error(`所有模型都失败（${candidateModels.join(', ')}）。最后错误：${lastError}`);
 
     res.json({
       needInput: false,
+      modelUsed,
       ...parsed
     });
   } catch (err) {
@@ -300,41 +326,79 @@ app.post('/api/decision-tree/finalize', async (req, res) => {
       '{"partnerCount":2,"partners":[{"name":"张三","capital":200000,"effortType":"全职运营","responsibility":"日常管理"},{"name":"李四","capital":100000,"effortType":"不出力","responsibility":"仅出资"}],"annualProfit":500000}' +
       '规则：partnerCount必须是2/3/4；effortType取值(对应前端下拉选项)："全职运营"、"兼职"、"仅出资不出力"、"技术/开发"、"资源/渠道"；capital是数字（元）；annualProfit是数字（元）；无法推断的字段填null；只输出JSON，不要任何其他文字';
 
-    const res2 = await fetchWithTimeout('https://api.deepseek.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + apiKey
-      },
-      body: JSON.stringify({
-        model: process.env.DEEPSEEK_MODEL || 'deepseek-chat',
-        messages: [
-          { role: 'system', content: sysPrompt },
-          { role: 'user', content: aiInput }
-        ],
-        temperature: 0.3
-      })
-    });
+    // 模型 fallback 链（DeepSeek 2026-06 模型大升级，原 deepseek-chat 被 v4-flash/pro 替代）
+    const candidateModels = [
+      process.env.DEEPSEEK_MODEL,
+      'deepseek-v4-pro',
+      'deepseek-v4-flash',
+      'deepseek-chat',
+      'deepseek-reasoner'
+    ].filter(Boolean);
+    const triedModels = [];
+    let parsed = null;
+    let lastError = null;
+    let modelUsed = null;
 
-    if (!res2.ok) throw new Error('API error: ' + res2.status);
-    const data = await res2.json();
-    const content = data.choices?.[0]?.message?.content || '';
+    for (const model of candidateModels) {
+      triedModels.push(model);
+      try {
+        const res2 = await fetchWithTimeout('https://api.deepseek.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + apiKey
+          },
+          body: JSON.stringify({
+            model,
+            messages: [
+              { role: 'system', content: sysPrompt },
+              { role: 'user', content: aiInput }
+            ],
+            temperature: 0.3,
+            max_tokens: 800
+          })
+        });
+        if (!res2.ok) {
+          lastError = `${model}: HTTP ${res2.status}`;
+          continue;
+        }
+        const data = await res2.json();
+        const content = data.choices?.[0]?.message?.content || '';
+        if (!content) {
+          lastError = `${model}: empty content`;
+          continue;
+        }
 
-    let cleaned = content.trim();
-    cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
-    const braceMatch = cleaned.match(/\{[\s\S]*\}/);
-    if (braceMatch) cleaned = braceMatch[0];
-    const parsed = JSON.parse(cleaned);
+        let cleaned = content.trim();
+        cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
+        const braceMatch = cleaned.match(/\{[\s\S]*\}/);
+        if (braceMatch) cleaned = braceMatch[0];
+        parsed = JSON.parse(cleaned);
+        modelUsed = model;
+        break; // 成功
+      } catch (e) {
+        lastError = `${model}: ${e.message}`;
+      }
+    }
+
+    if (!parsed) {
+      throw new Error(`所有模型都失败（${triedModels.join(', ')}）。最后错误：${lastError}`);
+    }
 
     res.json({
       ok: true,
       scene,
       aiInput,
-      formData: parsed
+      formData: parsed,
+      modelUsed
     });
   } catch (err) {
     console.error('[decision-tree finalize]', err);
-    res.status(500).json({ ok: false, error: err.message || 'AI 解析失败' });
+    res.status(500).json({
+      ok: false,
+      error: err.message || 'AI 解析失败',
+      hint: 'DeepSeek 模型可能不可用。已在代码中加了 fallback 链，仍失败请联系管理员'
+    });
   }
 });
 
