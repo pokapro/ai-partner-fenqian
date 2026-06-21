@@ -1302,16 +1302,23 @@ app.get('/api/health/ai-key-info', (req, res) => {
   const apiKey = process.env.DEEPSEEK_API_KEY || '';
   const p1 = process.env.DEEPSEEK_API_KEY_P1 || '';
   const p2 = process.env.DEEPSEEK_API_KEY_P2 || '';
+  const fullAscii = /^[\\x00-\\x7F]*$/.test(apiKey);
+  // 拼接的 P1+P2 fallback key
+  const concatKey = p1 + p2;
   res.json({
-    keyLength: apiKey.length,
-    keyFirst: apiKey.slice(0, 7),
-    keyLast: apiKey.slice(-10),
-    keyTailBytes: Array.from(apiKey.slice(-10)).map(c => c.charCodeAt(0)),
-    keyTailHex: Buffer.from(apiKey.slice(-10)).toString('hex'),
-    p1Length: p1.length,
-    p2Length: p2.length,
-    isAscii: /^[\\x00-\\x7F]*$/.test(apiKey),
-    model: process.env.DEEPSEEK_MODEL || '(default)'
+    apiKey_length: apiKey.length,
+    apiKey_first7: apiKey.slice(0, 7),
+    apiKey_last10: apiKey.slice(-10),
+    apiKey_isAscii: fullAscii,
+    apiKey_nonAsciiChars: Array.from(apiKey).filter(c => c.charCodeAt(0) > 127).map(c => c.charCodeAt(0)),
+    concatKey_length: concatKey.length,
+    concatKey_last10: concatKey.slice(-10),
+    concatKey_isAscii: /^[\\x00-\\x7F]*$/.test(concatKey),
+    concatKey_nonAsciiChars: Array.from(concatKey).filter(c => c.charCodeAt(0) > 127).map(c => c.charCodeAt(0)),
+    model: process.env.DEEPSEEK_MODEL || '(default)',
+    diagnosis: fullAscii
+      ? (concatKey.length > 20 ? 'concatKey可用' : '需要修复 env var')
+      : `apiKey 含 ${Array.from(apiKey).filter(c => c.charCodeAt(0) > 127).length} 个非ASCII字符（ U+2026=…）`
   });
 });
 });
