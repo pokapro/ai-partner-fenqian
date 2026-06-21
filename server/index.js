@@ -39,6 +39,7 @@ const crypto = require('crypto');
 const { initDb } = require('./db');
 const { generateReport } = require('./ai');
 const { generateProfitTable } = require('./report');
+const decisionTree = require('./decision_tree');
 const { seedData } = require('./seed');
 const { seedAdewoAgreement } = require('../scripts/seed_adewo_agreement');
 const { createCopilotKitHandler: setupCopilotKit } = require('./copilotkit');
@@ -255,6 +256,85 @@ app.post('/api/suggest-form', async (req, res) => {
   } catch (err) {
     console.error('[suggest-form]', err);
     res.status(500).json({ error: err.message || 'AI解析失败，请手动填写表单', needInput: false });
+  }
+});
+
+// ====== 决策树 API（V0.8 新增，不影响旧 API） ======
+
+// 获取初始块（start）
+app.get('/api/decision-tree/start', (req, res) => {
+  res.json({
+    block: decisionTree.BLOCKS.start,
+    scene: ''
+  });
+});
+
+// 智能识别 + 下一步推进
+app.post('/api/decision-tree/next', (req, res) => {
+  try {
+    const { state = {}, text = '' } = req.body || {};
+    const result = decisionTree.nextStep(state, text);
+    res.json({
+      block: result.block,
+      state: result.state,
+      detected: result.detected,
+      scene: decisionTree.summarizeScene(result.state)
+    });
+  } catch (err) {
+    console.error('[decision-tree next]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 终态：构造 AI 输入并复用 suggest-form 的解析逻辑
+app.post('/api/decision-tree/finalize', async (req, res) => {
+  try {
+    const { state = {}, freeText = '' } = req.body || {};
+    const aiInput = decisionTree.buildAiInput(state, freeText);
+    const scene = decisionTree.summarizeScene(state);
+
+    // 调用 DeepSeek 解析成表单数据（复用 suggest-form 的 prompt）
+    const apiKey = process.env.DEEPSEEK_API_KEY || (process.env.DEEPSEEK_API_KEY_P1 || '') + (process.env.DEEPSEEK_API_KEY_P2 || '');
+    const sysPrompt = '你是AI填表助手。用户会用口语描述他们的合伙创业情况，你需要提取结构化的表单数据并返回JSON。' +
+      '返回格式（只返回JSON，不要其他内容）：' +
+      '{"partnerCount":2,"partners":[{"name":"张三","capital":200000,"effortType":"全职运营","responsibility":"日常管理"},{"name":"李四","capital":100000,"effortType":"不出力","responsibility":"仅出资"}],"annualProfit":500000}' +
+      '规则：partnerCount必须是2/3/4；effortType取值(对应前端下拉选项)："全职运营"、"兼职"、"仅出资不出力"、"技术/开发"、"资源/渠道"；capital是数字（元）；annualProfit是数字（元）；无法推断的字段填null；只输出JSON，不要任何其他文字';
+
+    const res2 = await fetchWithTimeout('https://api.deepseek.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + apiKey
+      },
+      body: JSON.stringify({
+        model: process.env.DEEPSEEK_MODEL || 'deepseek-chat',
+        messages: [
+          { role: 'system', content: sysPrompt },
+          { role: 'user', content: aiInput }
+        ],
+        temperature: 0.3
+      })
+    });
+
+    if (!res2.ok) throw new Error('API error: ' + res2.status);
+    const data = await res2.json();
+    const content = data.choices?.[0]?.message?.content || '';
+
+    let cleaned = content.trim();
+    cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
+    const braceMatch = cleaned.match(/\{[\s\S]*\}/);
+    if (braceMatch) cleaned = braceMatch[0];
+    const parsed = JSON.parse(cleaned);
+
+    res.json({
+      ok: true,
+      scene,
+      aiInput,
+      formData: parsed
+    });
+  } catch (err) {
+    console.error('[decision-tree finalize]', err);
+    res.status(500).json({ ok: false, error: err.message || 'AI 解析失败' });
   }
 });
 
