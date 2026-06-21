@@ -57,7 +57,8 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = AI_TIMEOUT_MS) {
     if (err.name === 'AbortError') {
       throw new Error('请求超时，服务器正在启动或 AI 响应较慢，请稍后重试');
     }
-    throw new Error('AI 服务暂时连接失败，请稍后重试');
+    // 透传真实错误（仅 AI 调用方，不影响其它路由）
+    throw new Error('AI fetch 失败：' + (err.message || err.code || 'unknown') + ' | cause: ' + (err.cause?.code || ''));
   } finally {
     clearTimeout(timer);
   }
@@ -1252,7 +1253,43 @@ app.get('/api/admin/export/orders', requireAdminToken, (req, res) => {
 });
 
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', time: new Date().toISOString(), provider: process.env.AI_PROVIDER || 'ollama', version: require('../package.json').version });
+  res.json({
+    status: 'ok',
+    time: new Date().toISOString(),
+    provider: process.env.AI_PROVIDER || 'ollama',
+    model: process.env.DEEPSEEK_MODEL || '(default)',
+    keyPreview: process.env.DEEPSEEK_API_KEY ? process.env.DEEPSEEK_API_KEY.slice(0, 7) + '...' : (process.env.DEEPSEEK_API_KEY_P1 || ''),
+    version: require('../package.json').version
+  });
+});
+
+// 诊断端点：直接试一下 DeepSeek 连通性 + 查看真实错误
+app.get('/api/health/ai-test', async (req, res) => {
+  const results = [];
+  const apiKey = process.env.DEEPSEEK_API_KEY || (process.env.DEEPSEEK_API_KEY_P1 || '') + (process.env.DEEPSEEK_API_KEY_P2 || '');
+  const models = ['deepseek-v4-pro', 'deepseek-v4-flash', 'deepseek-chat', 'deepseek-reasoner'];
+  for (const model of models) {
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 15000);
+      const r = await fetch('https://api.deepseek.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+        body: JSON.stringify({
+          model,
+          messages: [{ role: 'user', content: 'hi' }],
+          max_tokens: 10
+        }),
+        signal: ctrl.signal
+      });
+      clearTimeout(t);
+      const body = await r.text();
+      results.push({ model, status: r.status, ok: r.ok, snippet: body.slice(0, 200) });
+    } catch (e) {
+      results.push({ model, error: e.message, code: e.code || '', cause: e.cause?.code || '' });
+    }
+  }
+  res.json({ apiKeyPrefix: apiKey.slice(0, 7), results });
 });
 
 // === Admin Whitelist DB (首次启动自动初始化默认管理员) ===
