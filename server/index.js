@@ -1289,7 +1289,31 @@ app.get('/api/health/ai-test', async (req, res) => {
       results.push({ model, error: e.message, code: e.code || '', cause: e.cause?.code || '' });
     }
   }
-  res.json({ apiKeyPrefix: apiKey.slice(0, 7), results });
+  res.json({
+    apiKeyPrefix: apiKey.slice(0, 7),
+    apiKeyLength: apiKey.length,
+    apiKeyBytes: Array.from(apiKey).map(c => c.charCodeAt(0)),
+    apiKeyTail: apiKey.slice(-10),
+    results
+  });
+
+// 临时诊断端点：让管理员验证 environment 里的 key 是什么
+app.get('/api/health/ai-key-info', (req, res) => {
+  const apiKey = process.env.DEEPSEEK_API_KEY || '';
+  const p1 = process.env.DEEPSEEK_API_KEY_P1 || '';
+  const p2 = process.env.DEEPSEEK_API_KEY_P2 || '';
+  res.json({
+    keyLength: apiKey.length,
+    keyFirst: apiKey.slice(0, 7),
+    keyLast: apiKey.slice(-10),
+    keyTailBytes: Array.from(apiKey.slice(-10)).map(c => c.charCodeAt(0)),
+    keyTailHex: Buffer.from(apiKey.slice(-10)).toString('hex'),
+    p1Length: p1.length,
+    p2Length: p2.length,
+    isAscii: /^[\\x00-\\x7F]*$/.test(apiKey),
+    model: process.env.DEEPSEEK_MODEL || '(default)'
+  });
+});
 });
 
 // === Admin Whitelist DB (首次启动自动初始化默认管理员) ===
