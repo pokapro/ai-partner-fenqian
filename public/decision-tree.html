@@ -383,8 +383,9 @@ function renderDTReport(data) {
       const card = document.createElement('div');
       card.className = 'bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden';
 
-      // 段头颜色按 L0-L4 区分
+      // 段头颜色：需求响应表 = 琥珀金，L0-L4 = 各自色
       const colorMap = {
+        REQ: 'from-amber-400 to-orange-500',
         L0: 'from-sky-500 to-blue-500',
         L1: 'from-indigo-500 to-purple-500',
         L2: 'from-amber-500 to-orange-500',
@@ -393,6 +394,7 @@ function renderDTReport(data) {
       };
       const gradient = colorMap[sec.id] || 'from-gray-500 to-gray-600';
       const descMap = {
+        REQ: '客户原始需求 · 逐项响应',
         L0: '一句话场景结论',
         L1: '决策树拼装的条款模块',
         L2: '场景对应的法律风险与边界',
@@ -434,22 +436,32 @@ function renderDTReport(data) {
   $('result-area').scrollIntoView({ behavior: 'smooth' });
 }
 
-// 把 markdown 切成 L0-L4 五段
+// 把 markdown 切成「需求响应表 + L0-L4」五段
 function splitL0L4(md) {
+  const sections = [];
+  // 「需求响应表」是 L0 之前的独立块，单独识别
+  const reqMatch = md.match(/##\s*📋\s*需求响应表([\s\S]*?)(?=##\s*📍\s*L0|$)/);
+  if (reqMatch) {
+    sections.push({
+      id: 'REQ',
+      title: '需求响应表',
+      content: reqMatch[1].trim(),
+      isPre: true
+    });
+    const l0Start = md.indexOf('## 📍 L0');
+    if (l0Start >= 0) md = md.slice(l0Start);
+  }
   const regex = /##\s*(?:📍\s*)?L([0-4])\s*([^\n]+)/g;
   const matches = [];
   let m;
   while ((m = regex.exec(md)) !== null) {
     matches.push({ id: 'L' + m[1], title: m[2].trim(), start: m.index });
   }
-  if (matches.length === 0) return [];
-  const sections = [];
+  if (matches.length === 0 && sections.length === 0) return [];
   for (let i = 0; i < matches.length; i++) {
     const cur = matches[i];
     const next = matches[i + 1];
-    const start = cur.start;
-    // 跳过 ## 标题本身
-    const lineEnd = md.indexOf('\n', start);
+    const lineEnd = md.indexOf('\n', cur.start);
     const contentStart = lineEnd === -1 ? md.length : lineEnd + 1;
     const contentEnd = next ? next.start : md.length;
     sections.push({

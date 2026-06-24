@@ -475,8 +475,9 @@ app.post('/api/decision-tree/generate-report', async (req, res) => {
       throw new Error(`所有模型都失败（${triedModels.join(', ')}）。最后错误：${lastError}`);
     }
 
-    // 校验 L0-L4 五段齐全（缺段补警告，不阻断）
+    // 校验「需求响应表 + L0-L4」齐全（缺段补警告，不阻断）
     const requiredSections = [
+      { key: '需求响应表', pattern: /##.*📋\s*需求响应表/ },
       { key: 'L0', pattern: /##.*L0.*场景匹配结论/ },
       { key: 'L1', pattern: /##.*L1.*核心条款正文/ },
       { key: 'L2', pattern: /##.*L2.*强制风险提示/ },
@@ -484,7 +485,7 @@ app.post('/api/decision-tree/generate-report', async (req, res) => {
       { key: 'L4', pattern: /##.*L4.*信息补全询问/ }
     ];
     const missing = requiredSections.filter(s => !s.pattern.test(markdown)).map(s => s.key);
-    const warning = missing.length > 0 ? `AI 输出缺少 L${missing.join('/L')} 段，请关注` : null;
+    const warning = missing.length > 0 ? `AI 输出缺少「${missing.join(' / ')}」段，请关注` : null;
 
     res.json({
       ok: true,
