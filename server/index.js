@@ -40,6 +40,7 @@ const { initDb } = require('./db');
 const { generateReport, getCleanDeepSeekKey } = require('./ai');
 const { generateProfitTable } = require('./report');
 const decisionTree = require('./decision_tree');
+const { buildDTSystemPrompt, buildDTUserPrompt } = require('./prompt_dt');
 const { seedData } = require('./seed');
 const { seedAdewoAgreement } = require('../scripts/seed_adewo_agreement');
 const { createCopilotKitHandler: setupCopilotKit } = require('./copilotkit');
@@ -400,6 +401,105 @@ app.post('/api/decision-tree/finalize', async (req, res) => {
     res.status(500).json({
       ok: false,
       error: err.message || 'AI 解析失败',
+      hint: 'DeepSeek 模型可能不可用。已在代码中加了 fallback 链，仍失败请联系管理员'
+    });
+  }
+});
+
+// ====== 决策树测试版报告生成（仅测试版，正式版 /api/generate 不受影响）======
+// 输入：决策树 final 块的状态 + 用户补充文字 + 表单数据（partnerCount/partners）
+// 输出：按 L0-L4 五段式生成的 Markdown 报告 + 场景摘要
+app.post('/api/decision-tree/generate-report', async (req, res) => {
+  try {
+    const { state = {}, freeText = '', partnerCount = null, partners = [] } = req.body || {};
+    const aiInput = decisionTree.buildAiInput(state, freeText);
+    const scene = decisionTree.summarizeScene(state);
+
+    const { key: apiKey, warning: keyWarning } = getCleanDeepSeekKey();
+    if (keyWarning) console.warn('[decision-tree generate-report]', keyWarning);
+
+    const sysPrompt = buildDTSystemPrompt();
+    const userPrompt = buildDTUserPrompt({ ...state, scene }, freeText, partnerCount, partners);
+
+    // 模型 fallback 链（与决策树 finalize 一致）
+    const candidateModels = [
+      process.env.DEEPSEEK_MODEL,
+      'deepseek-v4-pro',
+      'deepseek-v4-flash',
+      'deepseek-chat',
+      'deepseek-reasoner'
+    ].filter(Boolean);
+    const triedModels = [];
+    let markdown = null;
+    let lastError = null;
+    let modelUsed = null;
+
+    for (const model of candidateModels) {
+      triedModels.push(model);
+      try {
+        const res2 = await fetchWithTimeout('https://api.deepseek.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + apiKey
+          },
+          body: JSON.stringify({
+            model,
+            messages: [
+              { role: 'system', content: sysPrompt },
+              { role: 'user', content: userPrompt }
+            ],
+            temperature: 0.6,
+            max_tokens: 4000
+          })
+        });
+        if (!res2.ok) {
+          lastError = `${model}: HTTP ${res2.status}`;
+          continue;
+        }
+        const data = await res2.json();
+        const content = data.choices?.[0]?.message?.content || '';
+        if (!content) {
+          lastError = `${model}: empty content`;
+          continue;
+        }
+        markdown = content.trim();
+        modelUsed = model;
+        break;
+      } catch (e) {
+        lastError = `${model}: ${e.message}`;
+      }
+    }
+
+    if (!markdown) {
+      throw new Error(`所有模型都失败（${triedModels.join(', ')}）。最后错误：${lastError}`);
+    }
+
+    // 校验 L0-L4 五段齐全（缺段补警告，不阻断）
+    const requiredSections = [
+      { key: 'L0', pattern: /##.*L0.*场景匹配结论/ },
+      { key: 'L1', pattern: /##.*L1.*核心条款正文/ },
+      { key: 'L2', pattern: /##.*L2.*强制风险提示/ },
+      { key: 'L3', pattern: /##.*L3.*备选方案补充/ },
+      { key: 'L4', pattern: /##.*L4.*信息补全询问/ }
+    ];
+    const missing = requiredSections.filter(s => !s.pattern.test(markdown)).map(s => s.key);
+    const warning = missing.length > 0 ? `AI 输出缺少 L${missing.join('/L')} 段，请关注` : null;
+
+    res.json({
+      ok: true,
+      scene,
+      aiInput,
+      markdown,
+      modelUsed,
+      branch: state.branch || null,
+      warning
+    });
+  } catch (err) {
+    console.error('[decision-tree generate-report]', err);
+    res.status(500).json({
+      ok: false,
+      error: err.message || 'AI 报告生成失败',
       hint: 'DeepSeek 模型可能不可用。已在代码中加了 fallback 链，仍失败请联系管理员'
     });
   }
