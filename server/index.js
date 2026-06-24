@@ -37,7 +37,7 @@ const express = require('express');
 const cors = require('cors');
 const crypto = require('crypto');
 const { initDb } = require('./db');
-const { generateReport } = require('./ai');
+const { generateReport, getCleanDeepSeekKey } = require('./ai');
 const { generateProfitTable } = require('./report');
 const decisionTree = require('./decision_tree');
 const { seedData } = require('./seed');
@@ -217,7 +217,8 @@ app.post('/api/suggest-form', async (req, res) => {
   }
 
   try {
-    const apiKey = process.env.DEEPSEEK_API_KEY || (process.env.DEEPSEEK_API_KEY_P1 || '') + (process.env.DEEPSEEK_API_KEY_P2 || '');
+    const { key: apiKey, warning: keyWarning } = getCleanDeepSeekKey();
+    if (keyWarning) console.warn('[suggest-form]', keyWarning);
     const sysPrompt = '你是AI填表助手。用户会用口语描述他们的合伙创业情况，你需要提取结构化的表单数据并返回JSON。' +
       '返回格式（只返回JSON，不要其他内容）：' +
       '{"partnerCount":2,"partners":[{"name":"张三","capital":200000,"effortType":"全职运营","responsibility":"日常管理"},{"name":"李四","capital":100000,"effortType":"不出力","responsibility":"仅出资"}],"annualProfit":500000}' +
@@ -321,7 +322,8 @@ app.post('/api/decision-tree/finalize', async (req, res) => {
     const scene = decisionTree.summarizeScene(state);
 
     // 调用 DeepSeek 解析成表单数据（复用 suggest-form 的 prompt）
-    const apiKey = process.env.DEEPSEEK_API_KEY || (process.env.DEEPSEEK_API_KEY_P1 || '') + (process.env.DEEPSEEK_API_KEY_P2 || '');
+    const { key: apiKey, warning: keyWarning } = getCleanDeepSeekKey();
+    if (keyWarning) console.warn('[decision-tree finalize]', keyWarning);
     const sysPrompt = '你是AI填表助手。用户会用口语描述他们的合伙创业情况，你需要提取结构化的表单数据并返回JSON。' +
       '返回格式（只返回JSON，不要其他内容）：' +
       '{"partnerCount":2,"partners":[{"name":"张三","capital":200000,"effortType":"全职运营","responsibility":"日常管理"},{"name":"李四","capital":100000,"effortType":"不出力","responsibility":"仅出资"}],"annualProfit":500000}' +
@@ -1266,7 +1268,9 @@ app.get('/api/health', (req, res) => {
 // 诊断端点：直接试一下 DeepSeek 连通性 + 查看真实错误
 app.get('/api/health/ai-test', async (req, res) => {
   const results = [];
-  const apiKey = process.env.DEEPSEEK_API_KEY || (process.env.DEEPSEEK_API_KEY_P1 || '') + (process.env.DEEPSEEK_API_KEY_P2 || '');
+  const { key: apiKey, warning: keyWarning, source: keySource } = getCleanDeepSeekKey();
+  if (keyWarning) console.warn('[ai-test]', keyWarning);
+  results.push({ diagnostic: 'apiKeySource', source: keySource, warning: keyWarning });
   const models = ['deepseek-v4-pro', 'deepseek-v4-flash', 'deepseek-chat', 'deepseek-reasoner'];
   for (const model of models) {
     try {

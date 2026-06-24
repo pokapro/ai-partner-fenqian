@@ -6,6 +6,35 @@ const { buildKnowledgeContext } = require('./matcher');
 
 const AI_TIMEOUT_MS = Number(process.env.AI_TIMEOUT_MS || 65000);
 
+/**
+ * 拿到一个**绝对 ASCII 纯净**的 DeepSeek API key。
+ *
+ * 历史背景：Render 环境变量里的 DEEPSEEK_API_KEY 偶尔会被污染（从聊天/邮件复制带入省略号、全角空格等非 ASCII 字符），
+ * 导致 Node.js 内置 fetch 在解析 Authorization header 时报：
+ *   "Cannot convert argument to a ByteString because the character at index N has a value of 8230 which is greater than 255"
+ *
+ * 解决策略：
+ * 1. 优先用拼接路径 P1+P2（用户当年故意拆两段就是为了绕开 Render env var 长度限制，拼接逻辑本身是干净的）
+ * 2. 如果完整 DEEPSEEK_API_KEY 非 ASCII 但 P1+P2 全 ASCII，强制走拼接路径
+ * 3. 三个都拿不到才抛错
+ */
+function getCleanDeepSeekKey() {
+  const full = process.env.DEEPSEEK_API_KEY || '';
+  const p1 = process.env.DEEPSEEK_API_KEY_P1 || '';
+  const p2 = process.env.DEEPSEEK_API_KEY_P2 || '';
+  const concat = p1 + p2;
+  const fullAscii = /^[\x00-\x7F]*$/.test(full);
+  const concatAscii = /^[\x00-\x7F]*$/.test(concat);
+  if (fullAscii && full.length >= 20) return { key: full, source: 'full', warning: null };
+  if (concatAscii && concat.length >= 20) {
+    const warning = full.length > 0 && !fullAscii
+      ? `DEEPSEEK_API_KEY 包含非 ASCII 字符（${Array.from(full).filter(c => c.charCodeAt(0) > 127).map(c => `U+${c.charCodeAt(0).toString(16).toUpperCase().padStart(4, '0')}`).join(',')}），已自动改用 P1+P2 拼接路径。请在 Render 控制台重新设置 DEEPSEEK_API_KEY（手动输入，不要复制粘贴）。`
+      : null;
+    return { key: concat, source: 'concat', warning };
+  }
+  throw new Error('DEEPSEEK_API_KEY 不可用：完整 key 含非 ASCII 且 P1+P2 拼接也不足 20 字符。请在 Render 控制台修复。');
+}
+
 async function fetchWithTimeout(url, options = {}, timeoutMs = AI_TIMEOUT_MS) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -151,8 +180,8 @@ ${exitConcern ? `关于退出机制方面：${exitConcern}` : ''}
   },
 
   deepseek: async (input, referenceContext, knowledgeContext, customSystem, customUser) => {
-    const apiKey = process.env.DEEPSEEK_API_KEY || (process.env.DEEPSEEK_API_KEY_P1 || '') + (process.env.DEEPSEEK_API_KEY_P2 || '');
-    if (!apiKey) throw new Error('DEEPSEEK_API_KEY not set');
+    const { key: apiKey, warning: keyWarning } = getCleanDeepSeekKey();
+    if (keyWarning) console.warn('[deepseek]', keyWarning);
     const model = process.env.DEEPSEEK_MODEL || 'deepseek-chat';
     let messages;
     if (customSystem && customUser) {
@@ -357,4 +386,4 @@ ${partnerDesc}${advancedNote}
   return report;
 }
 
-module.exports = { generateReport, regenerateReport };
+module.exports = { generateReport, regenerateReport, getCleanDeepSeekKey };
