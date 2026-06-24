@@ -1300,13 +1300,14 @@ app.get('/api/health/ai-test', async (req, res) => {
     apiKeyTail: apiKey.slice(-10),
     results
   });
+});
 
 // 临时诊断端点：让管理员验证 environment 里的 key 是什么
 app.get('/api/health/ai-key-info', (req, res) => {
   const apiKey = process.env.DEEPSEEK_API_KEY || '';
   const p1 = process.env.DEEPSEEK_API_KEY_P1 || '';
   const p2 = process.env.DEEPSEEK_API_KEY_P2 || '';
-  const fullAscii = /^[\\x00-\\x7F]*$/.test(apiKey);
+  const fullAscii = /^[\x00-\x7F]*$/.test(apiKey);
   // 拼接的 P1+P2 fallback key
   const concatKey = p1 + p2;
   res.json({
@@ -1317,14 +1318,13 @@ app.get('/api/health/ai-key-info', (req, res) => {
     apiKey_nonAsciiChars: Array.from(apiKey).filter(c => c.charCodeAt(0) > 127).map(c => c.charCodeAt(0)),
     concatKey_length: concatKey.length,
     concatKey_last10: concatKey.slice(-10),
-    concatKey_isAscii: /^[\\x00-\\x7F]*$/.test(concatKey),
+    concatKey_isAscii: /^[\x00-\x7F]*$/.test(concatKey),
     concatKey_nonAsciiChars: Array.from(concatKey).filter(c => c.charCodeAt(0) > 127).map(c => c.charCodeAt(0)),
     model: process.env.DEEPSEEK_MODEL || '(default)',
     diagnosis: fullAscii
       ? (concatKey.length > 20 ? 'concatKey可用' : '需要修复 env var')
       : `apiKey 含 ${Array.from(apiKey).filter(c => c.charCodeAt(0) > 127).length} 个非ASCII字符（ U+2026=…）`
   });
-});
 });
 
 // === Admin Whitelist DB (首次启动自动初始化默认管理员) ===
