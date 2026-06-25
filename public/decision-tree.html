@@ -426,8 +426,10 @@ function renderDTReport(data) {
     });
   }
 
+  // 已隐藏 model 名称 — 用户不需要知道底层用哪个 AI 模型
+  // 如需排查，在 server log / /api/health/ai-key-info 查看
   if (data.modelUsed) {
-    $('model-used').textContent = '🤖 使用模型：' + data.modelUsed;
+    console.log('[debug] modelUsed:', data.modelUsed);
   }
 
   // 缓存报告原文（供下载/复制使用）
