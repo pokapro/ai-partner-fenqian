@@ -162,7 +162,7 @@ function buildDTSystemPrompt() {
 - 风险条目用 blockquote > 包裹
 - 占位符用 ____
 
-请严格按上述 L0-L4 框架输出，不要自由发挥章节结构。`;
+请严格按上述 L0-L4 框架输出，不要自由发挥章节结构。**但如果用户提示词中给出「⚠️ 客户主动提及但框架未覆盖的需求」段，其中列出的「处理规则」优先级高于本「输出格式硬性要求」**——该段要求的「L1+ 客户主动提及的专项展开」必须执行，不视为自由发挥。`;
 }
 
 function buildDTUserPrompt(dtState, freeText, partnerCount, partners, gapContext) {
