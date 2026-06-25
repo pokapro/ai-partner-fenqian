@@ -365,6 +365,177 @@ function summarizeScene(state) {
   return parts.join(' | ');
 }
 
+// ============= 渐进式单点追问（P0 增强：每次只问 1 个最关键问题）=============
+// 思路：8 行需求响应表里有 8 个必填项。生成报告前，逐项检查
+// 1) 命中过的 → 标"已获取"，跳过
+// 2) 缺哪个 → 返回"该问什么"+"为什么问它"+"给用户看的话术"
+// 3) 全部拿到 → 返回 null（告诉前端"信息够了，可以生成报告"）
+
+const PROGRESSIVE_QUESTIONS = [
+  {
+    key: 'business',
+    label: '业务场景',
+    priority: 1,
+    check: (s) => !!s.business,
+    prompt: '你们做的是哪类生意？',
+    quickOptions: [
+      { value: '实体门店', label: '🏪 实体门店/餐饮/服务业' },
+      { value: '电商/直播', label: '🛒 电商/直播带货' },
+      { value: '科技/服务', label: '💻 科技/咨询/技术服务' },
+      { value: '单项目合伙', label: '📋 单次项目合伙' },
+      { value: '连锁加盟', label: '🔗 连锁/加盟/扩店' }
+    ],
+    hint: '直接告诉我具体业务也可以（比如"AI 自习室"），我会归类',
+    reason: '业务不同 → 风险点和条款库差异很大（实体店要备用金，科技公司要 IP 条款）'
+  },
+  {
+    key: 'partnerCount',
+    label: '合伙人数',
+    priority: 2,
+    check: (s) => !!s.partnerCount,
+    prompt: '你们一共几个合伙人？',
+    quickOptions: [
+      { value: 2, label: '2 人' },
+      { value: 3, label: '3 人' },
+      { value: 4, label: '4-5 人' },
+      { value: 6, label: '6 人以上' }
+    ],
+    hint: '几个人合伙 → 决定用哪个分支（2 人 / 3 人 / 4-5 人 / 6+ 治理结构完全不同）',
+    reason: '人数决定整个决策树的分支（2 人/3 人/4-5 人/6+ 治理结构完全不同）'
+  },
+  {
+    key: 'funding',
+    label: '出资/出力',
+    priority: 3,
+    check: (s) => !!s.funding,
+    prompt: '你们怎么分工出钱和出力？',
+    quickOptions: null,
+    dynamicOptions: (s) => {
+      const map = {
+        2: [
+          { value: 'both_funded_equal', label: '都出钱 + 都出力 + 比例差不多' },
+          { value: 'investor_operator', label: '我全职运营，他只出钱' },
+          { value: 'tech_money', label: '我出钱，他出技术/资源' },
+          { value: 'family', label: '夫妻/情侣/亲属' }
+        ],
+        3: [
+          { value: 'one_dominant', label: '1 个主导 + 2 个跟投' },
+          { value: 'three_roles', label: '资金/运营/技术 三角色' },
+          { value: 'equal_three', label: '三个人平均分' }
+        ],
+        4: [
+          { value: 'one_angel_many_hands', label: '1 个出钱多 + 3 个小股东' },
+          { value: 'equal_pool', label: '都差不多钱和力' },
+          { value: 'franchise', label: '准备做加盟/扩店' }
+        ]
+      };
+      return map[s.partnerCount] || map[3] || [];
+    },
+    hint: '或直接描述：比如"我出资 10 万他全职运营"',
+    reason: '分工决定"资金股 vs 人力股"比例和回购规则'
+  },
+  {
+    key: 'equity',
+    label: '股权比例',
+    priority: 4,
+    check: (s) => s.equity && (s.equity.sum100 || s.equity.filledCount >= 2),
+    prompt: '你们目前的股权比例是多少？',
+    quickOptions: [
+      { value: 'equal', label: '平均分（各 1/N）' },
+      { value: 'one_dominant', label: '有一个主导（40-50%）+ 其余跟投' },
+      { value: 'undecided', label: '还没定，需要 AI 建议' }
+    ],
+    hint: '或直接告诉我各占多少%（如：A 40% / B 35% / C 25%）',
+    reason: '股权比例是方案的核心数字，没比例就只能说框架'
+  },
+  {
+    key: 'nominee',
+    label: '代持关系',
+    priority: 5,
+    check: (s) => s.nominee !== undefined,
+    prompt: '有没有代持关系（有人工商登记但实际是别人出资）？',
+    quickOptions: [
+      { value: 'yes', label: '有，需要做代持安排' },
+      { value: 'no', label: '没有代持' },
+      { value: 'unclear', label: '不太确定' }
+    ],
+    hint: '代持 = 工商登记的股东 ≠ 实际出资人',
+    reason: '代持涉及专门协议 + 效力边界声明，必须明确'
+  },
+  {
+    key: 'concert',
+    label: '一致行动人',
+    priority: 6,
+    check: (s) => s.concert !== undefined,
+    prompt: '你们是否要签"一致行动人协议"（几个人对外表决意见统一）？',
+    quickOptions: [
+      { value: 'yes', label: '需要，部分人统一意见' },
+      { value: 'no', label: '不需要，独立表决' },
+      { value: 'unclear', label: '先不预设' }
+    ],
+    hint: '一致行动人 = 2 个以上股东约定"对外意见统一"，常配合代持使用',
+    reason: '一致行动影响控制权安排和表决机制'
+  },
+  {
+    key: 'companyStatus',
+    label: '公司状态',
+    priority: 7,
+    check: (s) => !!s.companyStatus,
+    prompt: '公司现在是什么状态？',
+    quickOptions: [
+      { value: 'registered', label: '已工商注册（有营业执照）' },
+      { value: 'not_registered', label: '未注册（筹备中）' },
+      { value: 'planning', label: '还在策划，没到注册阶段' }
+    ],
+    hint: '已注册和未注册 → 协议的"对内对外效力"差别很大',
+    reason: '已注册 = 协议辅助章程；未注册 = 协议就是全部'
+  },
+  {
+    key: 'fileCount',
+    label: '需要几份文件',
+    priority: 8,
+    check: (s) => s.fileCount !== undefined,
+    prompt: '你需要几份文件？',
+    quickOptions: [
+      { value: 1, label: '1 份合伙协议（够用）' },
+      { value: 3, label: '3 份（合伙+代持+一致行动）' },
+      { value: 'auto', label: '让 AI 建议（根据你的情况）' }
+    ],
+    hint: '多份 = 更细分场景（代持/竞业/保密可独立成文）',
+    reason: '文件数决定输出结构（1 份 vs N 份独立协议）'
+  }
+];
+
+// ===== 渐进式追问主函数 =====
+function buildProgressiveQuestion(state) {
+  const missing = [];
+  for (const q of PROGRESSIVE_QUESTIONS) {
+    if (!q.check(state)) missing.push(q);
+  }
+  if (missing.length === 0) {
+    return { done: true, missingKeys: [], progress: buildProgress(state) };
+  }
+  missing.sort((a, b) => a.priority - b.priority);
+  const next = missing[0];
+  const opts = next.quickOptions || (next.dynamicOptions ? next.dynamicOptions(state) : null);
+  return {
+    done: false,
+    next: {
+      key: next.key, label: next.label, prompt: next.prompt,
+      quickOptions: opts, hint: next.hint, reason: next.reason, priority: next.priority
+    },
+    missingKeys: missing.map(m => m.key),
+    progress: buildProgress(state)
+  };
+}
+
+// ===== 进度条数据 =====
+function buildProgress(state) {
+  const total = PROGRESSIVE_QUESTIONS.length;
+  const filled = PROGRESSIVE_QUESTIONS.filter(q => q.check(state)).length;
+  return { total, filled, percent: Math.round((filled / total) * 100), remaining: total - filled };
+}
+
 // ============= 构造喂给 AI 的口语化输入 =============
 function buildAiInput(state, freeText = '') {
   const parts = [];
@@ -439,5 +610,8 @@ module.exports = {
   detectFromText,
   nextStep,
   summarizeScene,
-  buildAiInput
+  buildAiInput,
+  buildProgressiveQuestion,
+  buildProgress,
+  PROGRESSIVE_QUESTIONS
 };

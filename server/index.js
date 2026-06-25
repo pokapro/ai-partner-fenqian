@@ -40,6 +40,7 @@ const { initDb } = require('./db');
 const { generateReport, getCleanDeepSeekKey } = require('./ai');
 const { generateProfitTable } = require('./report');
 const decisionTree = require('./decision_tree');
+const frameworkGaps = require('./framework_gaps');
 const { buildDTSystemPrompt, buildDTUserPrompt } = require('./prompt_dt');
 const { seedData } = require('./seed');
 const { seedAdewoAgreement } = require('../scripts/seed_adewo_agreement');
@@ -311,6 +312,62 @@ app.post('/api/decision-tree/next', (req, res) => {
     });
   } catch (err) {
     console.error('[decision-tree next]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ====== P0 增强 1：渐进式单点追问 ======
+app.post('/api/decision-tree/next-question', (req, res) => {
+  try {
+    const { state = {} } = req.body || {};
+    const result = decisionTree.buildProgressiveQuestion(state);
+    res.json({ ...result, progress: decisionTree.buildProgress(state) });
+  } catch (err) {
+    console.error('[decision-tree next-question]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ====== P0 增强 2：框架树 gap 检测 ======
+app.post('/api/decision-tree/detect-gap', (req, res) => {
+  try {
+    const { text = '' } = req.body || {};
+    res.json(frameworkGaps.detectGap(text));
+  } catch (err) {
+    console.error('[decision-tree detect-gap]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ====== P0 增强 3：框架树 gap 提交 ======
+app.post('/api/decision-tree/submit-gap', (req, res) => {
+  try {
+    const { userInput, hits, category, source = 'user-submit', note = '' } = req.body || {};
+    if (!userInput || !hits || !category) {
+      return res.status(400).json({ error: 'userInput / hits / category 必填' });
+    }
+    const entry = frameworkGaps.addGap({ userInput, hits, category, source, note });
+    if (!entry) return res.status(500).json({ error: '保存失败' });
+    res.json({ ok: true, gap: entry });
+  } catch (err) {
+    console.error('[decision-tree submit-gap]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ====== 框架树 gap 列表 ======
+app.get('/api/decision-tree/gaps', (req, res) => {
+  try {
+    const { status, category } = req.query || {};
+    const filter = {};
+    if (status) filter.status = status;
+    if (category) filter.category = category;
+    res.json({
+      gaps: frameworkGaps.listGaps(filter),
+      stats: frameworkGaps.stats()
+    });
+  } catch (err) {
+    console.error('[decision-tree gaps]', err);
     res.status(500).json({ error: err.message });
   }
 });
