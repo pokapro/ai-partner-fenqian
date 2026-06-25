@@ -493,12 +493,12 @@ app.post('/api/decision-tree/generate-report', async (req, res) => {
     const sysPrompt = buildDTSystemPrompt();
     const userPrompt = buildDTUserPrompt({ ...state, scene }, freeText, partnerCount, partners, gapContext);
 
-    // 模型 fallback 链（与决策树 finalize 一致）
+    // 模型 fallback 链（deepseek-chat 最稳定，放首位）
     const candidateModels = [
+      'deepseek-chat',
       process.env.DEEPSEEK_MODEL,
       'deepseek-v4-pro',
       'deepseek-v4-flash',
-      'deepseek-chat',
       'deepseek-reasoner'
     ].filter(Boolean);
     const triedModels = [];
