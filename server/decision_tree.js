@@ -220,6 +220,8 @@ function detectFromText(text, currentState = {}) {
 }
 
 // ============= 决策树状态机 =============
+const frameworkGaps = require('./framework_gaps');
+
 function nextStep(state, text = '') {
   const detected = detectFromText(text, state);
   const merged = { ...state, ...detected };
@@ -233,6 +235,31 @@ function nextStep(state, text = '') {
       detected,
       merged
     };
+  }
+
+  // 0. gap 短路（最高优先级）：用户输入里包含 2+ 个框架未覆盖的关键词
+  //    → 直接跳到 final，让用户生成报告。LLM 会在 L1+ 段展开专业内容
+  //    不再问"几个合伙人/哪种组合"等用户已说过的信息
+  if (text && cur === 'start') {
+    const gap = frameworkGaps.detectGap(text);
+    if (gap.isGap && gap.hits && gap.hits.length >= 2) {
+      // 至少 2 个 gap 关键词 → 命中融资/复杂架构场景 → 直接 final
+      return {
+        state: {
+          ...merged,
+          currentBlock: 'final',
+          gapDetected: true,
+          gapHits: gap.hits,
+          gapCategory: gap.suggestedCategory
+        },
+        block: {
+          ...BLOCKS.final,
+          prompt: '🧭 检测到您的问题涉及多个框架未覆盖的专业领域（' + gap.hits.join('、') + '），将直接生成专业展开报告，无需再选线路。'
+        },
+        detected,
+        merged
+      };
+    }
   }
 
   // 1. 短路跳转（仅当不在正常流程中间时）
