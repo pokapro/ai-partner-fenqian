@@ -165,7 +165,7 @@ function buildDTSystemPrompt() {
 请严格按上述 L0-L4 框架输出，不要自由发挥章节结构。`;
 }
 
-function buildDTUserPrompt(dtState, freeText, partnerCount, partners) {
+function buildDTUserPrompt(dtState, freeText, partnerCount, partners, gapContext) {
   // 把决策树状态拼成自然语言喂给 AI
   const lines = [];
 
@@ -193,6 +193,41 @@ function buildDTUserPrompt(dtState, freeText, partnerCount, partners) {
     partners.forEach((p, i) => {
       lines.push(`- 合伙人 ${p.name || String.fromCharCode(65 + i)}：出资 ${p.capital || 0} 元，出力类型：${p.effortType || '未提供'}，职责：${p.responsibility || '未提供'}` + (p.ratio != null ? `，股权/代持：${p.ratio}` : ''));
     });
+    lines.push('');
+  }
+
+  // ===== 框架未覆盖需求（detectGap 命中后注入）=====
+  // 命中后 LLM 知道客户主动提了哪些"框架未覆盖"要素，按规则展开专业内容
+  if (gapContext && gapContext.isGap && gapContext.hits && gapContext.hits.length) {
+    lines.push('## ⚠️ 客户主动提及但框架未覆盖的需求（必须展开专业内容）');
+    lines.push('');
+    lines.push('框架树检测到客户原始描述里包含以下关键词（**这些不在决策树默认覆盖范围内**）：');
+    lines.push('');
+    lines.push('**关键词**：' + gapContext.hits.join('、'));
+    if (gapContext.suggestedCategory) {
+      const catMap = {
+        control: '控制权类（反稀释/一票否决/AB股等）',
+        tax: '税务类（个税/分红税/核定征收等）',
+        vesting: '股权成熟/分期（vesting/期权池等）',
+        exit_detail: '退出细节（强制回购/估值方法/分期支付等）',
+        governance: '治理结构（董事会/监事会/GP-LP等）',
+        fundraising: '融资类（优先清算/反稀释/对赌等）',
+        ip: '知识产权/技术入股',
+        labor: '劳动用工（全职/兼职/社保/个税）',
+        dispute: '争议处理（仲裁/管辖/调解）',
+        marriage: '婚姻/继承对合伙的影响',
+        other: '其他'
+      };
+      lines.push('**类别推断**：' + (catMap[gapContext.suggestedCategory] || gapContext.suggestedCategory));
+    }
+    lines.push('');
+    lines.push('**处理规则（严格遵守）**：');
+    lines.push('1. **必须展开**：在「## 📜 L1 核心条款正文」后增加一段「## 📜 L1+ 客户主动提及的专项展开」，逐个关键词写 200-400 字的专业内容');
+    lines.push('2. **比豆包更专业**：包含 ①核心概念解释 ②数字/比例算账 ③3 条底线 ④可落地话术 ⑤常见坑');
+    lines.push('3. **不堆砌未提及的**：客户没提的（如 AB 股/GP LP）不写');
+    lines.push('4. **末尾声明**：在该段最后加一句「以上仅覆盖您主动提到的 [' + gapContext.hits.join('/') + ']，未提及的融资条款（优先清算/否决权/对赌豁免）建议向专业律师/FA 咨询」');
+    lines.push('5. **诚实边界**：每个专项段最后必须加「**本节为通用知识参考，不构成法律意见**」');
+    lines.push('6. **需求响应表**：在「## 📋 需求响应表」里给这些关键词各加 1 行，AI 响应写「L1+ 专项展开」');
     lines.push('');
   }
 

@@ -475,8 +475,23 @@ app.post('/api/decision-tree/generate-report', async (req, res) => {
     const { key: apiKey, warning: keyWarning } = getCleanDeepSeekKey();
     if (keyWarning) console.warn('[decision-tree generate-report]', keyWarning);
 
+    // ===== 检测客户主动提及的"框架未覆盖"要素，注入到 prompt =====
+    const gapContext = frameworkGaps.detectGap(freeText || '');
+    if (gapContext.isGap) {
+      console.log(`[decision-tree generate-report] gap detected: hits=${gapContext.hits.join(',')} cat=${gapContext.suggestedCategory}`);
+      // 自动记录到 gap 清单（source=auto-detect-from-generate）
+      try {
+        frameworkGaps.addGap({
+          userInput: (freeText || '').slice(0, 200),
+          hits: gapContext.hits,
+          category: gapContext.suggestedCategory || 'other',
+          source: 'auto-detect-from-generate'
+        });
+      } catch (e) { /* 记录失败不影响主流程 */ }
+    }
+
     const sysPrompt = buildDTSystemPrompt();
-    const userPrompt = buildDTUserPrompt({ ...state, scene }, freeText, partnerCount, partners);
+    const userPrompt = buildDTUserPrompt({ ...state, scene }, freeText, partnerCount, partners, gapContext);
 
     // 模型 fallback 链（与决策树 finalize 一致）
     const candidateModels = [
