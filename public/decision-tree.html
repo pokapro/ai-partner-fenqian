@@ -203,6 +203,9 @@ function removeTyping() {
 function updateSceneBar(state) {
   const bar = $('scene-bar');
   const tagsWrap = $('scene-tags');
+  
+  // scene-bar 可能在 UI 中被移除，不影响主流程
+  if (!bar || !tagsWrap) return;
   const tags = [];
   
   if (state.route) {
