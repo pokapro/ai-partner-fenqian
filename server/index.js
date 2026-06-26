@@ -522,7 +522,7 @@ app.post('/api/decision-tree/generate-report', async (req, res) => {
               { role: 'user', content: userPrompt }
             ],
             temperature: 0.6,
-            max_tokens: 4000
+            max_tokens: 8000
           })
         });
         if (!res2.ok) {
