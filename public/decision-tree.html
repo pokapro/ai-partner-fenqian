@@ -37,36 +37,25 @@
     <a href="/" class="inline-block mt-2 text-xs text-indigo-600 hover:underline">← 回到标准版</a>
   </header>
 
-  <!-- 场景识别条 -->
-  <div id="scene-bar" class="hidden bg-white/80 backdrop-blur rounded-xl border border-indigo-100 px-4 py-3 mb-3">
-    <div class="text-xs text-gray-500 mb-1.5">🧭 决策树已识别：</div>
-    <div id="scene-tags" class="flex flex-wrap gap-1.5"></div>
-  </div>
-
   <!-- 对话区 -->
   <div id="chat-area" class="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 mb-3 min-h-[400px] max-h-[55vh] overflow-y-auto scroll-area">
-    <div class="flex justify-center mb-4">
-      <div class="bg-indigo-50 text-indigo-700 text-xs px-3 py-1.5 rounded-full">
-        👋 你好！我是 AI 合伙智囊。点击选项快速选，也可以在输入框里直接描述。
-      </div>
-    </div>
-    <!-- 对话消息会动态插入 -->
+    <!-- 对话消息会动态插入（初始为空，等用户先输入） -->
   </div>
 
-  <!-- 输入区（始终可见，支持双轨） -->
+  <!-- 输入区（始终可见） -->
   <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-3">
     <div class="flex gap-2 items-end">
       <textarea
         id="user-input"
-        rows="2"
-        placeholder="或直接描述情况…例如：我和朋友合伙开餐厅，他只出钱我全职"
+        rows="3"
+        placeholder="描述你们的合伙情况…例如：我和 2 个朋友开奶茶店，我出10万全职，他出5万技术入股，第三个人只出钱不管事，需要一份股东协议"
         class="flex-1 resize-none border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-indigo-400"></textarea>
-      <button id="send-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium h-fit">
-        发送
+      <button id="send-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-lg text-sm font-medium h-fit">
+        分析
       </button>
     </div>
     <div class="text-xs text-gray-400 mt-1.5 px-1">
-      💡 边打字我会边识别你描述的人、出资、关心点
+      💡 描述越详细，分析越精准
     </div>
   </div>
 
@@ -722,16 +711,10 @@ function restartDT() {
   state = {};
   currentBlock = null;
   isFinal = false;
-  $('chat-area').innerHTML = `
-    <div class="flex justify-center mb-4">
-      <div class="bg-indigo-50 text-indigo-700 text-xs px-3 py-1.5 rounded-full">
-        👋 你好！我是 AI 合伙智囊。点击选项快速选，也可以在输入框里直接描述。
-      </div>
-    </div>`;
+  $('chat-area').innerHTML = '';
   $('action-area').classList.add('hidden');
   $('result-area').classList.add('hidden');
   $('user-input').value = '';
-  loadNextStep('');
 }
 
 // ===== 事件绑定 =====
@@ -762,18 +745,18 @@ $('print-btn')?.addEventListener('click', printReport);
 $('back-to-start-btn')?.addEventListener('click', restartDT);
 
 // ===== 启动 =====
+// 不再预加载决策树按钮——用户先输入，系统再分析
+// 输入框已占位提示用户描述情况
 (async () => {
   try {
     const res = await fetch('/api/decision-tree/start');
     const data = await res.json();
     if (data.block) {
       currentBlock = data.block;
-      setTimeout(() => {
-        addBotBubble(data.block.prompt, data.block.options);
-      }, 400);
+      // 不显示按钮，只保留 block 供后续使用
     }
   } catch (err) {
-    addBotBubble('❌ 初始化失败：' + err.message);
+    console.warn('[init] start block fetch failed (non-fatal):', err.message);
   }
 })();
 </script>
