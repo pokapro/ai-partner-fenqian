@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 合伙智囊 · 商业价值差异报告</title>
+<style>
+  :root {
+    --s800: #1e293b; --s700: #334155; --s600: #475569; --s300: #cbd5e1; --s200: #e2e8f0;
+    --s100: #f1f5f9; --s50: #f8fafc;
+    --e6: #059669; --e5: #10b981; --e7: #047857;
+    --r5: #ef4444; --a5: #f59e0b;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--s50); color: var(--s800); line-height: 1.7; padding: 2rem;
+  }
+  .c { max-width: 800px; margin: 0 auto; }
+
+  h1 { font-size: 1.8rem; font-weight: 800; margin-bottom: 0.25rem; }
+  .sub { color: var(--s600); font-size: 0.9rem; border-bottom: 1px solid var(--s200); padding-bottom: 1rem; margin-bottom: 2rem; }
+
+  h2 { font-size: 1.15rem; font-weight: 700; margin: 1.5rem 0 0.75rem; }
+  p { margin-bottom: 0.75rem; color: var(--s700); font-size: 0.9rem; }
+  strong { color: var(--s800); }
+  .em { color: var(--e6); font-weight: 700; }
+
+  .box { background: white; border: 1px solid var(--s200); border-radius: 10px; padding: 1.25rem; margin-bottom: 1rem; }
+  .box-title { font-weight: 700; font-size: 0.9rem; margin-bottom: 0.5rem; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 0.82rem; margin: 0.75rem 0 1rem; }
+  th, td { border: 1px solid var(--s200); padding: 0.5rem 0.75rem; text-align: left; vertical-align: top; }
+  th { background: var(--s100); font-weight: 600; font-size: 0.78rem; color: var(--s700); }
+  td { font-size: 0.82rem; }
+
+  .tag { display: inline-block; font-size: 0.7rem; padding: 0.1rem 0.4rem; border-radius: 999px; font-weight: 600; }
+  .tg { background: #d1fae5; color: var(--e7); }
+  .tr { background: #fee2e2; color: var(--r5); }
+  .ta { background: #fef3c7; color: #b45309; }
+
+  .hl { background: #f0fdf4; border: 1px solid var(--e5); border-radius: 10px; padding: 1.25rem; margin: 1rem 0; }
+  .hl h3 { color: var(--e7); font-size: 0.9rem; margin-bottom: 0.5rem; }
+
+  .p-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 0.75rem; margin: 1rem 0; }
+  @media(max-width:700px){.p-grid{grid-template-columns:1fr;}}
+  .pc { background: white; border: 1px solid var(--s200); border-radius: 10px; padding: 1.25rem; text-align: center; font-size: 0.82rem; }
+  .pc .price { font-size: 1.8rem; font-weight: 800; }
+  .pc .unit { font-size: 0.82rem; color: var(--s600); }
+  .pc ul { text-align: left; margin-top: 0.5rem; }
+  .pc li { list-style: none; padding: 0.2rem 0; font-size: 0.78rem; }
+  .pc li::before { content: "✓ "; color: var(--e6); font-weight: 700; }
+  .pc.feat { border: 2px solid var(--e5); position: relative; }
+  .pc.feat::before { content: "推荐"; position: absolute; top: -0.4rem; right: 0.75rem; background: var(--e6); color: white; font-size: 0.65rem; padding: 0.1rem 0.5rem; border-radius: 999px; font-weight: 600; }
+
+  .s { background: var(--s800); color: white; border-radius: 10px; padding: 1.5rem; margin: 1.5rem 0; }
+  .s p { color: #cbd5e1; font-size: 0.9rem; }
+  .s strong { color: white; }
+
+  hr { border: none; border-top: 1px solid var(--s200); margin: 1.5rem 0; }
+
+  .warn { background: #fffbeb; border: 1px solid var(--a5); border-radius: 10px; padding: 1rem; margin: 1rem 0; }
+  .warn p { font-size: 0.82rem; }
+</style>
+</head>
+<body>
+<div class="c">
+
+<h1>AI 合伙智囊 · 商业价值差异报告</h1>
+<div class="sub">用户付钱的理由是什么？不是内容比豆包深——是豆包给不了的东西。</div>
+
+<div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1.5rem;">
+  <span style="background:var(--s100);padding:0.15rem 0.6rem;border-radius:999px;font-size:0.75rem;">📅 2026-06-29</span>
+  <span style="background:var(--s100);padding:0.15rem 0.6rem;border-radius:999px;font-size:0.75rem;">v0.8.0-dt-beta</span>
+  <span style="background:var(--s100);padding:0.15rem 0.6rem;border-radius:999px;font-size:0.75rem;">🎯 对标交付物：协议文本 vs 建议</span>
+</div>
+
+<!-- ====== 事实 ====== -->
+<h2>一、先算账</h2>
+
+<p>我们的原材料是《公司法》公开条款+免费模板+基本法律常识。</p>
+<p>原材料成本 ≈ ¥0。成品售价 ¥9.9-¥99。</p>
+<p><strong>商品成本为零，意味着定价不靠成本，靠用户愿意为"省事"付多少钱。</strong></p>
+
+<div class="hl">
+<h3>用户不付钱的理由</h3>
+<p>1. 豆包免费，而且越来越强。</p>
+<p>2. 淘宝模板 ¥99-¥199，比 AI 准，还有人审过。</p>
+<p>3. 律师 ¥3000，出问题能追责。</p>
+<p><strong>我们的真实竞品不是豆包——是「用户怕麻烦的程度 vs 怕风险的程度」。</strong></p>
+<p>怕麻烦的人 → 不签协议，口头合伙（99% 小店这样）。<br>
+怕风险的人 → 花 ¥3000 找律师。</p>
+<p><strong class="em">我们卡在中间：不够便宜到顺手买，不够权威到替代律师。</strong></p>
+</div>
+
+<!-- ====== 战略定位 ====== -->
+<h2>二、战略定位</h2>
+
+<table>
+  <tr><th style="width:18%">维度</th><th style="width:41%">豆包 / ChatGPT</th><th style="width:41%">AI 合伙智囊</th></tr>
+  <tr><td><strong>定位</strong></td><td><span class="tag ta">通用 AI 助手</span></td><td><span class="tag tg">合伙协议生成器</span></td></tr>
+  <tr><td><strong>输出</strong></td><td>文字建议（每次不同）</td><td><strong>可填写的协议 + 结构化方案</strong></td></tr>
+  <tr><td><strong>完整性</strong></td><td>可能漏项</td><td><strong>强制按清单输出，缺项追问</strong></td></tr>
+  <tr><td><strong>可交付</strong></td><td>复制粘贴</td><td><strong>下载 Word / PDF</strong></td></tr>
+  <tr><td><strong>数据积累</strong></td><td>单次会话</td><td><strong>持久化 + gap 自动记录</strong></td></tr>
+  <tr><td><strong>定价</strong></td><td>按 token / 免费</td><td><strong>按交付物定价</strong></td></tr>
+</table>
+
+<!-- ====== 独有差异 ====== -->
+<h2>三、豆包给不了的 3 样东西</h2>
+
+<div class="box">
+<div class="box-title">1. 真实案例数据积累（豆包最抄不走的）</div>
+<table>
+  <tr><th>我们能做到</th><th>豆包能不能</th></tr>
+  <tr><td>"今天有多少人问了代持问题？集中在什么场景？"</td><td><span class="tag tr">❌ 不能</span></td></tr>
+  <tr><td>"我们这个平台处理过的100个类似案例里，80%选了加权平均反稀释"</td><td><span class="tag tr">❌ 不能</span></td></tr>
+  <tr><td>"你这个股权比例和去年300个类似案例对比，属于中等风险"</td><td><span class="tag tr">❌ 不能</span></td></tr>
+  <tr><td>"同一个用户3个月后回来改了什么参数？什么条款最容易反复修改？"</td><td><span class="tag tr">❌ 不能</span></td></tr>
+  <tr><td>"付费用户集中在哪类场景？什么场景转化率最高？"</td><td><span class="tag tr">❌ 不能</span></td></tr>
+</table>
+<p style="margin-top:0.5rem;font-size:0.8rem;color:var(--s600);">半年后有1000个真实案例数据，这套数据的价值超过任何人写的prompt。数据不是生成的，是积累的。豆包没有我们的用户入口，没有业务流程，这个它拿不走。</p>
+</div>
+
+<div class="box">
+<div class="box-title">2. 可填写的协议文本</div>
+<table>
+  <tr><th>用户说</th><th>豆包给</th><th>我们给</th></tr>
+  <tr><td>"给我一份股东协议"</td><td>什么是股东协议</td><td><strong>《股东协议》带 ____，填空可用</strong></td></tr>
+  <tr><td>"代持协议怎么写"</td><td>5 条注意事项</td><td><strong>《股权代持协议》完整条款</strong></td></tr>
+  <tr><td>"期权 Vesting 怎么设"</td><td>概念解释</td><td><strong>期权计划 + 归属表 + 行权价公式</strong></td></tr>
+</table>
+<p style="margin-top:0.5rem;font-size:0.8rem;color:var(--s600);">豆包也能生成模板，但我们比它先跑。先卡位的价值在于——先积累用户数据（护城河）> 先定义交互标准 > 先积累行业口碑。在这个窗口期抢下来的用户，就是真实数据来源。</p>
+</div>
+
+<div class="box">
+<div class="box-title">3. 结构保证 + 多方案 + 谈判话术</div>
+<p>系统强制输出5个核心模块 + gap检测 + 风险提示，每项gap展开给3样东西：</p>
+<ul style="margin:0.5rem 0;font-size:0.85rem;">
+  <li><strong>方案对比表</strong>（2-3种，标注适用条件）</li>
+  <li><strong>数字算账</strong>（具体公式 + 数字例子）</li>
+  <li><strong>底线 + 替代话术</strong>（"你可以这样说"）</li>
+</ul>
+<p style="font-size:0.8rem;color:var(--s600);">用户不是专家，不知道选哪个。多方案 + 话术 = 让用户直接拿去谈判。这是豆包能抄的，但无法替代前两项的积累。</p>
+</div>
+
+<div class="box">
+<div class="box-title">3. gap 数据积累</div>
+<p>豆包不知道今天有多少人在问"代持怎么签"。</p>
+<p><strong>我们知道。</strong> Detect Gap 自动记录每个用户问到的框架未覆盖问题。</p>
+<p style="font-size:0.82rem;">半年后看数据——"80% 用户关心反稀释"——就知道该做什么功能。</p>
+<p style="font-size:0.82rem;">一年后看——某类场景占 60%——就知道出什么产品线。</p>
+<p><strong class="em">数据护城河比 prompt 护城河值钱得多。</strong></p>
+</div>
+
+<!-- ====== 还缺什么 ====== -->
+<h2>四、还缺最后一公里</h2>
+
+<div class="warn">
+<p>用户拿到方案，不知道下一步做什么。</p>
+<p><strong>用户要的不是方案，是协议。</strong> 一份填上名字和金额就能签的《股东协议》。直接 .docx 下载，打开就能填空。</p>
+<p><strong style="color:var(--e6);">什么时候做到这件事，什么时候产品才真正存在。</strong></p>
+<p style="margin-top:0.5rem;">在此之前，卖的都是"建议"。建议是免费的。协议是收费的。</p>
+</div>
+
+<!-- ===== 评估决策 ===== -->
+<h2>五、马斯克视角评估：当前瓶颈与下一步</h2>
+
+<p>五步算法扫描当前流程：</p>
+
+<table>
+  <tr><th>用户路径</th><th>状态</th></tr>
+  <tr><td>输入问题 → 出报告</td><td><span class="tag tg">✅ 已通</span></td></tr>
+  <tr><td>看到价值 → 愿意付钱</td><td><span class="tag ta">❓ 断点</span></td></tr>
+  <tr><td>付钱 → 拿到可签字协议</td><td><span class="tag tr">❌ 没做</span></td></tr>
+</table>
+
+<p><strong>断点在"付钱"这一步。原因不是报告质量不够——是报告里没有付费入口。</strong></p>
+
+<h3>应该做的事（唯一优先级）</h3>
+
+<p>在报告中间位置加一个付费前置入口：</p>
+
+<pre style="background:var(--s100);padding:1rem;border-radius:8px;font-size:0.8rem;color:var(--s600);">
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📄 完整《股东协议》填空版
+包含出资条款 / 退出机制 / 投票权约定
+输入姓名、金额即可使用
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                 ¥99 下载协议文件
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+</pre>
+
+<p><strong>为什么放在报告中间？</strong> 用户在看完方案、觉得"这个有用"的时候最可能付钱。放末尾用户已经要走了。</p>
+
+<h3>不应该做的事（砍掉）</h3>
+
+<table>
+  <tr><th>功能</th><th>决策</th><th>理由</th></tr>
+  <tr><td>管理后台</td><td><span class="tag tr">砍掉</span></td><td>没有付费用户之前不需要看数据，gap 自动记录就好</td></tr>
+  <tr><td>状态恢复</td><td><span class="tag tr">砍掉</span></td><td>用户不付钱不需要保留状态，付了钱的人自然会回来</td></tr>
+  <tr><td>报告编辑</td><td><span class="tag tr">砍掉</span></td><td>用户还没到付费阶段，不需要编辑</td></tr>
+  <tr><td>继续优化报告质量</td><td><span class="tag tr">砍掉</span></td><td>已经够好，继续优化是"优化一个不该再优化的东西"</td></tr>
+</table>
+
+<h3>执行时间线</h3>
+
+<table>
+  <tr><th>时间段</th><th>做什么</th><th>交付</th></tr>
+  <tr><td><strong>今天</strong></td><td>写 prompt 模板，把 L1 条款拼成《股东协议.docx》格式</td><td>后台可生成协议文本</td></tr>
+  <tr><td><strong>明天</strong></td><td>加下载按钮 + ¥99 付费弹窗（先手工验证转化率）</td><td>看有没有人愿意付</td></tr>
+  <tr><td><strong>有人付了之后</strong></td><td>全链路自动化、管理后台、数据看板</td><td>自动化已验证的需求</td></tr>
+</table>
+
+<p style="font-size:0.8rem;color:var(--s600);">⬆️ 自动化一个还没验证的需求，是最大的浪费。先手工收钱，再自动化。</p>
+
+<!-- ====== 定价 ====== -->
+<h2>六、定价</h2>
+
+<p>对比：淘宝协议模板 ¥99-¥199 | 律师全套 ¥3000-¥8000 | <strong>我们：¥9.9-¥99</strong></p>
+
+<div class="p-grid">
+<div class="pc">
+<div class="price">¥9.9</div>
+<div class="unit">体验版</div>
+<ul>
+  <li>完整 L0-L4 方案</li>
+  <li>不含可下载协议</li>
+  <li>3 个月有效</li>
+</ul>
+</div>
+
+<div class="pc feat">
+<div class="price">¥99</div>
+<div class="unit">标准版</div>
+<ul>
+  <li>完整方案</li>
+  <li><strong>《股东协议》填空版</strong></li>
+  <li>下载 Word / PDF</li>
+  <li>代持/一致行动 二选一</li>
+</ul>
+</div>
+
+<div class="pc">
+<div class="price">¥199</div>
+<div class="unit">专业版</div>
+<ul>
+  <li>完整方案</li>
+  <li><strong>全套协议</strong>（股东+代持+一致行动+期权）</li>
+  <li>下载 Word / PDF</li>
+  <li>人工审核一次</li>
+  <li>1 年内多版本</li>
+</ul>
+</div>
+</div>
+
+<p style="font-size:0.8rem;color:var(--s600);">我们的价值不是替代律师，是帮用户省掉 ¥3000 律师费中的"框架搭建"部分。</p>
+
+<!-- ====== 执行 ====== -->
+<h2>七、执行路径</h2>
+
+<table>
+  <tr><th>Phase</th><th>做什么</th><th>交付</th></tr>
+  <tr>
+    <td><strong>1</strong><br><span style="font-size:0.7rem;color:var(--s600);">现在</span></td>
+    <td>协议文本生成<br>（股东协议填空版）</td>
+    <td>.docx 可下载，带占位符 ____</td>
+  </tr>
+  <tr>
+    <td><strong>2</strong><br><span style="font-size:0.7rem;color:var(--s600);">¥9.9 → ¥99</span></td>
+    <td>代持 + 一致行动 + 期权协议</td>
+    <td>全套可下载文件包</td>
+  </tr>
+  <tr>
+    <td><strong>3</strong><br><span style="font-size:0.7rem;color:var(--s600);">¥99 → ¥199</span></td>
+    <td>管理后台 + 人工审核</td>
+    <td>运营数据可见 + 专业版增值</td>
+  </tr>
+  <tr>
+    <td><strong>4</strong><br><span style="font-size:0.7rem;color:var(--s600);">规模化</span></td>
+    <td>参数联动更新 + 支付</td>
+    <td>改一个数字 → 整份方案联动更新</td>
+  </tr>
+</table>
+
+<!-- ====== 风险 ====== -->
+<h2>八、风险</h2>
+
+<table>
+  <tr><th style="width:22%">风险</th><th style="width:40%">判断</th><th>应对</th></tr>
+  <tr><td>豆包抄我们</td><td><span class="tag ta">中</span> — 但豆包做垂直工具定位难</td><td>先跑先卡位：数据积累 + 协议库</td></tr>
+  <tr><td>用户嫌贵</td><td><span class="tag ta">中</span> — 早期正常</td><td>体验版全文可见，付费买可下载</td></tr>
+  <tr><td>法律责任</td><td><span class="tag tr">高</span> — 用户拿模板直接签字</td><td>醒目诚实声明 + 付费弹窗确认</td></tr>
+</table>
+
+<!-- ====== 总结 ====== -->
+<div class="s">
+<p><strong>不是卖建议，是卖文档。</strong></p>
+<p>用户问"怎么写股东协议"——</p>
+<p>豆包回答：股东协议是约定股东权利义务的法律文件……</p>
+<p>我们回答：<strong>给你一份《股东协议》，你只需要填 ____，其他写好了。</strong></p>
+<p style="margin-top:1rem;">前者免费。后者用户付 ¥99。</p>
+<p style="margin-top:1rem;">距离这件事做成，还差 2 周。</p>
+</div>
+
+<hr>
+<p style="text-align:center;color:var(--s600);font-size:0.75rem;">AI 合伙智囊 · 商业价值差异报告 · 2026-06-29 · v2.0</p>
+
+</div>
+</body>
+</html>
