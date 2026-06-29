@@ -41,6 +41,7 @@ const { generateReport, getCleanDeepSeekKey } = require('./ai');
 const { generateProfitTable } = require('./report');
 const decisionTree = require('./decision_tree');
 const frameworkGaps = require('./framework_gaps');
+const { scan: dimScan, buildDimensionSummary } = require('./scanner');
 const { buildDTSystemPrompt, buildDTUserPrompt } = require('./prompt_dt');
 const { seedData } = require('./seed');
 const { seedAdewoAgreement } = require('../scripts/seed_adewo_agreement');
@@ -368,6 +369,23 @@ app.get('/api/decision-tree/gaps', (req, res) => {
     });
   } catch (err) {
     console.error('[decision-tree gaps]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ====== 6 维并行检测（新引擎）======
+app.post('/api/decision-tree/scan', (req, res) => {
+  try {
+    const { text = '' } = req.body || {};
+    const scans = dimScan(text);
+    const summary = buildDimensionSummary(scans, text);
+    res.json({
+      dimensions: scans,
+      summary,
+      dimCount: Object.keys(scans).length
+    });
+  } catch (err) {
+    console.error('[decision-tree scan]', err);
     res.status(500).json({ error: err.message });
   }
 });
