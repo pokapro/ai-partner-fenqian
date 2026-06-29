@@ -121,6 +121,44 @@ let currentBlock = null;
 let isProcessing = false;
 let isFinal = false;
 let lastUserText = '';  // 保存用户原始输入，供生成报告使用
+let lastReportMd = '';   // 缓存最近一份报告全文
+
+// ===== 持久化 =====
+const LS_KEY = 'dt_state';
+
+function saveState() {
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify({
+      state,
+      currentBlock: currentBlock ? { id: currentBlock.id, isFinal: currentBlock.isFinal } : null,
+      isFinal,
+      lastUserText,
+      lastReportMd,
+      timestamp: Date.now()
+    }));
+  } catch(e) { /* localStorage 满了忽略 */ }
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return false;
+    const d = JSON.parse(raw);
+    if (!d.state || Date.now() - d.timestamp > 86400000) return false; // 超24小时忽略
+    state = d.state || {};
+    if (d.currentBlock) {
+      currentBlock = d.currentBlock;
+      isFinal = d.isFinal || false;
+    }
+    lastUserText = d.lastUserText || '';
+    lastReportMd = d.lastReportMd || '';
+    return true;
+  } catch(e) { return false; }
+}
+
+function clearState() {
+  try { localStorage.removeItem(LS_KEY); } catch(e) {}
+}
 
 // ===== 工具 =====
 const $ = (id) => document.getElementById(id);
@@ -277,6 +315,9 @@ async function loadNextStep(text = '') {
     
     if (data.state) state = data.state;
     if (data.block) currentBlock = data.block;
+    
+    // 持久化
+    saveState();
     
     // 显示新块
     if (data.block) {
@@ -537,6 +578,8 @@ async function doFinalize() {
 
     if (data.ok) {
       renderDTReport(data);
+      // 持久化报告
+      saveState();
       // 同时存到 localStorage，让正式版可以参考（不强制使用）
       localStorage.setItem('dt_prefill', JSON.stringify({
         scene: data.scene,
@@ -716,6 +759,8 @@ function restartDT() {
   currentBlock = null;
   isFinal = false;
   lastUserText = '';
+  lastReportMd = '';
+  clearState();
   $('chat-area').innerHTML = '';
   $('action-area').classList.add('hidden');
   $('result-area').classList.add('hidden');
@@ -754,17 +799,42 @@ $('back-to-start-btn')?.addEventListener('click', restartDT);
 // 不再预加载决策树按钮——用户先输入，系统再分析
 // 输入框已占位提示用户描述情况
 (async () => {
+  // 尝试恢复上次会话
+  const restored = loadState();
+  if (restored && lastReportMd) {
+    // 有已生成的报告，显示恢复按钮
+    $('chat-area').innerHTML = `
+      <div class="flex justify-center mb-4">
+        <div class="bg-indigo-50 text-indigo-700 text-xs px-3 py-2 rounded-full">
+          📂 检测到上次的会话记录（${new Date().toLocaleString('zh-CN')}）
+          <button onclick="restoreSession()" class="ml-2 bg-indigo-600 text-white px-3 py-1 rounded-lg hover:bg-indigo-700 text-xs font-medium">恢复</button>
+          <button onclick="clearState();location.reload()" class="ml-1 bg-gray-200 text-gray-700 px-3 py-1 rounded-lg hover:bg-gray-300 text-xs">重新开始</button>
+        </div>
+      </div>`;
+  } else if (restored) {
+    // 有对话状态但没报告，自动恢复
+    restoreSession();
+  }
+  
   try {
     const res = await fetch('/api/decision-tree/start');
     const data = await res.json();
     if (data.block) {
       currentBlock = data.block;
-      // 不显示按钮，只保留 block 供后续使用
     }
   } catch (err) {
     console.warn('[init] start block fetch failed (non-fatal):', err.message);
   }
 })();
+
+function restoreSession() {
+  $('chat-area').innerHTML = '';
+  if (isFinal) showFinalActions();
+  if (lastReportMd) {
+    // 有报告就显示报告区
+    $('result-area').classList.remove('hidden');
+  }
+}
 </script>
 
 </body>
