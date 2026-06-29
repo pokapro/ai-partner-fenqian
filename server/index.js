@@ -493,6 +493,13 @@ app.post('/api/decision-tree/generate-report', async (req, res) => {
     const { key: apiKey, warning: keyWarning } = getCleanDeepSeekKey();
     if (keyWarning) console.warn('[decision-tree generate-report]', keyWarning);
 
+    // ===== 6 维并行扫描（新引擎）=====
+    const dimResult = dimScan(freeText || '');
+    const dimSummary = buildDimensionSummary(dimResult, freeText || '');
+    if (Object.keys(dimResult).length > 0) {
+      console.log(`[decision-tree generate-report] dims=${Object.keys(dimResult).join(',')}`);
+    }
+
     // ===== 检测客户主动提及的"框架未覆盖"要素，注入到 prompt =====
     const gapContext = frameworkGaps.detectGap(freeText || '');
     if (gapContext.isGap) {
@@ -509,7 +516,7 @@ app.post('/api/decision-tree/generate-report', async (req, res) => {
     }
 
     const sysPrompt = buildDTSystemPrompt();
-    const userPrompt = buildDTUserPrompt({ ...state, scene }, freeText, partnerCount, partners, gapContext);
+    const userPrompt = buildDTUserPrompt({ ...state, scene, dimSummary }, freeText, partnerCount, partners, gapContext);
 
     // 模型 fallback 链（deepseek-chat 最稳定，放首位）
     const candidateModels = [

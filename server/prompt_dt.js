@@ -181,6 +181,10 @@ function buildDTUserPrompt(dtState, freeText, partnerCount, partners, gapContext
     lines.push('- 异常标签：' + dtState.tags.join('、'));
   }
   lines.push('- 场景摘要：' + (dtState.scene || '（自动生成）'));
+  // 6 维并行扫描结果（2026-06-26 新增）
+  if (dtState.dimSummary) {
+    lines.push('- 6 维扫描：' + dtState.dimSummary);
+  }
   lines.push('');
 
   lines.push('## 用户原始描述');

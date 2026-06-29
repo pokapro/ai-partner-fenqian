@@ -120,6 +120,7 @@ let state = {};
 let currentBlock = null;
 let isProcessing = false;
 let isFinal = false;
+let lastUserText = '';  // 保存用户原始输入，供生成报告使用
 
 // ===== 工具 =====
 const $ = (id) => document.getElementById(id);
@@ -521,7 +522,7 @@ function renderMarkdown(md) {
 
 // ===== 报告生成入口 =====
 async function doFinalize() {
-  const freeText = $('user-input').value.trim();
+  const freeText = lastUserText || $('user-input').value.trim();
   const btn = $('generate-btn');
   btn.disabled = true;
   btn.textContent = '🤖 AI 推理中（L0-L4 五段式）...';
@@ -714,6 +715,7 @@ function restartDT() {
   state = {};
   currentBlock = null;
   isFinal = false;
+  lastUserText = '';
   $('chat-area').innerHTML = '';
   $('action-area').classList.add('hidden');
   $('result-area').classList.add('hidden');
@@ -728,6 +730,7 @@ $('send-btn').addEventListener('click', () => {
   if (!text || isProcessing) return;
   
   addUserBubble(text);
+  lastUserText = text;  // 保存原文，供生成报告使用
   input.value = '';
   loadNextStep(text);
 });
