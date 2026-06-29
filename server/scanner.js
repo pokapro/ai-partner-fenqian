@@ -14,7 +14,7 @@ const DIMENSIONS = {
       const map = [
         { kw: ['餐厅','饭店','餐饮','开店','门店','实体','奶茶','咖啡','美发','美容','超市','便利店'], val: '实体门店', prompt: '门店经营专属条款（备用金/存货/装修折旧）' },
         { kw: ['电商','直播','淘宝','抖音','带货','亚马逊','速卖通','tiktok','shopee'], val: '电商/直播', prompt: '电商/直播专属条款（账号归属/IP/流量分成）' },
-        { kw: ['科技','saas','软件','app','小程序','技术','开发','代码','产品经理'], val: '科技/服务', prompt: '科技服务专属条款（IP归属/技术入股/vesting）' },
+        { kw: ['科技','saas','软件','app','小程序','技术','开发','代码','产品','程序员','ai','人工智能','创业'], val: '科技/服务', prompt: '科技服务专属条款（IP归属/技术入股/vesting）' },
         { kw: ['单项目','一单','短期','项目制','承揽','工程'], val: '单项目合伙', prompt: '单项目合伙专属条款（项目周期/收益分配/退出）' },
         { kw: ['加盟','连锁','分店','扩店','品牌授权','加盟商','直营'], val: '连锁加盟', prompt: '连锁加盟专属条款（品牌隔离/区域合伙人/加盟管理）' },
         { kw: ['制造','工厂','生产','代工','工厂'], val: '生产制造', prompt: '生产制造专属条款（设备折旧/产能/供应链）' },
@@ -32,13 +32,13 @@ const DIMENSIONS = {
     label: '合伙人数',
     priority: 2,
     detect: (text) => {
-      if (/八个|8人|8个人|八个人|我们八个/.test(text)) return { val: 8, prompt: '6+人平台持股/GP-LP架构' };
-      if (/七个|7人|7个人/.test(text)) return { val: 7, prompt: '6+人平台持股/GP-LP架构' };
-      if (/六个|6人|6个人|六个人|我们六个/.test(text)) return { val: 6, prompt: '6+人平台持股/GP-LP架构' };
-      if (/五个|5人|5个人|五个人|我们五个/.test(text)) return { val: 5, prompt: '4-5人均衡治理/加盟合伙' };
-      if (/四个|4人|4个人|四个人|我们四个/.test(text)) return { val: 4, prompt: '4-5人1天使+3执行/均分治理' };
-      if (/三个|3人|3个人|三个人|我们三个/.test(text)) return { val: 3, prompt: '3人1+2主导/三角色/均分' };
-      if (/两个|2人|2个人|两个人|我俩|我们俩|我和一个|我和我/.test(text)) return { val: 2, prompt: '2人资金+运营/资金+技术/夫妻' };
+      if (/八个|8人|8个人|八个人|我们八个|8个/.test(text)) return { val: 8, prompt: '6+人平台持股/GP-LP架构' };
+      if (/七个|7人|7个人|7个/.test(text)) return { val: 7, prompt: '6+人平台持股/GP-LP架构' };
+      if (/六个|6人|6个人|六个人|我们六个|6个/.test(text)) return { val: 6, prompt: '6+人平台持股/GP-LP架构' };
+      if (/五个|5人|5个人|五个人|我们五个|5个/.test(text)) return { val: 5, prompt: '4-5人均衡治理/加盟合伙' };
+      if (/四个|4人|4个人|四个人|我们四个|4个/.test(text)) return { val: 4, prompt: '4-5人1天使+3执行/均分治理' };
+      if (/三个|3人|3个人|三个人|我们三个|3个/.test(text)) return { val: 3, prompt: '3人1+2主导/三角色/均分' };
+      if (/两个|2人|2个人|两个人|我俩|我们俩|我和一个|我和我|我和另|2个|我和朋友|朋友和我/.test(text)) return { val: 2, prompt: '2人资金+运营/资金+技术/夫妻' };
       return null;
     }
   },
@@ -54,7 +54,8 @@ const DIMENSIONS = {
       if (/做了\s*\d+\s*年|经营了|运营了/.test(text)) return { val: '已运营', prompt: '历史权益追溯/架构重整' };
       if (/投资.*进来|融资|天使|pre-?a|a轮/.test(text)) return { val: '融资中', prompt: '对赌/反稀释/优先清算/期权池' };
       if (/亏|赔|亏损|倒闭|清盘/.test(text)) return { val: '亏损/异常', prompt: '亏损分担/退出/债务处理' };
-      if (/想散伙|闹翻|拆伙|不干了/.test(text)) return { val: '退出/散伙', prompt: '退出机制/估值/回购/清算' };
+      if (/想散伙|闹翻|拆伙|不干了|做不下去/.test(text)) return { val: '退出/散伙', prompt: '退出机制/估值/回购/清算' };
+      if (/口头协议|没签.*协议|没合同|只有口头/.test(text)) return { val: '无书面协议', prompt: '协议补签/最大法律风险' };
       return null;
     }
   },
