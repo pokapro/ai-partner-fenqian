@@ -153,8 +153,70 @@
 <p><strong class="em">数据护城河比 prompt 护城河值钱得多。</strong></p>
 </div>
 
-<!-- ====== 还缺什么 ====== -->
-<h2>四、还缺最后一公里</h2>
+<!-- ===== 进度 ===== -->
+<h2>四、测试版已完成内容</h2>
+
+<p>以下为测试版（V0.8.0-dt-beta）自 2026-06-25 启动以来已完成的所有工作。</p>
+
+<table>
+  <tr><th>模块</th><th>具体内容</th><th>状态</th></tr>
+  <tr>
+    <td><strong>检测引擎</strong></td>
+    <td>6 维并行扫描：用户输入同时识别行业/人数/阶段/资本/治理/风险，不再靠用户点按钮选线路</td>
+    <td><span class="tag tg">已完成</span></td>
+  </tr>
+  <tr>
+    <td><strong>gap 检测</strong></td>
+    <td>13 个融资/治理关键词自动识别（对赌、反稀释、期权、代持、一致行动等），命中的自动展开专项内容</td>
+    <td><span class="tag tg">已完成</span></td>
+  </tr>
+  <tr>
+    <td><strong>报告生成</strong></td>
+    <td>L0-L4 五段式结构化输出：需求响应表→场景结论→核心条款→风险提示→备选方案→追问。用户提到融资/投资人条款时自动展开 L1+ 专项</td>
+    <td><span class="tag tg">已完成</span></td>
+  </tr>
+  <tr>
+    <td><strong>多方案对比+话术</strong></td>
+    <td>每个专项至少 2-3 套方案表格对比 + 数字算账 + 底线谈判话术（"你可以这样说"）</td>
+    <td><span class="tag tg">已完成</span></td>
+  </tr>
+  <tr>
+    <td><strong>UI 交互</strong></td>
+    <td>用户先输入文字描述，系统再分析引导（不再预显示 4 条线路按钮）</td>
+    <td><span class="tag tg">已完成</span></td>
+  </tr>
+  <tr>
+    <td><strong>稳定性修复</strong></td>
+    <td>空指针保护、重复变量声明修复、输入文本丢失 bug 修复（lastUserText）、prompt 冲突解除</td>
+    <td><span class="tag tg">已完成</span></td>
+  </tr>
+  <tr>
+    <td><strong>服务端优化</strong></td>
+    <td>fallback 链优先 deepseek-chat（从 90s+ 降到平均 40s）、max_tokens 4000→8000（防止长篇截断）</td>
+    <td><span class="tag tg">已完成</span></td>
+  </tr>
+  <tr>
+    <td><strong>测试覆盖</strong></td>
+    <td>26 个场景端到端验证，覆盖 2-8 人合伙、电商/餐饮/科技/加盟等多行业、融资/代持/退出等异常场景</td>
+    <td><span class="tag tg">已完成</span></td>
+  </tr>
+  <tr>
+    <td><strong>数据持久化</strong></td>
+    <td>对话状态 + 报告存入 localStorage，刷新后可恢复上次会话</td>
+    <td><span class="tag tg">已完成</span></td>
+  </tr>
+  <tr>
+    <td><strong>场景全量测试套件</strong></td>
+    <td>test/suite.js：18 个扫描+报告测试用例，一次运行暴露所有问题</td>
+    <td><span class="tag tg">已完成</span></td>
+  </tr>
+</table>
+
+<p style="font-size:0.8rem;color:var(--s600);">共完成 10 个模块，累计 commit 22 个，全部部署在 staging 环境。<br>
+已上线 URL：<code style="background:var(--s100);padding:0.1rem 0.3rem;border-radius:3px;">https://ai-partner-fenqian-staging.onrender.com/decision-tree.html</code></p>
+
+<hr style="margin:1rem 0;">
+<h2>五、还缺最后一公里</h2>
 
 <div class="warn">
 <p>用户拿到方案，不知道下一步做什么。</p>
@@ -164,58 +226,32 @@
 </div>
 
 <!-- ===== 评估决策 ===== -->
-<h2>五、马斯克视角评估：当前瓶颈与下一步</h2>
+<h2>六、测试版当前任务</h2>
 
-<p>五步算法扫描当前流程：</p>
-
-<table>
-  <tr><th>用户路径</th><th>状态</th></tr>
-  <tr><td>输入问题 → 出报告</td><td><span class="tag tg">✅ 已通</span></td></tr>
-  <tr><td>看到价值 → 愿意付钱</td><td><span class="tag ta">❓ 断点</span></td></tr>
-  <tr><td>付钱 → 拿到可签字协议</td><td><span class="tag tr">❌ 没做</span></td></tr>
-</table>
-
-<p><strong>断点在"付钱"这一步。原因不是报告质量不够——是报告里没有付费入口。</strong></p>
-
-<h3>应该做的事（唯一优先级）</h3>
-
-<p>在报告中间位置加一个付费前置入口：</p>
-
-<pre style="background:var(--s100);padding:1rem;border-radius:8px;font-size:0.8rem;color:var(--s600);">
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📄 完整《股东协议》填空版
-包含出资条款 / 退出机制 / 投票权约定
-输入姓名、金额即可使用
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                 ¥99 下载协议文件
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-</pre>
-
-<p><strong>为什么放在报告中间？</strong> 用户在看完方案、觉得"这个有用"的时候最可能付钱。放末尾用户已经要走了。</p>
-
-<h3>不应该做的事（砍掉）</h3>
+<p>当前阶段：测试版，目标不是收入，是验证和完善。</p>
 
 <table>
-  <tr><th>功能</th><th>决策</th><th>理由</th></tr>
-  <tr><td>管理后台</td><td><span class="tag tr">砍掉</span></td><td>没有付费用户之前不需要看数据，gap 自动记录就好</td></tr>
-  <tr><td>状态恢复</td><td><span class="tag tr">砍掉</span></td><td>用户不付钱不需要保留状态，付了钱的人自然会回来</td></tr>
-  <tr><td>报告编辑</td><td><span class="tag tr">砍掉</span></td><td>用户还没到付费阶段，不需要编辑</td></tr>
-  <tr><td>继续优化报告质量</td><td><span class="tag tr">砍掉</span></td><td>已经够好，继续优化是"优化一个不该再优化的东西"</td></tr>
+  <tr><th>用户路径</th><th>测试版目标</th></tr>
+  <tr><td>输入问题 → 出报告</td><td><span class="tag tg">✅ 已通，继续覆盖更多场景</span></td></tr>
+  <tr><td>用户觉得方案有用 → 愿意继续用</td><td><span class="tag ta">❓ 待验证</span></td></tr>
+  <tr><td>用户反馈问题 → 我们修复</td><td><span class="tag ta">⏳ 进行中</span></td></tr>
 </table>
 
-<h3>执行时间线</h3>
+<h3>测试版该做的事（按优先级）</h3>
 
 <table>
-  <tr><th>时间段</th><th>做什么</th><th>交付</th></tr>
-  <tr><td><strong>今天</strong></td><td>写 prompt 模板，把 L1 条款拼成《股东协议.docx》格式</td><td>后台可生成协议文本</td></tr>
-  <tr><td><strong>明天</strong></td><td>加下载按钮 + ¥99 付费弹窗（先手工验证转化率）</td><td>看有没有人愿意付</td></tr>
-  <tr><td><strong>有人付了之后</strong></td><td>全链路自动化、管理后台、数据看板</td><td>自动化已验证的需求</td></tr>
+  <tr><th>优先级</th><th>做什么</th><th>原因</th></tr>
+  <tr><td><span class="tag tg">P0</span></td><td>覆盖更多场景类型，减少漏检</td><td>用户输入什么都能走通，是测试版的核心目标</td></tr>
+  <tr><td><span class="tag tg">P1</span></td><td>处理测试中暴露的 bug</td><td>按钮点不动、空指针、输入丢失——这些让用户无法完成测试</td></tr>
+  <tr><td><span class="tag ta">P2</span></td><td>打磨输出质量（多方案、话术、格式）</td><td>已经够好，但可以更好</td></tr>
+  <tr><td><span class="tag ta">P3</span></td><td>协议文本生成</td><td>正式版付费功能，测试版可以先做但不急着上线</td></tr>
+  <tr><td><span class="tag tr">不做</span></td><td>管理后台、状态恢复、报告编辑</td><td>正式版再考虑</td></tr>
 </table>
 
-<p style="font-size:0.8rem;color:var(--s600);">⬆️ 自动化一个还没验证的需求，是最大的浪费。先手工收钱，再自动化。</p>
+<p style="font-size:0.8rem;color:var(--s600);">测试版的目标不是赚钱，是让用户能顺畅地走完流程，覆盖 90% 的输入场景不出错。</p>
 
 <!-- ====== 定价 ====== -->
-<h2>六、定价</h2>
+<h2>七、定价</h2>
 
 <p>对比：淘宝协议模板 ¥99-¥199 | 律师全套 ¥3000-¥8000 | <strong>我们：¥9.9-¥99</strong></p>
 
@@ -257,7 +293,7 @@
 <p style="font-size:0.8rem;color:var(--s600);">我们的价值不是替代律师，是帮用户省掉 ¥3000 律师费中的"框架搭建"部分。</p>
 
 <!-- ====== 执行 ====== -->
-<h2>七、执行路径</h2>
+<h2>八、执行路径</h2>
 
 <table>
   <tr><th>Phase</th><th>做什么</th><th>交付</th></tr>
@@ -284,7 +320,7 @@
 </table>
 
 <!-- ====== 风险 ====== -->
-<h2>八、风险</h2>
+<h2>九、风险</h2>
 
 <table>
   <tr><th style="width:22%">风险</th><th style="width:40%">判断</th><th>应对</th></tr>
