@@ -390,6 +390,40 @@ app.post('/api/decision-tree/scan', (req, res) => {
   }
 });
 
+// ====== 诊断端点（看一眼就知道系统在做什么）======
+app.post('/api/decision-tree/debug', async (req, res) => {
+  try {
+    const { state = {}, freeText = '' } = req.body || {};
+    
+    // 扫描结果
+    const scans = dimScan(freeText);
+    const dimSummary = buildDimensionSummary(scans, freeText);
+    
+    // gap 检测
+    const gap = frameworkGaps.detectGap(freeText);
+    
+    // prompt 预览
+    const sysPrompt = buildDTSystemPrompt();
+    const userPrompt = buildDTUserPrompt({ ...state, scene: state.scene || '线路=方案设计', dimSummary }, freeText, state.partnerCount, [], gap);
+    
+    res.json({
+      freeText,
+      dimCount: Object.keys(scans).length,
+      dimensions: scans,
+      dimSummary,
+      gap: { isGap: gap.isGap, hits: gap.hits || [], category: gap.suggestedCategory },
+      promptPreview: {
+        systemLength: sysPrompt.length,
+        userLength: userPrompt.length,
+        totalChars: sysPrompt.length + userPrompt.length,
+      }
+    });
+  } catch (err) {
+    console.error('[decision-tree debug]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // 终态：构造 AI 输入并复用 suggest-form 的解析逻辑
 app.post('/api/decision-tree/finalize', async (req, res) => {
   try {
