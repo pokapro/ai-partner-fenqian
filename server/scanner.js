@@ -38,7 +38,9 @@ const DIMENSIONS = {
       if (/五个|5人|5个人|五个人|我们五个|5个/.test(text)) return { val: 5, prompt: '4-5人均衡治理/加盟合伙' };
       if (/四个|4人|4个人|四个人|我们四个|4个/.test(text)) return { val: 4, prompt: '4-5人1天使+3执行/均分治理' };
       if (/三个|3人|3个人|三个人|我们三个|3个/.test(text)) return { val: 3, prompt: '3人1+2主导/三角色/均分' };
-      if (/两个|2人|2个人|两个人|我俩|我们俩|我和一个|我和我|我和另|2个|我和朋友|朋友和我/.test(text)) return { val: 2, prompt: '2人资金+运营/资金+技术/夫妻' };
+      if (/两个|2人|2个人|两个人|我俩|我们俩|我和一个|我和我|我和另|2个|我和朋友|朋友和我|我跟我朋友|我和另一个|两人/.test(text)) return { val: 2, prompt: '2人资金+运营/资金+技术/夫妻' };
+      // 兜底：检测到"好几人|几个人"等模糊人数 → 返回 3 人通用
+      if (/好几个人|几个人|多人/.test(text)) return { val: 3, prompt: '3人通用（人数未明确，按3人预估）' };
       return null;
     }
   },
@@ -49,9 +51,9 @@ const DIMENSIONS = {
     label: '公司阶段',
     priority: 3,
     detect: (text) => {
-      if (/已注册|公司已经|工商登记|营业执照/.test(text)) return { val: '已注册', prompt: '协议对接章程/工商变更' };
-      if (/没注册|未注册|筹备|准备开|计划/.test(text)) return { val: '未注册', prompt: '协议就是全部/建议注册' };
-      if (/做了\s*\d+\s*年|经营了|运营了/.test(text)) return { val: '已运营', prompt: '历史权益追溯/架构重整' };
+      if (/已注册|公司已经|工商登记|营业执照|法人|已成立/.test(text)) return { val: '已注册', prompt: '协议对接章程/工商变更' };
+      if (/没注册|未注册|筹备|准备开|计划开|刚开始做|还没注册/.test(text)) return { val: '未注册', prompt: '协议就是全部/建议注册' };
+      if (/做了\s*\d+\s*年|经营了|运营了|已经运营|开了\s*\d+\s*年/.test(text)) return { val: '已运营', prompt: '历史权益追溯/架构重整' };
       if (/投资.*进来|融资|天使|pre-?a|a轮/.test(text)) return { val: '融资中', prompt: '对赌/反稀释/优先清算/期权池' };
       if (/亏|赔|亏损|倒闭|清盘/.test(text)) return { val: '亏损/异常', prompt: '亏损分担/退出/债务处理' };
       if (/想散伙|闹翻|拆伙|不干了|做不下去/.test(text)) return { val: '退出/散伙', prompt: '退出机制/估值/回购/清算' };
@@ -75,6 +77,8 @@ const DIMENSIONS = {
       if (/ab股|同股不同权|双层股权|投票权分离/.test(text)) hits.push('AB股架构');
       if (/技术入股|资源入股|干股/.test(text)) hits.push('技术/资源入股');
       if (/人力股|动态股权|人力.*股/.test(text)) hits.push('人力股/Vesting');
+      // 带"投资人"字的，默认触发资本维度
+      if (/投资人|投资方/.test(text) && hits.length === 0) hits.push('投资人条款');
       if (hits.length > 0) return { val: hits.join('+'), prompt: hits.join('、') + '展开' };
       return null;
     }
@@ -106,12 +110,12 @@ const DIMENSIONS = {
     priority: 6,
     detect: (text) => {
       const hits = [];
-      if (/退出|退股|想走|不干了|离职/.test(text)) hits.push('合伙人退出');
-      if (/亏损|赔|亏钱|亏本/.test(text)) hits.push('亏损分担');
-      if (/僵|谈不拢|吵架|闹翻/.test(text)) hits.push('僵局破解');
-      if (/失联|联系不上|找不到/.test(text)) hits.push('失联处理');
-      if (/离婚|分手/.test(text)) hits.push('婚变对股权影响');
-      if (/去世|身故|死亡/.test(text)) hits.push('身故继承');
+      if (/退出|退股|想走|不干了|离职|要走人|他要走|不想做/.test(text)) hits.push('合伙人退出');
+      if (/亏损|赔|亏钱|亏本|亏了/.test(text)) hits.push('亏损分担');
+      if (/僵|谈不拢|吵架|闹翻|吵翻了|矛盾/.test(text)) hits.push('僵局破解');
+      if (/失联|联系不上|找不到|跑路|跑了/.test(text)) hits.push('失联处理');
+      if (/离婚|分手|婚变/.test(text)) hits.push('婚变对股权影响');
+      if (/去世|身故|死亡|死了/.test(text)) hits.push('身故继承');
       if (/违约|违反/.test(text)) hits.push('违约处理');
       if (hits.length > 0) return { val: hits.join('+'), prompt: hits.join('、') + '专项处理' };
       return null;
