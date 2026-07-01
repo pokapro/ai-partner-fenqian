@@ -956,6 +956,44 @@ function checkDownloadAuth(c) {
   return hasPaid || hasManualUnlock;
 }
 
+function escapeHtmlText(value) {
+  return String(value || '').replace(/[&<>"']/g, ch => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  }[ch]));
+}
+
+function buildStyledReportHtml(markdown, title = 'AI合伙协议方案报告') {
+  const html = marked.parse(markdown || '');
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+    body { font-family: 'Microsoft YaHei', 'PingFang SC', Arial, sans-serif; line-height: 1.75; color: #14201c; padding: 34px; max-width: 900px; margin: auto; }
+    .cover { border: 1px solid #cfe0d8; background: #f3faf6; padding: 22px 24px; margin-bottom: 26px; }
+    .brand { font-size: 13px; letter-spacing: 3px; color: #0b6b5c; font-weight: 700; }
+    .title { font-size: 24px; font-weight: 800; color: #0c1815; margin-top: 8px; }
+    .meta { font-size: 12px; color: #52615b; margin-top: 8px; }
+    h1, h2 { font-size: 19px; color: #0b6b5c; border-left: 4px solid #0b6b5c; padding-left: 10px; margin-top: 26px; }
+    h3 { font-size: 16px; color: #24473f; margin-top: 20px; }
+    p { margin: 8px 0; }
+    table { border-collapse: collapse; width: 100%; margin: 14px 0 18px; font-size: 13px; }
+    th, td { border: 1px solid #cfdad5; padding: 8px 10px; text-align: left; vertical-align: top; }
+    th { background: #eaf4ef; font-weight: 700; color: #0c1815; }
+    blockquote { border-left: 4px solid #b9914a; background: #fff8ea; margin: 12px 0; padding: 9px 13px; color: #5b4630; }
+    code { background: #eef3f0; padding: 2px 5px; border-radius: 3px; font-size: 12px; color: #0b6b5c; }
+    ul, ol { padding-left: 22px; }
+    li { margin-bottom: 4px; }
+  </style></head><body>
+    <div class="cover">
+      <div class="brand">斯塔管理</div>
+      <div class="title">${escapeHtmlText(String(title || 'AI合伙协议方案报告'))}</div>
+      <div class="meta">需求响应 · 场景判断 · 核心条款 · 风险提示 · Word/PDF 交付版</div>
+    </div>
+    ${html}
+  </body></html>`;
+}
+
 // 下载 Word 版
 app.get('/api/cases/:id/download/word', async (req, res) => {
   try {
@@ -965,18 +1003,7 @@ app.get('/api/cases/:id/download/word', async (req, res) => {
       return res.status(403).json({ error: 'payment_required', message: '请先完成支付' });
     }
     const md = c.report_markdown || '';
-    const html = marked.parse(md);
-    const styledHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
-      body { font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif; line-height: 1.8; color: #222; padding: 30px; max-width: 900px; margin: auto; }
-      h1 { font-size: 1.6em; border-bottom: 2px solid #2563eb; padding-bottom: 8px; margin-top: 30px; }
-      h2 { font-size: 1.3em; color: #2563eb; margin-top: 24px; }
-      h3 { font-size: 1.1em; color: #333; margin-top: 18px; }
-      table { border-collapse: collapse; width: 100%; margin: 12px 0; }
-      th, td { border: 1px solid #ccc; padding: 8px 10px; text-align: left; font-size: 0.9em; }
-      th { background: #f0f4ff; font-weight: 700; }
-      code { background: #f4f4f4; padding: 2px 5px; border-radius: 3px; font-size: 0.9em; }
-      pre { background: #f8f8f8; border: 1px solid #ddd; padding: 12px; border-radius: 6px; overflow-x: auto; }
-    </style></head><body>${html}</body></html>`;
+    const styledHtml = buildStyledReportHtml(md);
     const docxBuffer = await htmlToDocx(styledHtml, { table: { maxRow: 999 } });
     const filename = 'fenqian-report-' + req.params.id.slice(0, 8) + '.docx';
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
@@ -1055,6 +1082,23 @@ function renderMdToPdf(doc, md) {
     return lines;
   }
 
+  function wrapTextWidth(text, size, width) {
+    doc.fontSize(size);
+    const chars = String(text || '').split('');
+    let lines = [], currentLine = '';
+    for (const ch of chars) {
+      const test = currentLine + ch;
+      if (doc.widthOfString(test) > width && currentLine) {
+        lines.push(currentLine);
+        currentLine = ch;
+      } else {
+        currentLine = test;
+      }
+    }
+    if (currentLine) lines.push(currentLine);
+    return lines;
+  }
+
   function checkPage(needed) {
     if (y + needed > doc.page.height - marginBottom) {
       doc.addPage();
@@ -1067,6 +1111,13 @@ function renderMdToPdf(doc, md) {
   const boldFont = hasCn ? 'CnFontBold' : 'Helvetica-Bold';
   const monoFont = 'Courier';
   const italicFont = hasCn ? 'CnFont' : 'Helvetica-Oblique';
+
+  checkPage(78);
+  doc.rect(marginLeft, y, contentWidth, 66).fillColor('#f3faf6').fill().strokeColor('#cfe0d8').lineWidth(0.8).stroke();
+  doc.font(boldFont).fontSize(10).fillColor('#0b6b5c').text('斯塔管理', marginLeft + 16, y + 12, { width: contentWidth - 32 });
+  doc.font(boldFont).fontSize(18).fillColor('#0c1815').text('AI合伙协议方案报告', marginLeft + 16, y + 28, { width: contentWidth - 32 });
+  doc.font(regularFont).fontSize(9).fillColor('#52615b').text('需求响应 · 场景判断 · 核心条款 · 风险提示 · PDF交付版', marginLeft + 16, y + 52, { width: contentWidth - 32 });
+  y += 88;
 
   for (const token of tokens) {
     if (token.type === 'heading') {
@@ -1103,24 +1154,57 @@ function renderMdToPdf(doc, md) {
       for (const row of token.rows || []) {
         rows.push(row.map(c => c.text || c));
       }
-      const colW = contentWidth / (token.header ? token.header.length : 1);
-      const rowH = 22;
+      const colCount = token.header ? token.header.length : 1;
       y += 4;
-      for (let ri = 0; ri < rows.length; ri++) {
-        checkPage(rowH + 4);
-        const isHeader = ri === 0 && token.header && token.header.length > 0;
-        const cells = rows[ri];
-        const cellY = y;
-        for (let ci = 0; ci < cells.length; ci++) {
-          const cx = marginLeft + ci * colW;
-          doc.rect(cx, cellY, colW, rowH).strokeColor('#ccc').lineWidth(0.5).stroke();
-          if (isHeader) {
-            doc.rect(cx, cellY, colW, rowH).fillColor('#eff6ff').fill().strokeColor('#ccc').lineWidth(0.5).stroke();
+
+      // 需求响应表这类 5 列长文本表，PDF 改为逐条卡片，避免列宽过窄截断。
+      if (colCount >= 5 && rows.length > 1) {
+        const header = rows[0];
+        for (let ri = 1; ri < rows.length; ri++) {
+          const cells = rows[ri];
+          const blocks = header.map((h, ci) => {
+            const label = String(h || '').replace(/\*\*/g, '');
+            const value = String(cells[ci] || '').replace(/\*\*/g, '');
+            return { label, value, lines: wrapTextWidth(`${label}：${value}`, 9, contentWidth - 28) };
+          });
+          const cardH = Math.max(48, 18 + blocks.reduce((sum, b) => sum + b.lines.length * 13, 0));
+          checkPage(cardH + 8);
+          doc.rect(marginLeft, y, contentWidth, cardH).fillColor('#fbfdfb').fill().strokeColor('#d5e3dc').lineWidth(0.6).stroke();
+          let cy = y + 10;
+          for (const b of blocks) {
+            doc.font(regularFont).fontSize(9).fillColor('#222');
+            for (const line of b.lines) {
+              doc.text(line, marginLeft + 14, cy, { width: contentWidth - 28 });
+              cy += 13;
+            }
           }
-          doc.font(isHeader ? boldFont : regularFont).fontSize(9).fillColor('#222');
-          doc.text(cells[ci] || '', cx + 4, cellY + 5, { width: colW - 8, height: rowH - 4 });
+          y += cardH + 8;
         }
-        y += rowH;
+      } else {
+        const colW = contentWidth / colCount;
+        for (let ri = 0; ri < rows.length; ri++) {
+          const isHeader = ri === 0 && token.header && token.header.length > 0;
+          const cells = rows[ri];
+          const wrapped = cells.map(c => wrapTextWidth(String(c || ''), 8.5, colW - 8));
+          const rowH = Math.max(24, Math.max(...wrapped.map(w => w.length)) * 12 + 10);
+          checkPage(rowH + 4);
+          const cellY = y;
+          for (let ci = 0; ci < cells.length; ci++) {
+            const cx = marginLeft + ci * colW;
+            if (isHeader) {
+              doc.rect(cx, cellY, colW, rowH).fillColor('#eaf4ef').fill().strokeColor('#cfdad5').lineWidth(0.5).stroke();
+            } else {
+              doc.rect(cx, cellY, colW, rowH).strokeColor('#cfdad5').lineWidth(0.5).stroke();
+            }
+            doc.font(isHeader ? boldFont : regularFont).fontSize(8.5).fillColor('#222');
+            let ty = cellY + 5;
+            for (const line of wrapped[ci]) {
+              doc.text(line, cx + 4, ty, { width: colW - 8 });
+              ty += 12;
+            }
+          }
+          y += rowH;
+        }
       }
       y += 6;
     } else if (token.type === 'code') {
@@ -1174,6 +1258,50 @@ function renderMdToPdf(doc, md) {
     }
   }
 }
+
+// 决策树测试版：直接导出 Word（不依赖 caseId，供内测验证交付效果）
+app.post('/api/decision-tree/export/word', async (req, res) => {
+  try {
+    const { markdown = '', title = 'AI合伙协议方案报告' } = req.body || {};
+    if (!markdown || markdown.trim().length < 20) {
+      return res.status(400).json({ error: 'validation', message: '报告内容为空，无法导出 Word' });
+    }
+    const styledHtml = buildStyledReportHtml(markdown, title);
+    const docxBuffer = await htmlToDocx(styledHtml, { table: { maxRow: 999 } });
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    res.setHeader('Content-Disposition', 'attachment; filename="ai-partnership-report.docx"');
+    res.send(Buffer.from(docxBuffer));
+  } catch (err) {
+    res.status(500).json({ error: 'server_error', message: err.message });
+  }
+});
+
+// 决策树测试版：直接导出 PDF（纯 JS 渲染，适配 Render 无 Chrome 环境）
+app.post('/api/decision-tree/export/pdf', async (req, res) => {
+  try {
+    const { markdown = '' } = req.body || {};
+    if (!markdown || markdown.trim().length < 20) {
+      return res.status(400).json({ error: 'validation', message: '报告内容为空，无法导出 PDF' });
+    }
+    const doc = new PDFDocument({
+      size: 'A4',
+      margins: { top: 56, bottom: 56, left: 56, right: 56 },
+      info: { Title: 'AI合伙协议方案报告', Creator: '斯塔管理 AI 合伙智囊' }
+    });
+    const chunks = [];
+    doc.on('data', c => chunks.push(c));
+    doc.on('end', () => {
+      const pdfBuffer = Buffer.concat(chunks);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'attachment; filename="ai-partnership-report.pdf"');
+      res.send(pdfBuffer);
+    });
+    renderMdToPdf(doc, markdown);
+    doc.end();
+  } catch (err) {
+    res.status(500).json({ error: 'server_error', message: err.message });
+  }
+});
 
 // 下载 PDF 版（纯 JS 渲染，无需浏览器）
 app.get('/api/cases/:id/download/pdf', async (req, res) => {

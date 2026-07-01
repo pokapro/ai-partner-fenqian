@@ -244,6 +244,14 @@
     padding: 0.32rem 0.68rem; border-radius: 8px; cursor: pointer; font-family: inherit; color: var(--text-sec);
   }
   .bar button:hover { border-color: var(--accent); color: var(--accent); }
+  .bar .primary-export {
+    background: linear-gradient(135deg, var(--accent), #0a4f45);
+    color: white;
+    border-color: transparent;
+    font-weight: 700;
+    box-shadow: 0 8px 18px rgba(11,107,92,0.16);
+  }
+  .bar .primary-export:hover { color: white; border-color: transparent; }
 
   #report-sections {
     font-size: 0.84rem; line-height: 1.78;
@@ -253,12 +261,39 @@
     padding: 1rem;
     box-shadow: 0 14px 34px rgba(18,43,37,0.06);
   }
-  #report-sections h2 { font-size: 1.02rem; font-weight: 750; margin: 1rem 0 0.4rem; color: var(--ink); }
-  #report-sections h3 { font-size: 0.88rem; font-weight: 600; margin: 0.75rem 0 0.3rem; color: var(--text-sec); }
-  #report-sections table { border-collapse: collapse; width: 100%; margin: 0.4rem 0; font-size: 0.78rem; }
-  #report-sections th, #report-sections td { border: 1px solid var(--border); padding: 0.35rem 0.5rem; }
-  #report-sections th { background: #eef6f2; font-weight: 600; color: var(--ink); }
-  #report-sections blockquote { border-left: 3px solid var(--accent); margin: 0.5rem 0; padding: 0.3rem 0.75rem; background: var(--accent-bg); border-radius: 0 6px 6px 0; color: var(--text-sec); font-size: 0.8rem; }
+  #report-sections .report-cover {
+    border: 1px solid rgba(11,107,92,0.16);
+    border-radius: 16px;
+    padding: 1rem;
+    margin-bottom: 0.9rem;
+    background:
+      linear-gradient(135deg, rgba(11,107,92,0.10), rgba(255,255,255,0.92)),
+      linear-gradient(90deg, rgba(11,107,92,0.06) 1px, transparent 1px);
+    background-size: auto, 28px 28px;
+  }
+  #report-sections .report-cover .brand { font-size: 0.72rem; letter-spacing: 0.16em; color: var(--accent); font-weight: 800; }
+  #report-sections .report-cover .title { font-size: 1.1rem; color: var(--ink); font-weight: 800; margin-top: 0.25rem; }
+  #report-sections .report-cover .sub { font-size: 0.76rem; color: var(--text-sec); margin-top: 0.2rem; }
+  #report-sections h2 {
+    font-size: 1.02rem; font-weight: 800; margin: 1.1rem 0 0.5rem; color: var(--ink);
+    padding: 0.55rem 0.7rem;
+    border-left: 4px solid var(--accent);
+    background: linear-gradient(90deg, rgba(11,107,92,0.08), rgba(255,255,255,0));
+    border-radius: 10px;
+  }
+  #report-sections h3 { font-size: 0.9rem; font-weight: 750; margin: 0.8rem 0 0.35rem; color: #24473f; }
+  #report-sections p { margin: 0.42rem 0; color: var(--text); }
+  #report-sections table { border-collapse: separate; border-spacing: 0; width: 100%; margin: 0.6rem 0 0.9rem; font-size: 0.78rem; overflow: hidden; border: 1px solid var(--border); border-radius: 12px; }
+  #report-sections th, #report-sections td { border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 0.5rem 0.58rem; vertical-align: top; }
+  #report-sections tr:last-child td { border-bottom: none; }
+  #report-sections th:last-child, #report-sections td:last-child { border-right: none; }
+  #report-sections th { background: #eaf4ef; font-weight: 750; color: var(--ink); }
+  #report-sections blockquote {
+    border-left: 4px solid var(--gold); margin: 0.6rem 0; padding: 0.52rem 0.8rem;
+    background: #fff8ea; border-radius: 0 10px 10px 0; color: #5b4630; font-size: 0.82rem;
+  }
+  #report-sections ul, #report-sections ol { padding-left: 1.2rem; margin: 0.4rem 0 0.7rem; }
+  #report-sections li { margin-bottom: 0.26rem; }
   #report-sections code { background: #f0f2f5; padding: 0.1rem 0.3rem; border-radius: 3px; font-size: 0.78rem; color: var(--accent); }
   #report-sections hr { border: none; border-top: 1px solid var(--border); margin: 0.75rem 0; }
 
@@ -295,6 +330,7 @@
     .inp textarea { min-height: 4.8rem; }
     .inp .send { padding-left: 0.95rem; padding-right: 0.95rem; }
     #report-sections { padding: 0.85rem; }
+    #report-sections table { display: block; overflow-x: auto; white-space: nowrap; }
   }
 </style>
 </head>
@@ -332,9 +368,9 @@
   <div class="bar">
     <button id="copy-md-btn">📋 复制</button>
     <button id="copy-plain-btn">📝 纯文本</button>
-    <button id="download-md-btn">⬇️ .md</button>
-    <button id="download-html-btn">⬇️ .html</button>
-    <button id="print-btn">🖨️ 打印</button>
+    <button id="download-word-btn" class="primary-export">⬇️ Word</button>
+    <button id="download-pdf-btn" class="primary-export">⬇️ PDF</button>
+    <button id="print-btn">🖨️ 预览打印</button>
     <button id="back-to-start-btn" style="margin-left:auto;">🔄 重新开始</button>
   </div>
   <div id="report-sections"></div>
@@ -492,20 +528,66 @@ function renderDTReport(data) {
   sections.innerHTML = md2html(md);
 }
 function md2html(md) {
-  let h = md
-    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
-    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
-    .replace(/^# (.+)$/gm, '<h2>$1</h2>')
+  const lines = String(md || '').replace(/\r\n/g, '\n').split('\n');
+  const out = [];
+  let i = 0;
+  const inline = (s) => escapeHtml(s)
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\n- (.+)/g, '\n<li>$1</li>')
-    .replace(/\n\d\. (.+)/g, '\n<li>$1</li>')
-    .replace(/\n>/gm, '\n<blockquote>')
-    .replace(/<\/blockquote>\n?/g, '</blockquote>')
-    .replace(/`([^`]+)`/g, '<code>$1</code>')
-    .replace(/\n\n/g, '</p><p>')
-    .replace(/<p><\/p>/g, '')
-    .replace(/<li>/g, '<li style="margin-bottom:0.2rem;">');
-  return '<p>' + h + '</p>';
+    .replace(/`([^`]+)`/g, '<code>$1</code>');
+  const isTableLine = (s) => /^\s*\|.+\|\s*$/.test(s);
+  const isDivider = (s) => /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(s);
+  const renderTable = (rows) => {
+    const cleanRows = rows.filter(r => !isDivider(r)).map(r => r.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(c => inline(c.trim())));
+    if (!cleanRows.length) return '';
+    const head = cleanRows[0];
+    const body = cleanRows.slice(1);
+    return `<table><thead><tr>${head.map(c => `<th>${c}</th>`).join('')}</tr></thead><tbody>${body.map(r => `<tr>${r.map(c => `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+  };
+  const renderList = (items, ordered) => {
+    const tag = ordered ? 'ol' : 'ul';
+    return `<${tag}>${items.map(x => `<li>${inline(x)}</li>`).join('')}</${tag}>`;
+  };
+
+  out.push(`<div class="report-cover"><div class="brand">斯塔管理</div><div class="title">AI 合伙协议方案报告</div><div class="sub">需求响应 · 场景判断 · 核心条款 · 风险提示 · 交付文件</div></div>`);
+  while (i < lines.length) {
+    const line = lines[i];
+    if (!line.trim()) { i++; continue; }
+    if (isTableLine(line)) {
+      const rows = [];
+      while (i < lines.length && isTableLine(lines[i])) rows.push(lines[i++]);
+      out.push(renderTable(rows));
+      continue;
+    }
+    if (/^###\s+/.test(line)) { out.push(`<h3>${inline(line.replace(/^###\s+/, ''))}</h3>`); i++; continue; }
+    if (/^#{1,2}\s+/.test(line)) { out.push(`<h2>${inline(line.replace(/^#{1,2}\s+/, ''))}</h2>`); i++; continue; }
+    if (/^>\s?/.test(line)) {
+      const qs = [];
+      while (i < lines.length && /^>\s?/.test(lines[i])) qs.push(lines[i++].replace(/^>\s?/, ''));
+      out.push(`<blockquote>${inline(qs.join('<br>'))}</blockquote>`);
+      continue;
+    }
+    if (/^\s*[-*]\s+/.test(line)) {
+      const items = [];
+      while (i < lines.length && /^\s*[-*]\s+/.test(lines[i])) items.push(lines[i++].replace(/^\s*[-*]\s+/, ''));
+      out.push(renderList(items, false));
+      continue;
+    }
+    if (/^\s*\d+\.\s+/.test(line)) {
+      const items = [];
+      while (i < lines.length && /^\s*\d+\.\s+/.test(lines[i])) items.push(lines[i++].replace(/^\s*\d+\.\s+/, ''));
+      out.push(renderList(items, true));
+      continue;
+    }
+    if (/^---+$/.test(line.trim())) { out.push('<hr>'); i++; continue; }
+    const paras = [line.trim()];
+    i++;
+    while (i < lines.length && lines[i].trim() && !isTableLine(lines[i]) && !/^#{1,3}\s+/.test(lines[i]) && !/^>\s?/.test(lines[i]) && !/^\s*[-*]\s+/.test(lines[i]) && !/^\s*\d+\.\s+/.test(lines[i]) && !/^---+$/.test(lines[i].trim())) {
+      paras.push(lines[i].trim());
+      i++;
+    }
+    out.push(`<p>${inline(paras.join(' '))}</p>`);
+  }
+  return out.join('');
 }
 
 // ===== 一键交付 =====
@@ -517,8 +599,33 @@ function copyPlain() { const t=getReportPlain(); if(!t)return; const b=$('copy-p
 function fallbackCopy(text,btn,ok) { const ta=document.createElement('textarea');ta.value=text;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();try{document.execCommand('copy');flashBtn(btn,ok)}catch(e){alert('复制失败')}document.body.removeChild(ta); }
 function timestamp() { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}_${String(d.getHours()).padStart(2,'0')}${String(d.getMinutes()).padStart(2,'0')}`; }
 function downloadFile(filename,content,mime) { const b=content instanceof Blob?content:new Blob([content],{type:mime+';charset=utf-8'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=filename;document.body.appendChild(a);a.click();document.body.removeChild(a);setTimeout(()=>URL.revokeObjectURL(b),1000); }
-function downloadMd() { const t=getReportMd(); if(!t)return; downloadFile(`合伙分钱方案-${timestamp()}.md`,'text/markdown'); flashBtn($('download-md-btn'),'✅ 已下载'); }
-function downloadHtml() { const t=getReportHtml(); if(!t)return; downloadFile(`合伙分钱方案-${timestamp()}.html`,'text/html'); flashBtn($('download-html-btn'),'✅ 已下载'); }
+async function downloadExport(format) {
+  const markdown = getReportMd();
+  if (!markdown) return;
+  const btn = format === 'word' ? $('download-word-btn') : $('download-pdf-btn');
+  const old = btn.innerHTML;
+  btn.disabled = true; btn.innerHTML = '生成中...';
+  try {
+    const res = await fetch(`/api/decision-tree/export/${format}`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ markdown, title: 'AI合伙协议方案报告' })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || err.error || '导出失败');
+    }
+    const blob = await res.blob();
+    const ext = format === 'word' ? 'docx' : 'pdf';
+    downloadFile(`AI合伙协议方案报告-${timestamp()}.${ext}`, blob, blob.type || 'application/octet-stream');
+    flashBtn(btn, '✅ 已下载');
+  } catch (err) {
+    alert('下载失败：' + err.message);
+  } finally {
+    btn.disabled = false;
+    setTimeout(() => { btn.innerHTML = old; }, 1600);
+  }
+}
 function getReportHtml() {
   const md=getReportMd(); if(!md)return '';
   const body = md2html(md);
@@ -538,8 +645,8 @@ $('user-input').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){
 $('generate-btn').addEventListener('click',doFinalize);
 $('copy-md-btn')?.addEventListener('click',copyMd);
 $('copy-plain-btn')?.addEventListener('click',copyPlain);
-$('download-md-btn')?.addEventListener('click',downloadMd);
-$('download-html-btn')?.addEventListener('click',downloadHtml);
+$('download-word-btn')?.addEventListener('click',()=>downloadExport('word'));
+$('download-pdf-btn')?.addEventListener('click',()=>downloadExport('pdf'));
 $('print-btn')?.addEventListener('click',printReport);
 $('back-to-start-btn')?.addEventListener('click',restartDT);
 
