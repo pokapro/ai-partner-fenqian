@@ -15,5 +15,193 @@
     "marriage": "婚姻/继承对合伙的影响",
     "other": "其他"
   },
-  "gaps": []
+  "gaps": [
+    {
+      "id": "gap_20260625_001",
+      "user_input": "我们 5 个人合伙开连锁奶茶，准备融资做 AB 股架构。我和老张签一致行动人，投票权 67%，老陈负责供应链给 10% 期权池 4 年 vesting。投资人要求加反稀释和优先清算权，董事会 5 席我们占 3 席。另外想问下 GP LP 怎么搭，要不要设一个有限合伙做持股平台？",
+      "hits": [
+        "反稀释",
+        "AB 股",
+        "优先清算",
+        "期权",
+        "期权池",
+        "vesting",
+        "董事会",
+        "GP",
+        "LP",
+        "有限合伙",
+        "持股平台"
+      ],
+      "category": "control",
+      "source": "auto-detect-from-generate",
+      "note": "",
+      "status": "new",
+      "added_at": "2026-06-25T09:15:48.883Z",
+      "resolved_at": null
+    },
+    {
+      "id": "gap_20260625_002",
+      "user_input": "我们 5 个人合伙开连锁奶茶，准备融资做 AB 股架构。我和老张签一致行动人，投票权 67%，老陈负责供应链给 10% 期权池 4 年 vesting。投资人要求加反稀释和优先清算权，董事会 5 席我们占 3 席。另外想问下 GP LP 怎么搭，要不要设一个有限合伙做持股平台？",
+      "hits": [
+        "反稀释",
+        "AB 股",
+        "优先清算",
+        "期权",
+        "期权池",
+        "vesting",
+        "董事会",
+        "GP",
+        "LP",
+        "有限合伙",
+        "持股平台"
+      ],
+      "category": "control",
+      "source": "auto-detect-from-generate",
+      "note": "",
+      "status": "new",
+      "added_at": "2026-06-25T09:40:46.618Z",
+      "resolved_at": null
+    },
+    {
+      "id": "gap_20260625_003",
+      "user_input": "我和 2 个朋友做跨境电商，做了 1 年现在年利润 200 万。最近有个天使投资人要投 100 万占 20%，但他要求签对赌协议——如果明年利润没到 300 万，他要 1.5 倍回购。我们想拉他这笔钱，但完全不懂对赌条款怎么写。另外我们看新闻老说反稀释条款，这个跟我们这种小公司有关系吗？",
+      "hits": [
+        "反稀释",
+        "反稀释条款",
+        "对赌",
+        "对赌协议"
+      ],
+      "category": "control",
+      "source": "auto-detect-from-generate",
+      "note": "",
+      "status": "new",
+      "added_at": "2026-06-25T09:50:59.534Z",
+      "resolved_at": null
+    },
+    {
+      "id": "gap_20260626_004",
+      "user_input": "我和2个朋友做跨境电商，年利润200万。投资人要投100万占20%，要求签对赌协议1.5倍回购。还有反稀释条款怎么办？",
+      "hits": [
+        "反稀释",
+        "反稀释条款",
+        "对赌",
+        "对赌协议"
+      ],
+      "category": "control",
+      "source": "auto-detect-from-generate",
+      "note": "",
+      "status": "new",
+      "added_at": "2026-06-26T07:46:12.548Z",
+      "resolved_at": null
+    },
+    {
+      "id": "gap_20260626_005",
+      "user_input": "我们5个人合伙开连锁奶茶，准备融资做AB股架构。我和老张签一致行动人投票权67%，老陈负责供应链给10%期权池4年vesting。投资人要求加反稀释和优先清算权，董事会5席我们占3席。另外想问下GP LP怎么搭，要不要设有限合伙做持股平台？",
+      "hits": [
+        "反稀释",
+        "AB股",
+        "优先清算",
+        "期权",
+        "期权池",
+        "vesting",
+        "董事会",
+        "GP",
+        "LP",
+        "有限合伙",
+        "持股平台"
+      ],
+      "category": "control",
+      "source": "auto-detect-from-generate",
+      "note": "",
+      "status": "new",
+      "added_at": "2026-06-26T07:47:00.595Z",
+      "resolved_at": null
+    },
+    {
+      "id": "gap_20260626_006",
+      "user_input": "我们公司做了2年想给核心员工发期权，设多少比例合适？4年vesting怎么设置？员工离职了期权怎么处理？",
+      "hits": [
+        "期权",
+        "vesting"
+      ],
+      "category": "vesting",
+      "source": "auto-detect-from-generate",
+      "note": "",
+      "status": "new",
+      "added_at": "2026-06-26T07:49:52.384Z",
+      "resolved_at": null
+    },
+    {
+      "id": "gap_20260626_007",
+      "user_input": "我和合伙人都是已婚，如果一方离婚了，股权会被分走吗？如果合伙人身故了，他老婆能继承股东身份吗？",
+      "hits": [
+        "离婚",
+        "继承",
+        "身故"
+      ],
+      "category": "marriage",
+      "source": "auto-detect-from-generate",
+      "note": "",
+      "status": "new",
+      "added_at": "2026-06-26T07:50:46.152Z",
+      "resolved_at": null
+    },
+    {
+      "id": "gap_20260626_008",
+      "user_input": "我们3个股东，股权比例40%、30%、30%。大股东想控制董事会，董事会设3席还是5席？小股东想要一票否决权怎么设置？",
+      "hits": [
+        "董事会"
+      ],
+      "category": "governance",
+      "source": "auto-detect-from-generate",
+      "note": "",
+      "status": "new",
+      "added_at": "2026-06-26T07:51:35.450Z",
+      "resolved_at": null
+    },
+    {
+      "id": "gap_20260626_009",
+      "user_input": "我们给了早期员工5%期权4年成熟，他干了2年要离职，期权怎么处理？他能带走吗？",
+      "hits": [
+        "期权",
+        "成熟"
+      ],
+      "category": "vesting",
+      "source": "auto-detect-from-generate",
+      "note": "",
+      "status": "new",
+      "added_at": "2026-06-26T10:29:22.575Z",
+      "resolved_at": null
+    },
+    {
+      "id": "gap_20260626_010",
+      "user_input": "A轮签了对赌业绩差一点没达标。现在准备融B轮新投资人看到对赌没完成不太敢进来。怎么处理？",
+      "hits": [
+        "对赌"
+      ],
+      "category": "fundraising",
+      "source": "auto-detect-from-generate",
+      "note": "",
+      "status": "new",
+      "added_at": "2026-06-26T10:29:56.240Z",
+      "resolved_at": null
+    },
+    {
+      "id": "gap_20260629_011",
+      "user_input": "我们6个人做跨境电商公司已注册做了1年利润300万。投资人要投200万占20%签对赌和反稀释。两人股份要我代持，我和另一人签一致行动投票权67%。留10%期权池4年vesting。",
+      "hits": [
+        "反稀释",
+        "对赌",
+        "期权",
+        "期权池",
+        "vesting"
+      ],
+      "category": "control",
+      "source": "auto-detect-from-generate",
+      "note": "",
+      "status": "new",
+      "added_at": "2026-06-29T03:35:55.415Z",
+      "resolved_at": null
+    }
+  ]
 }
