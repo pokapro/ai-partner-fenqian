@@ -30,10 +30,33 @@
     background: var(--bg); color: var(--text); line-height: 1.5;
     min-height: 100vh; -webkit-font-smoothing: antialiased;
     display: flex; justify-content: center; align-items: flex-start;
-    padding: 2rem 1rem;
-    /* 背景细节：点阵纹理 */
-    background-image: radial-gradient(circle, rgba(0,0,0,0.04) 1px, transparent 1px);
-    background-size: 20px 20px;
+    padding: 2rem 1rem; position: relative; overflow-x: hidden;
+  }
+  /* 背景浮动光球 */
+  body::before, body::after {
+    content: ''; position: fixed; border-radius: 50%; pointer-events: none; z-index: 0;
+  }
+  body::before {
+    width: 400px; height: 400px;
+    background: radial-gradient(circle, rgba(5,150,105,0.08) 0%, transparent 70%);
+    top: -100px; left: -100px;
+    animation: floatA 12s ease-in-out infinite;
+  }
+  body::after {
+    width: 300px; height: 300px;
+    background: radial-gradient(circle, rgba(5,150,105,0.06) 0%, transparent 70%);
+    bottom: -80px; right: -80px;
+    animation: floatB 15s ease-in-out infinite;
+  }
+  @keyframes floatA {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    33% { transform: translate(60px, 40px) scale(1.1); }
+    66% { transform: translate(-30px, 80px) scale(0.9); }
+  }
+  @keyframes floatB {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    33% { transform: translate(-50px, -30px) scale(1.15); }
+    66% { transform: translate(40px, -60px) scale(0.85); }
   }
   .app {
     max-width: 680px; width: 100%;
