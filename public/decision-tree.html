@@ -10,58 +10,59 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧭</text></svg>" />
 <style>
   :root {
-    --bg: #e2e5e9;
-    --surface: #ffffff;
-    --text: #1a1d23;
-    --text-sec: #5a6070;
-    --text-ter: #8b93a5;
-    --accent: #059669;
-    --accent-hover: #047857;
-    --accent-bg: #ecfdf5;
-    --border: #e2e4e9;
-    --shadow: 0 2px 8px rgba(0,0,0,0.06);
-    --shadow-lg: 0 12px 40px rgba(0,0,0,0.07), 0 4px 12px rgba(0,0,0,0.04);
-    --radius: 14px;
-    --radius-sm: 8px;
+    --bg: #edf2ef;
+    --surface: rgba(255,255,255,0.86);
+    --surface-strong: #ffffff;
+    --ink: #0c1815;
+    --text: #14201c;
+    --text-sec: #52615b;
+    --text-ter: #82908a;
+    --accent: #0b6b5c;
+    --accent-hover: #07564a;
+    --accent-bg: #e8f6f1;
+    --gold: #b9914a;
+    --border: rgba(34,67,59,0.14);
+    --line: rgba(17,61,52,0.10);
+    --shadow: 0 10px 30px rgba(15,30,26,0.08);
+    --shadow-lg: 0 24px 70px rgba(15,30,26,0.16), 0 6px 18px rgba(15,30,26,0.08);
+    --radius: 18px;
+    --radius-sm: 10px;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
     font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
-    background: var(--bg); color: var(--text); line-height: 1.5;
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.80), rgba(237,242,239,0.92) 44%, rgba(226,235,231,0.98)),
+      linear-gradient(120deg, rgba(11,107,92,0.14), transparent 34%),
+      linear-gradient(300deg, rgba(185,145,74,0.12), transparent 38%),
+      var(--bg);
+    color: var(--text); line-height: 1.5;
     min-height: 100vh; -webkit-font-smoothing: antialiased;
     display: flex; justify-content: center; align-items: flex-start;
     padding: 2rem 1rem; position: relative; overflow-x: hidden;
   }
-  /* 背景浮动光球 */
-  body::before, body::after {
-    content: ''; position: fixed; border-radius: 50%; pointer-events: none; z-index: 0;
-  }
+  /* 科技咨询感背景：细网格 + 斜向光带，不使用纯色底。 */
+  body::before, body::after { content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0; }
   body::before {
-    width: 400px; height: 400px;
-    background: radial-gradient(circle, rgba(5,150,105,0.08) 0%, transparent 70%);
-    top: -100px; left: -100px;
-    animation: floatA 12s ease-in-out infinite;
+    background-image:
+      linear-gradient(var(--line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--line) 1px, transparent 1px),
+      linear-gradient(135deg, transparent 0 58%, rgba(11,107,92,0.07) 58% 58.4%, transparent 58.4% 100%);
+    background-size: 42px 42px, 42px 42px, 420px 420px;
+    mask-image: linear-gradient(180deg, rgba(0,0,0,0.84), rgba(0,0,0,0.32) 68%, rgba(0,0,0,0.08));
   }
   body::after {
-    width: 300px; height: 300px;
-    background: radial-gradient(circle, rgba(5,150,105,0.06) 0%, transparent 70%);
-    bottom: -80px; right: -80px;
-    animation: floatB 15s ease-in-out infinite;
-  }
-  @keyframes floatA {
-    0%, 100% { transform: translate(0, 0) scale(1); }
-    33% { transform: translate(60px, 40px) scale(1.1); }
-    66% { transform: translate(-30px, 80px) scale(0.9); }
-  }
-  @keyframes floatB {
-    0%, 100% { transform: translate(0, 0) scale(1); }
-    33% { transform: translate(-50px, -30px) scale(1.15); }
-    66% { transform: translate(40px, -60px) scale(0.85); }
+    background:
+      linear-gradient(115deg, transparent 0 18%, rgba(255,255,255,0.72) 18% 28%, transparent 28%),
+      repeating-linear-gradient(115deg, transparent 0 78px, rgba(11,107,92,0.045) 78px 80px, transparent 80px 156px);
+    opacity: 0.72;
   }
   .app {
-    max-width: 680px; width: 100%;
-    background: var(--surface); border-radius: 16px;
-    box-shadow: var(--shadow-lg); overflow: hidden;
+    max-width: 760px; width: 100%;
+    background: rgba(255,255,255,0.72); border-radius: 24px;
+    border: 1px solid rgba(255,255,255,0.72);
+    box-shadow: var(--shadow-lg); overflow: hidden; position: relative; z-index: 1;
+    backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
   }
 
   /* Header banner — 动态背景 */
@@ -71,67 +72,74 @@
     100% { background-position: 0% 50%; }
   }
   .banner {
-    background: linear-gradient(135deg, #0f172a 0%, #1e293b 40%, #064e3b 70%, #0f172a 100%);
-    background-size: 200% 200%; animation: shiftBg 8s ease infinite;
-    padding: 1.75rem 2rem; color: white; position: relative; overflow: hidden;
+    background:
+      linear-gradient(135deg, rgba(10,24,21,0.98) 0%, rgba(15,45,39,0.98) 52%, rgba(9,87,75,0.96) 100%);
+    padding: 1.85rem 2rem 1.75rem; color: white; position: relative; overflow: hidden;
+    border-bottom: 1px solid rgba(255,255,255,0.10);
   }
-  /* 装饰圆 — 视觉层次 */
   .banner::before {
-    content: ''; position: absolute; top: -30%; right: -5%;
-    width: 180px; height: 180px; border-radius: 50%;
-    background: radial-gradient(circle, rgba(5,150,105,0.12) 0%, transparent 70%);
-    pointer-events: none;
+    content: ''; position: absolute; inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px),
+      linear-gradient(120deg, transparent 0 62%, rgba(185,145,74,0.18) 62% 62.6%, transparent 62.6%);
+    background-size: 38px 38px, 38px 38px, 360px 360px;
+    opacity: 0.46; pointer-events: none;
   }
   .banner::after {
-    content: ''; position: absolute; bottom: -20%; left: 60%;
-    width: 120px; height: 120px; border-radius: 50%;
-    background: radial-gradient(circle, rgba(255,255,255,0.04) 0%, transparent 70%);
+    content: 'STATA CONSULTING'; position: absolute; right: 1.6rem; bottom: 1.25rem;
+    color: rgba(255,255,255,0.10); font-size: 0.72rem; letter-spacing: 0.18em;
     pointer-events: none;
   }
-  .banner h1 { font-size: 1.2rem; font-weight: 700; letter-spacing: -0.3px; position: relative; z-index: 1; }
-  .banner p { font-size: 0.8rem; color: rgba(255,255,255,0.6); margin-top: 0.2rem; position: relative; z-index: 1; }
+  .banner h1 { font-size: 1.35rem; font-weight: 750; letter-spacing: -0.4px; position: relative; z-index: 1; }
+  .banner p { font-size: 0.84rem; color: rgba(255,255,255,0.68); margin-top: 0.25rem; position: relative; z-index: 1; }
   .banner .badge {
     display: inline-block; font-size: 0.65rem; font-weight: 600; letter-spacing: 0.5px;
-    background: rgba(5,150,105,0.2); color: #6ee7b7;
-    padding: 0.15rem 0.65rem; border-radius: 999px; margin-bottom: 0.4rem;
+    background: rgba(255,255,255,0.11); color: #d7f7eb;
+    border: 1px solid rgba(255,255,255,0.18);
+    padding: 0.18rem 0.68rem; border-radius: 999px; margin-bottom: 0.48rem;
+    position: relative; z-index: 1;
   }
-  .banner a { color: rgba(255,255,255,0.35); font-size: 0.72rem; margin-top: 0.5rem; display: inline-block; text-decoration: none; transition: color 0.2s; }
+  .banner a { color: rgba(255,255,255,0.46); font-size: 0.72rem; margin-top: 0.56rem; display: inline-block; text-decoration: none; transition: color 0.2s; position: relative; z-index: 1; }
   .banner a:hover { color: rgba(255,255,255,0.75); }
 
   /* Content area */
   .content {
-    padding: 1.25rem;
-    background: linear-gradient(180deg, #fafbfc 0%, var(--surface) 30px);
+    padding: 1.35rem;
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.78) 0%, rgba(248,251,249,0.88) 30px, rgba(255,255,255,0.72) 100%);
   }
 
   /* Chat area — 内阴影增强层次 */
   .chat {
-    min-height: 260px; max-height: 45vh; overflow-y: auto;
+    min-height: 300px; max-height: 48vh; overflow-y: auto;
     margin-bottom: 0.75rem;
-    background: #f8f9fb; border-radius: var(--radius-sm);
-    border: 1px solid #ebecef;
-    box-shadow: inset 0 1px 3px rgba(0,0,0,0.04);
-    padding: 0.75rem;
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.88), rgba(244,249,246,0.86)),
+      linear-gradient(var(--line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size: auto, 32px 32px, 32px 32px;
+    border-radius: var(--radius);
+    border: 1px solid rgba(34,67,59,0.13);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.86), 0 12px 28px rgba(18,43,37,0.06);
+    padding: 0.9rem;
   }
   .chat::-webkit-scrollbar { width: 4px; }
   .chat::-webkit-scrollbar-thumb { background: #d0d3da; border-radius: 2px; }
   /* 空状态 — 视觉更丰富 */
   .chat:empty::before {
     content: ''; display: block; height: 100%; min-height: 200px;
-    background: 
-      linear-gradient(135deg, #f0f1f4 25%, transparent 25%) -20px 0,
-      linear-gradient(225deg, #f0f1f4 25%, transparent 25%) -20px 0,
-      linear-gradient(315deg, #f0f1f4 25%, transparent 25%),
-      linear-gradient(45deg, #f0f1f4 25%, transparent 25%);
-    background-size: 40px 40px; opacity: 0.5;
-    border-radius: 6px;
+    background:
+      linear-gradient(120deg, rgba(11,107,92,0.10), transparent 34%),
+      repeating-linear-gradient(90deg, transparent 0 18px, rgba(20,32,28,0.035) 18px 19px);
+    opacity: 0.9; border-radius: 14px;
   }
   .chat:empty::after {
-    content: '💬 输入描述，AI 会与你对话引导'; display: flex;
+    content: '输入合伙情况，系统会识别出资、出力、控制权、代持与退出风险'; display: flex;
     align-items: center; justify-content: center;
     height: 100%; min-height: 200px; margin-top: -200px;
     position: relative; z-index: 1;
-    color: var(--text-ter); font-size: 0.85rem;
+    color: var(--text-sec); font-size: 0.86rem; font-weight: 500;
     text-align: center; line-height: 1.7;
   }
 
@@ -144,77 +152,103 @@
     width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
     display: flex; align-items: center; justify-content: center; font-size: 0.75rem;
     margin-right: 0.5rem;
-    background: linear-gradient(135deg, #e2e5eb, #d4d8e0);
+    background: linear-gradient(135deg, #eff7f3, #dbeae4);
+    border: 1px solid rgba(34,67,59,0.12);
   }
   .msg .b {
     max-width: 80%; font-size: 0.85rem; line-height: 1.65;
     padding: 0.5rem 0.85rem; border-radius: var(--radius-sm);
   }
-  .msg-bot .b { background: #f0f2f5; color: var(--text); border-bottom-left-radius: 3px; }
-  .msg-user .b { background: var(--accent); color: white; border-bottom-right-radius: 3px; }
+  .msg-bot .b {
+    background: rgba(255,255,255,0.92); color: var(--text); border-bottom-left-radius: 3px;
+    border: 1px solid rgba(34,67,59,0.10);
+    box-shadow: 0 8px 18px rgba(18,43,37,0.05);
+  }
+  .msg-user .b {
+    background: linear-gradient(135deg, #0b6b5c, #0a4f45); color: white; border-bottom-right-radius: 3px;
+    box-shadow: 0 10px 20px rgba(11,107,92,0.18);
+  }
 
   /* Options */
   .opts { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; margin-top: 0.5rem; max-width: 80%; }
   .opts .o {
-    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
+    background: rgba(255,255,255,0.92); border: 1px solid var(--border); border-radius: var(--radius-sm);
     padding: 0.5rem 0.75rem; cursor: pointer; font-family: inherit; font-size: 0.8rem; color: var(--text);
     text-align: left; transition: all 0.15s;
   }
-  .opts .o:hover { border-color: var(--accent); background: var(--accent-bg); }
-  .opts .o.sel { background: var(--accent); border-color: var(--accent); color: white; }
+  .opts .o:hover { border-color: rgba(11,107,92,0.45); background: var(--accent-bg); transform: translateY(-1px); }
+  .opts .o.sel, .opts .o.selected { background: var(--accent); border-color: var(--accent); color: white; }
   .opts .o .d { font-size: 0.7rem; color: var(--text-ter); margin-top: 0.05rem; }
   .opts .o.sel .d { color: rgba(255,255,255,0.7); }
   .opts.single { grid-template-columns: 1fr; }
 
   /* Input */
-  .inp { display: flex; gap: 0.5rem; align-items: flex-end; }
+  .inp {
+    display: flex; gap: 0.5rem; align-items: flex-end;
+    background: rgba(255,255,255,0.76); border: 1px solid rgba(34,67,59,0.13);
+    border-radius: 16px; padding: 0.45rem;
+    box-shadow: 0 12px 28px rgba(18,43,37,0.06);
+  }
   .inp textarea {
-    flex: 1; resize: none; border: 1px solid var(--border); border-radius: var(--radius-sm);
-    font-size: 0.85rem; line-height: 1.5; padding: 0.55rem 0.75rem; font-family: inherit; color: var(--text);
-    background: var(--surface); transition: border-color 0.2s;
+    flex: 1; resize: none; border: none; border-radius: 12px;
+    font-size: 0.86rem; line-height: 1.55; padding: 0.55rem 0.7rem; font-family: inherit; color: var(--text);
+    background: transparent; transition: background 0.2s;
   }
   .inp textarea::placeholder { color: var(--text-ter); }
-  .inp textarea:focus { outline: none; border-color: var(--accent); }
+  .inp textarea:focus { outline: none; background: rgba(255,255,255,0.68); }
   .inp .send {
-    background: var(--accent); color: white; border: none;
-    padding: 0.55rem 1.2rem; border-radius: var(--radius-sm); font-size: 0.85rem; font-weight: 600;
+    background: linear-gradient(135deg, var(--accent), #0a4f45); color: white; border: none;
+    padding: 0.58rem 1.2rem; border-radius: 12px; font-size: 0.85rem; font-weight: 700;
     cursor: pointer; font-family: inherit; transition: background 0.15s;
-    white-space: nowrap;
+    white-space: nowrap; box-shadow: 0 10px 20px rgba(11,107,92,0.18);
   }
-  .inp .send:hover { background: var(--accent-hover); }
-  .hint { font-size: 0.7rem; color: var(--text-ter); margin-top: 0.3rem; }
+  .inp .send:hover { background: linear-gradient(135deg, var(--accent-hover), #073d35); }
+  .hint { font-size: 0.72rem; color: var(--text-ter); margin: 0.45rem 0 0 0.2rem; }
 
   /* Action */
   .action { margin-top: 0.75rem; }
   .action .banner-sm {
-    background: linear-gradient(135deg, #059669 0%, #047857 100%);
-    border-radius: var(--radius-sm); padding: 1rem 1.25rem; text-align: center;
+    background:
+      linear-gradient(135deg, rgba(12,24,21,0.98), rgba(12,94,81,0.94)),
+      linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px);
+    background-size: auto, 28px 28px;
+    border: 1px solid rgba(255,255,255,0.18);
+    border-radius: var(--radius); padding: 1rem 1.25rem; text-align: center;
+    box-shadow: 0 16px 34px rgba(11,107,92,0.18);
   }
   .action .banner-sm .t { font-size: 0.9rem; font-weight: 700; color: white; }
   .action .banner-sm .s { font-size: 0.72rem; color: rgba(255,255,255,0.75); margin: 0.2rem 0 0.6rem; }
   .action .banner-sm button {
     width: 100%; background: white; color: var(--accent); border: none;
-    padding: 0.6rem; border-radius: 6px; font-size: 0.85rem; font-weight: 700; cursor: pointer; font-family: inherit;
+    padding: 0.65rem; border-radius: 10px; font-size: 0.85rem; font-weight: 750; cursor: pointer; font-family: inherit;
   }
 
   /* Result area */
   .result { margin-top: 0.75rem; }
   .bar {
     display: flex; gap: 0.35rem; flex-wrap: wrap; margin-bottom: 0.75rem;
-    padding: 0.5rem 0; border-bottom: 1px solid var(--border);
+    padding: 0.5rem; border: 1px solid rgba(34,67,59,0.11);
+    border-radius: 14px; background: rgba(255,255,255,0.72);
   }
   .bar button {
-    font-size: 0.72rem; background: var(--surface); border: 1px solid var(--border);
-    padding: 0.25rem 0.65rem; border-radius: 6px; cursor: pointer; font-family: inherit; color: var(--text-sec);
+    font-size: 0.72rem; background: rgba(255,255,255,0.90); border: 1px solid var(--border);
+    padding: 0.32rem 0.68rem; border-radius: 8px; cursor: pointer; font-family: inherit; color: var(--text-sec);
   }
   .bar button:hover { border-color: var(--accent); color: var(--accent); }
 
-  #report-sections { font-size: 0.82rem; line-height: 1.7; }
-  #report-sections h2 { font-size: 1rem; font-weight: 700; margin: 1rem 0 0.4rem; }
+  #report-sections {
+    font-size: 0.84rem; line-height: 1.78;
+    background: rgba(255,255,255,0.86);
+    border: 1px solid rgba(34,67,59,0.12);
+    border-radius: var(--radius);
+    padding: 1rem;
+    box-shadow: 0 14px 34px rgba(18,43,37,0.06);
+  }
+  #report-sections h2 { font-size: 1.02rem; font-weight: 750; margin: 1rem 0 0.4rem; color: var(--ink); }
   #report-sections h3 { font-size: 0.88rem; font-weight: 600; margin: 0.75rem 0 0.3rem; color: var(--text-sec); }
   #report-sections table { border-collapse: collapse; width: 100%; margin: 0.4rem 0; font-size: 0.78rem; }
   #report-sections th, #report-sections td { border: 1px solid var(--border); padding: 0.35rem 0.5rem; }
-  #report-sections th { background: #f5f6f8; font-weight: 500; }
+  #report-sections th { background: #eef6f2; font-weight: 600; color: var(--ink); }
   #report-sections blockquote { border-left: 3px solid var(--accent); margin: 0.5rem 0; padding: 0.3rem 0.75rem; background: var(--accent-bg); border-radius: 0 6px 6px 0; color: var(--text-sec); font-size: 0.8rem; }
   #report-sections code { background: #f0f2f5; padding: 0.1rem 0.3rem; border-radius: 3px; font-size: 0.78rem; color: var(--accent); }
   #report-sections hr { border: none; border-top: 1px solid var(--border); margin: 0.75rem 0; }
@@ -241,8 +275,17 @@
   @media (max-width: 500px) {
     .opts { grid-template-columns: 1fr; }
     body { padding: 0.75rem; }
+    .app { border-radius: 18px; }
     .banner { padding: 1.25rem 1.25rem; }
+    .banner::after { display: none; }
+    .banner h1 { font-size: 1.22rem; }
     .content { padding: 0.875rem; }
+    .chat { min-height: 300px; max-height: 52vh; padding: 0.72rem; }
+    .msg .b { max-width: 86%; font-size: 0.84rem; }
+    .inp { align-items: stretch; }
+    .inp textarea { min-height: 4.8rem; }
+    .inp .send { padding-left: 0.95rem; padding-right: 0.95rem; }
+    #report-sections { padding: 0.85rem; }
   }
 </style>
 </head>
