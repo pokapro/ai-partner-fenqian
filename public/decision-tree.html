@@ -535,7 +535,7 @@ function md2html(md) {
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/`([^`]+)`/g, '<code>$1</code>');
   const isTableLine = (s) => /^\s*\|.+\|\s*$/.test(s);
-  const isDivider = (s) => /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(s);
+  const isDivider = (s) => /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)+\|?\s*$/.test(s);
   const renderTable = (rows) => {
     const cleanRows = rows.filter(r => !isDivider(r)).map(r => r.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(c => inline(c.trim())));
     if (!cleanRows.length) return '';
@@ -563,7 +563,7 @@ function md2html(md) {
     if (/^>\s?/.test(line)) {
       const qs = [];
       while (i < lines.length && /^>\s?/.test(lines[i])) qs.push(lines[i++].replace(/^>\s?/, ''));
-      out.push(`<blockquote>${inline(qs.join('<br>'))}</blockquote>`);
+      out.push(`<blockquote>${qs.map(inline).join('<br>')}</blockquote>`);
       continue;
     }
     if (/^\s*[-*]\s+/.test(line)) {
@@ -666,7 +666,13 @@ $('back-to-start-btn')?.addEventListener('click',restartDT);
 function restoreSession() {
   $('chat-area').innerHTML = '';
   if (isFinal) showFinalActions();
-  if (lastReportMd) $('result-area').classList.remove('hidden');
+  if (lastReportMd) {
+    $('result-area').classList.remove('hidden');
+    const sections = $('report-sections');
+    if (sections && !sections.innerHTML.trim()) {
+      sections.innerHTML = md2html(lastReportMd);
+    }
+  }
 }
 </script>
 
