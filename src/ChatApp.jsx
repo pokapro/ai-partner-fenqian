@@ -169,15 +169,15 @@ const PLAN_INFO = {
     price: "29.9",
     intent: "request_basic",
     title: "申请基础版完整报告",
-    intro: "内测阶段暂不开放自动支付。提交后，客服会按您填写的联系方式确认需求，再人工开放完整报告和下载。",
-    items: ["完整 AI 诊断报告", "三套分钱方案与利润模拟", "基础协议条款草稿", "后台人工确认后开放下载"],
+    intro: "内测阶段暂不开放自动支付和自动解锁。提交后，客服会按您填写的联系方式确认需求，并人工发送完整报告文件。",
+    items: ["完整 AI 诊断报告", "三套分钱方案与利润模拟", "基础协议条款草稿", "人工发送 Word/PDF 文件"],
   },
   reviewed: {
-    name: "人工审核版",
+    name: "人工复核版",
     price: "99",
     intent: "request_reviewed",
-    title: "申请人工审核版",
-    intro: "提交后进入人工审核队列。适合已经准备拿给合伙人沟通、需要降低表达风险的场景。",
+    title: "申请人工复核版",
+    intro: "提交后进入人工复核队列。适合已经准备拿给合伙人沟通、需要降低表达风险的场景。",
     items: ["包含基础版完整内容", "人工复核一次核心比例与风险点", "可按反馈补充信息后重生成", "重点协议条款与文件清单"],
   },
 };
@@ -322,7 +322,6 @@ export default function ChatApp() {
   // === 前端统一状态机 ===
   // idle | generating | preview_ready | payment_pending | paid_unlocked | error
   const [appState, setAppState] = useState('idle');
-  const [unlockChecking, setUnlockChecking] = useState(false);
 
   // localStorage 写入脱闪：防抖 800ms 合并多次写入
   const writeLocalStorage = (key, value) => {
@@ -861,7 +860,7 @@ export default function ChatApp() {
       {chapters.length > shownCount && (
         <div className="locked-report-mask">
           <div className="locked-title">完整报告已生成，以下内容已保护</div>
-          <div className="locked-text">剩余章节包含推荐比例、利润模拟、协议条款草稿、沟通话术和下一步行动。内测阶段提交申请后由人工确认开放。</div>
+          <div className="locked-text">剩余章节包含推荐比例、利润模拟、协议条款草稿、沟通话术和下一步行动。内测阶段提交申请后，由人工联系并发送完整 Word/PDF 文件。</div>
         </div>
       )}
       {renderReportFooter()}
@@ -964,14 +963,7 @@ export default function ChatApp() {
     return () => document.removeEventListener('visibilitychange', fn);
   }, []);
 
-  // 内测人工审核轮询：后台标记 delivered 后，前端自动解锁完整报告。
-  useEffect(() => {
-    if (!result?.caseId || result?.hasUnlocked) return;
-    const timer = setInterval(() => {
-      refreshCaseUnlockStatus(result.caseId, { silent: true });
-    }, 8000);
-    return () => clearInterval(timer);
-  }, [result?.caseId, result?.hasUnlocked]);
+  // 内测阶段暂不搭建后台审核体验：前台只记录完整报告申请，后续由人工联系交付。
 
   useEffect(() => {
     if (!result?.previewMarkdown) return;
@@ -1513,9 +1505,9 @@ export default function ChatApp() {
             <div id="payment-section" style={{ background: "white", border: "1px solid #e2e8f0", borderRadius: 12, padding: "20px 16px", textAlign: "center" }}>
               {isResultUnlocked(result) ? (
                 <div style={{ padding: "8px 0" }}>
-                  <h3 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: 6, color: "#166534" }}>完整报告已开放</h3>
+                  <h3 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: 6, color: "#166534" }}>完整报告可下载</h3>
                   <p style={{ fontSize: "0.82rem", color: "#475569", marginBottom: 14, lineHeight: 1.5 }}>
-                    后台已完成审核/交付，当前页面已展示完整内容。
+                    当前页面已展示完整内容，可下载保存。
                   </p>
                   <div style={{ display: "flex", gap: "10px", justifyContent: "center", flexWrap: "wrap" }}>
                     <a href={`/api/cases/${result.caseId}/download/word`} target="_blank" rel="noreferrer"
@@ -1532,7 +1524,7 @@ export default function ChatApp() {
                 <>
               <h3 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: 4 }}>获取完整报告</h3>
               <p style={{ fontSize: "0.8rem", color: "#777", marginBottom: 16, lineHeight: 1.5 }}>
-                内测阶段先提交申请，由人工确认后开放完整报告和下载权限。
+                内测阶段先提交申请，系统会记录到本地数据库，由人工联系并发送完整 Word/PDF 文件。
               </p>
               <div className="plan-grid">
                 {/* 基础版卡片 */}
@@ -1546,25 +1538,25 @@ export default function ChatApp() {
                         <li>完整 AI 报告含五权结构诊断</li>
                         <li>三套分钱方案 + 利润模拟表</li>
                         <li>基础协议条款草稿 + 协议清单</li>
-                        <li>PDF 下载可保存</li>
+                        <li>人工发送 Word/PDF 文件</li>
                       </ul>
                     </div>
                     <div style={{ fontSize: "0.82rem", color: "#059669", marginTop: 8, fontWeight: 700 }}>申请</div>
                   </div>
                 </div>
-                {/* 人工审核版卡片 */}
+                {/* 人工复核版卡片 */}
                 <div onClick={() => { setSelectedPlan("reviewed"); setShowPaymentModal(true); }}
                   className="plan-card featured">
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontWeight: 700, fontSize: "0.95rem", marginBottom: 4 }}>
-                        人工审核版
+                        人工复核版
                         <span style={{ fontSize: "0.65rem", background: "#059669", color: "white", padding: "2px 8px", borderRadius: 4, marginLeft: 6, verticalAlign: "middle" }}>推荐</span>
                       </div>
                       <div style={{ fontSize: "0.78rem", color: "#059669", fontWeight: 600, marginBottom: 8 }}>99 元</div>
                       <ul style={{ fontSize: "0.76rem", color: "#666", margin: 0, paddingLeft: 16, lineHeight: 1.7 }}>
                         <li>包含全部基础版权益</li>
-                        <li>人工快速审核报告一次</li>
+                        <li>人工快速复核报告一次</li>
                         <li>可根据建议补充信息后重生成</li>
                         <li>重点协议条款草稿 + 完整协议清单</li>
                       </ul>
@@ -1575,14 +1567,9 @@ export default function ChatApp() {
               </div>
               {result.paymentRecorded && (
                 <div style={{ marginTop: 12, padding: "10px 14px", background: "#f0fdf4", borderRadius: 8, fontSize: "0.8rem", color: "#166534", border: "1px solid #a7f3d0" }}>
-                  已记录您的完整报告申请，客服会通过您填写的联系方式联系。
+                  已记录您的完整报告申请，客服会通过您填写的联系方式联系，并人工发送完整 Word/PDF 文件。
                 </div>
               )}
-              <button onClick={() => refreshCaseUnlockStatus(result.caseId, { silent: false })}
-                disabled={unlockChecking}
-                style={{ marginTop: 12, padding: "9px 14px", borderRadius: 8, border: "1px solid #059669", background: unlockChecking ? "#f1f5f9" : "white", color: "#059669", fontSize: ".8rem", fontWeight: 700, cursor: unlockChecking ? "wait" : "pointer" }}>
-                {unlockChecking ? "正在检查..." : "我已提交/客服已确认，刷新解锁状态"}
-              </button>
                 </>
               )}
             </div>
@@ -1621,7 +1608,7 @@ export default function ChatApp() {
               </ul>
               {!contact.trim() && (
                 <div style={{ marginTop: 12, padding: "10px 12px", borderRadius: 8, background: "#fff7ed", color: "#9a3412", fontSize: ".78rem", lineHeight: 1.5 }}>
-                  建议先在表单里填写微信或手机号，方便人工确认后发送完整报告。
+                  建议先在表单里填写微信或手机号，方便人工发送完整报告文件。
                 </div>
               )}
             </div>
