@@ -122,6 +122,7 @@
   /* Chat area — 内阴影增强层次 */
   .chat {
     min-height: 300px; max-height: 48vh; overflow-y: auto;
+    overflow-x: hidden;
     margin-bottom: 0.75rem;
     background:
       linear-gradient(180deg, rgba(255,255,255,0.88), rgba(244,249,246,0.86)),
@@ -150,6 +151,7 @@
     position: relative; z-index: 1;
     color: var(--text-sec); font-size: 0.86rem; font-weight: 500;
     text-align: center; line-height: 1.7;
+    padding: 0 1.5rem; overflow-wrap: anywhere;
   }
 
   /* Messages */
@@ -317,18 +319,24 @@
   .hidden { display: none !important; }
 
   @media (max-width: 500px) {
+    html, body { max-width: 100%; overflow-x: hidden; }
     .opts { grid-template-columns: 1fr; }
     body { padding: 0.75rem; }
-    .app { border-radius: 18px; }
+    .app { border-radius: 18px; width: calc(100vw - 1.5rem); max-width: calc(100vw - 1.5rem); min-width: 0; }
     .banner { padding: 1.25rem 1.25rem; }
     .banner::after { display: none; }
     .banner h1 { font-size: 1.22rem; }
     .content { padding: 0.875rem; }
     .chat { min-height: 300px; max-height: 52vh; padding: 0.72rem; }
-    .msg .b { max-width: 86%; font-size: 0.84rem; }
-    .inp { align-items: stretch; }
-    .inp textarea { min-height: 4.8rem; }
-    .inp .send { padding-left: 0.95rem; padding-right: 0.95rem; }
+    .msg { width: 100%; }
+    .msg-bot { display: grid; grid-template-columns: 28px minmax(0, 1fr); column-gap: 0.5rem; align-items: start; }
+    .msg-bot .av { margin-right: 0; }
+    .msg > div:last-child { min-width: 0; max-width: 100%; }
+    .msg .b { max-width: 100%; font-size: 0.84rem; overflow-wrap: anywhere; }
+    .opts { max-width: 100%; }
+    .inp { align-items: stretch; flex-direction: column; min-width: 0; }
+    .inp textarea { min-height: 4.8rem; width: 100%; min-width: 0; }
+    .inp .send { width: 100%; padding-left: 0.95rem; padding-right: 0.95rem; }
     #report-sections { padding: 0.85rem; }
     #report-sections table { display: block; overflow-x: auto; white-space: nowrap; }
   }
@@ -360,7 +368,7 @@
   <div class="banner-sm">
     <div class="t">🎯 信息收集完毕</div>
     <div id="final-summary" class="s"></div>
-    <button id="generate-btn">🚀 生成完整方案</button>
+    <button id="generate-btn">🚀 生成方案</button>
   </div>
 </div>
 
@@ -435,7 +443,7 @@ function addBotBubble(text, options = null) {
     }).join('');
     body += `<div class="opts${options.length <= 3 ? ' single' : ''}">${btns}</div>`;
     if (lastUserText && currentBlock && currentBlock.id === 'concern') {
-      body += `<div style="margin-top:0.75rem;"><button class="o final-now" type="button" style="width:100%;border-color:rgba(5,105,92,.32);background:rgba(5,105,92,.08);color:#075f52;font-weight:700;">信息够了，直接生成报告</button></div>`;
+      body += `<div style="margin-top:0.75rem;"><button class="o final-now" type="button" style="width:100%;border-color:rgba(5,105,92,.32);background:rgba(5,105,92,.08);color:#075f52;font-weight:700;">直接生成方案</button></div>`;
     }
   }
   wrap.innerHTML = `<div class="av">🤖</div><div>${body}</div>`;
@@ -459,6 +467,25 @@ function rememberUserText(text) {
   if (!clean) return;
   lastUserText = clean;
   conversationText = conversationText ? `${conversationText}\n${clean}` : clean;
+}
+function looksLikeFreshCase(text) {
+  const s = String(text || '').trim();
+  if (s.length < 20) return false;
+  return /(我|我们).*(朋友|合伙|股东|协议|出资|投资|负责|开了|准备)|股东协议书|合伙协议|代持协议|一致行动人协议/.test(s);
+}
+function resetForFreshCase(text) {
+  if (!looksLikeFreshCase(text)) return;
+  const hasOldContext = Object.keys(state || {}).length > 0 || conversationText || lastReportMd || isFinal;
+  if (!hasOldContext) return;
+  state = {};
+  currentBlock = null;
+  isFinal = false;
+  conversationText = '';
+  lastReportMd = '';
+  lastProtocolMode = false;
+  $('action-area')?.classList.add('hidden');
+  $('result-area')?.classList.add('hidden');
+  clearState();
 }
 function addTyping() {
   const a = $('chat-area'); const w = document.createElement('div');
@@ -505,8 +532,26 @@ function selectOption(opt, btnEl) {
 function showFinalActions() {
   const area = $('action-area'); const summary = $('final-summary');
   area.classList.remove('hidden');
-  const sceneText = state.branch || `${state.partnerCount||'?'}人${state.funding?'_'+state.funding:''}${state.concern?'_'+state.concern:''}`;
-  summary.textContent = `已识别：${sceneText}。点击生成完整方案`;
+  const parts = [];
+  if (state.partnerCount) parts.push(`${state.partnerCount} 人合伙`);
+  const fundingMap = {
+    both_funded_equal: '共同出资出力',
+    investor_operator: '资金方 + 运营方',
+    tech_money: '资金 + 技术/资源',
+    family: '亲属/伴侣合伙',
+    one_dominant: '主导方 + 跟投方',
+    three_roles: '资金/运营/资源分工',
+    equal_three: '三人均分',
+    one_angel_many_hands: '资金方 + 多执行方',
+    equal_pool: '多人均衡合伙',
+    franchise: '加盟/扩店合伙',
+    platform: '多人持股治理',
+    unclear: '通用合伙场景'
+  };
+  if (state.funding) parts.push(fundingMap[state.funding] || '合伙分工');
+  const concernMap = { equity: '股权比例', dividend: '分红规则', exit: '退出机制', control: '控制权', agreement: '协议条款' };
+  if (state.concern) parts.push(concernMap[state.concern]);
+  summary.textContent = parts.length ? `已识别：${parts.join(' · ')}。` : '已识别核心信息。';
 }
 function updateSceneBar(st) {
   const bar = $('scene-bar'), tw = $('scene-tags');
@@ -535,8 +580,8 @@ async function doFinalize() {
       body: JSON.stringify({ state, freeText })
     });
     const data = await res.json();
-    if (data.ok) { renderDTReport(data); saveState(); } else { alert('生成失败：'+data.error); btn.disabled=false; btn.textContent='🚀 生成完整方案'; }
-  } catch(err) { alert('网络错误：'+err.message); btn.disabled=false; btn.textContent='🚀 生成完整方案'; }
+    if (data.ok) { renderDTReport(data); saveState(); } else { alert('生成失败：'+data.error); btn.disabled=false; btn.textContent='🚀 生成方案'; }
+  } catch(err) { alert('网络错误：'+err.message); btn.disabled=false; btn.textContent='🚀 生成方案'; }
 }
 function renderDTReport(data) {
   const area = $('result-area'); area.classList.remove('hidden');
@@ -666,7 +711,7 @@ function restartDT() {
 }
 
 // ===== 事件绑定 =====
-$('send-btn').addEventListener('click',()=>{const i=$('user-input'),t=i.value.trim();if(!t||isProcessing)return;addUserBubble(t);rememberUserText(t);i.value='';loadNextStep(t);});
+$('send-btn').addEventListener('click',()=>{const i=$('user-input'),t=i.value.trim();if(!t||isProcessing)return;resetForFreshCase(t);addUserBubble(t);rememberUserText(t);i.value='';loadNextStep(t);});
 $('user-input').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();$('send-btn').click();}});
 $('generate-btn').addEventListener('click',doFinalize);
 $('copy-md-btn')?.addEventListener('click',copyMd);
@@ -686,6 +731,9 @@ $('back-to-start-btn')?.addEventListener('click',restartDT);
     const res = await fetch('/api/decision-tree/start');
     const d = await res.json();
     if (d.block) currentBlock = d.block;
+    if (!restored && d.block && !$('chat-area').children.length) {
+      addBotBubble(d.block.prompt, d.block.options);
+    }
   } catch(err) { console.warn('[init]', err.message); }
 })();
 

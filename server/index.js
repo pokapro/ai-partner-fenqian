@@ -77,20 +77,45 @@ function stripUnrequestedProtocolSections(markdown = '', modeState = {}) {
   const requested = modeState?.requested || {};
   const start = md.search(/#?\s*〔[^〕]+〕合伙方案建议与协议草案包|#?\s*合伙方案建议与协议草案包/);
   if (start > 0) md = md.slice(start).trim();
+  md = md.replace(/^(?:好的|收到|您好|作为您的|我将为您)[\s\S]*?(?=#?\s*〔[^〕]+〕合伙方案建议与协议草案包|#?\s*合伙方案建议与协议草案包)/, '').trim();
 
   if (!requested.nominee) {
     md = md.replace(/\n*(?:#{1,3}\s*)?三[、.．]\s*《股权代持协议》[\s\S]*?(?=\n(?:#{1,3}\s*)?四[、.．]\s*《一致行动人协议》|\n(?:#{1,3}\s*)?五[、.．]\s*强制风险提示|$)/g, '\n');
+    md = md.replace(/.*(?:作为备用模板|可忽略|可根据实际情况决定是否签署).*股权代持协议.*\n?/g, '');
+    md = md.replace(/.*《股权代持协议》.*(?:备用模板|可忽略|可根据实际情况).* \n?/g, '');
   }
   if (!requested.concert) {
     md = md.replace(/\n*(?:#{1,3}\s*)?四[、.．]\s*《一致行动人协议》[\s\S]*?(?=\n(?:#{1,3}\s*)?五[、.．]\s*强制风险提示|$)/g, '\n');
+    md = md.replace(/.*(?:作为备用模板|可忽略|可根据实际情况决定是否签署).*一致行动人协议.*\n?/g, '');
+    md = md.replace(/.*《一致行动人协议》.*(?:备用模板|可忽略|可根据实际情况).* \n?/g, '');
   }
   if (!requested.nominee && !requested.concert) {
     md = md.replace(/本协议包包含三份[\s\S]*?(?:\n|$)/g, '');
+    md = md.replace(/本协议包包含\s*3\s*份[\s\S]*?(?:\n|$)/g, '');
     md = md.replace(/.*备用模板提供.*\n?/g, '');
     md = md.replace(/.*可根据实际情况决定是否签署.*\n?/g, '');
     md = md.replace(/.*可忽略.*\n?/g, '');
+    md = md.replace(/三份协议全部章节/g, '《股东合作协议书》相关章节');
+    md = md.replace(/三份协议全部/g, '《股东合作协议书》');
   }
   return md.trim();
+}
+
+function buildFreshDecisionState(rawState = {}, freeText = '') {
+  const text = String(freeText || '').trim();
+  if (!text) return rawState || {};
+  const inferred = decisionTree.detectFromText(text, {});
+  const fresh = { ...(rawState || {}), ...inferred };
+  const looksLikeNewScenario = text.length >= 20 && /我|我们|朋友|合伙|股东|协议|出资|投资|负责|开了|准备/.test(text);
+  if (looksLikeNewScenario) {
+    fresh.tags = inferred.tags || [];
+    if (inferred.concern) fresh.concern = inferred.concern;
+    if (inferred.route) fresh.route = inferred.route;
+    if (inferred.partnerCount) fresh.partnerCount = inferred.partnerCount;
+    if (inferred.funding) fresh.funding = inferred.funding;
+    if (inferred.business) fresh.business = inferred.business;
+  }
+  return fresh;
 }
 
 function normalizeProtocolPackMarkdown(markdown = '', modeState = {}) {
@@ -175,6 +200,7 @@ app.use(express.static(path.join(__dirname, '..', 'public'), {
 const progressStore = new Map();
 // 内测阶段同一段输入重复生成时复用结果，避免模型随机性导致前后不一致。
 const decisionTreeReportCache = new Map();
+const DECISION_TREE_REPORT_CACHE_VERSION = 'v20260702-quality-guard-1';
 
 function validateInput(body) {
   body = body || {};
@@ -601,9 +627,10 @@ app.post('/api/decision-tree/generate-report', async (req, res) => {
   let caseId = null;
   try {
     const { state = {}, freeText = '', partnerCount = null, partners = [] } = req.body || {};
-    const aiInput = decisionTree.buildAiInput(state, freeText);
+    const cleanState = buildFreshDecisionState(state, freeText);
+    const aiInput = decisionTree.buildAiInput(cleanState, freeText);
     const fullText = [aiInput, freeText].filter(Boolean).join('\n');
-    const scene = decisionTree.summarizeScene(state);
+    const scene = decisionTree.summarizeScene(cleanState);
     const rawFreeText = String(freeText || '').trim();
     const protocolMode = detectProtocolPackMode(rawFreeText || fullText);
     const sourceText = protocolMode.enabled ? (rawFreeText || fullText) : fullText;
@@ -617,7 +644,7 @@ app.post('/api/decision-tree/generate-report', async (req, res) => {
       contact: '',
       inputJson: {
         source: 'decision_tree_test',
-        state,
+        state: cleanState,
         freeText,
         fullText,
         sourceText,
@@ -655,8 +682,8 @@ app.post('/api/decision-tree/generate-report', async (req, res) => {
 
     const sysPrompt = protocolMode.enabled ? buildProtocolPackPrompt(protocolMode) : buildDTSystemPrompt();
     const userPrompt = protocolMode.enabled
-      ? buildProtocolPackUserPrompt(sourceText, partnerCount || state.partnerCount || dimResult.partnerCount?.value, partners, protocolMode)
-      : buildDTUserPrompt({ ...state, scene, dimSummary }, sourceText, partnerCount, partners, gapContext);
+      ? buildProtocolPackUserPrompt(sourceText, partnerCount || cleanState.partnerCount || dimResult.partnerCount?.value, partners, protocolMode)
+      : buildDTUserPrompt({ ...cleanState, scene, dimSummary }, sourceText, partnerCount, partners, gapContext);
 
     // 模型 fallback 链（deepseek-chat 最稳定，放首位）
     const candidateModels = [
@@ -676,13 +703,15 @@ app.post('/api/decision-tree/generate-report', async (req, res) => {
       .update(JSON.stringify({
         sourceText,
         protocolMode: protocolMode.enabled,
-        partnerCount: partnerCount || state.partnerCount || dimResult.partnerCount?.value || null
+        requested: protocolMode.requested,
+        guardVersion: DECISION_TREE_REPORT_CACHE_VERSION,
+        partnerCount: partnerCount || cleanState.partnerCount || dimResult.partnerCount?.value || null
       }))
       .digest('hex');
 
     const cachedReport = decisionTreeReportCache.get(cacheKey);
     if (cachedReport?.markdown) {
-      markdown = cachedReport.markdown;
+      markdown = protocolMode.enabled ? normalizeProtocolPackMarkdown(cachedReport.markdown, protocolMode) : cachedReport.markdown;
       modelUsed = cachedReport.modelUsed || 'cache';
       cacheHit = true;
     } else {
@@ -759,7 +788,7 @@ app.post('/api/decision-tree/generate-report', async (req, res) => {
       modelUsed,
       cacheHit,
       protocolMode: protocolMode.enabled,
-      branch: state.branch || null,
+      branch: cleanState.branch || null,
       warning
     });
   } catch (err) {

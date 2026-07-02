@@ -130,7 +130,7 @@ const BLOCKS = {
   final: {
     id: 'final',
     type: BLOCK.FREE_TEXT,
-    prompt: '信息够了！可以直接生成报告，或继续补充：',
+    prompt: '已收集到核心信息，可以生成方案；你也可以继续补充细节。',
     isFinal: true
   }
 };
@@ -153,10 +153,16 @@ function isProtocolRequest(text = '') {
 }
 
 function hasEnoughOneShotInfo(text = '', detected = {}) {
-  const richText = String(text || '').length >= 50;
+  const richText = String(text || '').length >= 30;
   const hasMoney = /出资|投资|出钱|共投|总投资|万|元/.test(text);
   const hasRole = /负责|管理|运营|营销|资源|董事长|总经理|监事|董事/.test(text);
   return richText && !!detected.partnerCount && (hasMoney || hasRole || detected.business || detected.concern);
+}
+
+function looksLikeFreshCase(text = '') {
+  const s = String(text || '').trim();
+  if (s.length < 20) return false;
+  return /(我|我们).*(朋友|合伙|股东|协议|出资|投资|负责|开了|准备)|股东协议书|合伙协议|代持协议|一致行动人协议/.test(s);
 }
 
 // ============= 文字智能识别 =============
@@ -177,6 +183,7 @@ function detectFromText(text, currentState = {}) {
     detected.shortcut = true;
     detected.route = shortcutFound.route;
     detected.jumpConcern = shortcutFound.jumpConcern;
+    if (shortcutFound.jumpConcern) detected.concern = shortcutFound.jumpConcern;
     tags.push(shortcutFound.tag);
   }
 
@@ -184,17 +191,17 @@ function detectFromText(text, currentState = {}) {
   if (/我和两个朋友|我和2个朋友|我跟两个朋友|我跟2个朋友|加上我.*3|三个人|3人|三人|我们三个/.test(text)) detected.partnerCount = 3;
   else if (/我和三个朋友|我和3个朋友|我跟三个朋友|我跟3个朋友|加上我.*4|四个人|4人|四人|五个人|5人|五个/.test(text)) detected.partnerCount = 4;
   else if (/六个人|6人|多人|好几个/.test(text)) detected.partnerCount = 6;
-  else if (/两个人|我和我|两人|我们俩|我俩/.test(text)) detected.partnerCount = 2;
+  else if (/我和一个朋友|我跟一个朋友|我和朋友|我跟朋友|我和合伙人|我跟合伙人|两个人|我和我|两人|我们俩|我俩/.test(text)) detected.partnerCount = 2;
 
   // 3. 出资/出力模式（仅 2 人时）
-  if (/出资\d+|投资\d+|出钱\d+|出资[一二三四五六七八九十百千万]+|投资[一二三四五六七八九十百千万]+|出钱[一二三四五六七八九十百千万]+/.test(text)) {
-    detected.funding = 'three_roles';
-  } else if (/只出钱|只出资|只投资|不管|不出力|不干活/.test(text)) {
+  if (/只出钱|只出资|只投资|不管|不出力|不干活|不参与管理/.test(text)) {
     detected.funding = 'investor_operator';
   } else if (/都出钱|我们.*都出|他.*也出/.test(text)) {
     detected.funding = 'both_funded_equal';
   } else if (/全职|我干|我运营|我负责/.test(text)) {
     detected.funding = 'investor_operator';
+  } else if (detected.partnerCount && detected.partnerCount >= 3 && /出资\d+|投资\d+|出钱\d+|出资[一二三四五六七八九十百千万]+|投资[一二三四五六七八九十百千万]+|出钱[一二三四五六七八九十百千万]+/.test(text)) {
+    detected.funding = 'three_roles';
   } else if (/技术|开发|产品|设计师/.test(text)) {
     detected.funding = 'tech_money';
   } else if (/老公|老婆|夫妻|男女朋友|情侣|亲戚|我爸我妈/.test(text)) {
@@ -219,9 +226,9 @@ function detectFromText(text, currentState = {}) {
   if (/口头|没签|没协议|只有口头/.test(text)) tags.push('no_agreement');
 
   // 6. 核心诉求（默认推断）
-  if (!currentState.concern) {
-    if (/分红|分钱|利润/.test(text)) detected.concern = 'dividend';
-    else if (/退出|退股/.test(text)) detected.concern = 'exit';
+  if (!currentState.concern && !detected.concern) {
+    if (/退出|退股/.test(text)) detected.concern = 'exit';
+    else if (/分红|分钱|利润/.test(text)) detected.concern = 'dividend';
     else if (/控制|一票|说了算/.test(text)) detected.concern = 'control';
     else if (/协议|合同|条款|董事长|总经理|监事|董事/.test(text)) detected.concern = 'agreement';
     else if (/股权|比例|股份/.test(text)) detected.concern = 'equity';
@@ -236,9 +243,11 @@ function detectFromText(text, currentState = {}) {
 const frameworkGaps = require('./framework_gaps');
 
 function nextStep(state, text = '') {
-  const detected = detectFromText(text, state);
-  const merged = { ...state, ...detected };
-  const cur = state.currentBlock || 'start';
+  const baseState = looksLikeFreshCase(text) ? {} : (state || {});
+  const detected = detectFromText(text, baseState);
+  const merged = { ...baseState, ...detected };
+  if (baseState !== state && !detected.tags) merged.tags = [];
+  const cur = baseState.currentBlock || 'start';
 
   // 终态不变
   if (cur === 'final') {
@@ -290,6 +299,17 @@ function nextStep(state, text = '') {
   // 1. 短路跳转（仅当不在正常流程中间时）
   // 只在 start 阶段短路，以避免对 concern 选择后重复触发
   if (detected.shortcut && !state.shortcutResolved && cur === 'start') {
+    if (detected.route === 'B' && detected.jumpConcern && String(text || '').length >= 20) {
+      return {
+        state: { ...merged, route: 'B', currentBlock: 'final', shortcutResolved: true },
+        block: {
+          ...BLOCKS.final,
+          prompt: '已识别到核心问题，可以直接生成处理建议和条款草案。'
+        },
+        detected,
+        merged
+      };
+    }
     if (detected.route === 'A' && merged.partnerCount) {
       // 已经有 route + 人数 → 直接跳到 concern
       return {
@@ -330,12 +350,17 @@ function nextStep(state, text = '') {
 
     // 第一步根据 route 推进（未指定则默认 A 方案设计）
     const route = merged.route || 'A';
-    const next = {
+    let next = {
       A: 'count_design',
       B: 'concern',
       C: 'abnormal_type',
       D: 'faq_topic'
     }[route];
+    if (route === 'A' && merged.partnerCount) {
+      next = merged.partnerCount === 4 || merged.partnerCount === 5
+        ? 'branch_4to5'
+        : `branch_${merged.partnerCount === 6 ? '6plus' : merged.partnerCount}`;
+    }
     return {
       state: { ...merged, route, currentBlock: next },
       block: BLOCKS[next],
@@ -672,6 +697,7 @@ module.exports = {
   BLOCK,
   BLOCKS,
   detectFromText,
+  looksLikeFreshCase,
   nextStep,
   summarizeScene,
   buildAiInput,
