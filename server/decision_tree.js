@@ -259,7 +259,7 @@ function nextStep(state, text = '') {
         state: { ...merged, route: 'B', currentBlock: 'final', shortcutResolved: true, protocolIntent: true },
         block: {
           ...BLOCKS.final,
-          prompt: '信息已足够，将按“方案建议 + 独立协议草案”生成，不再重复追问已提供的信息。'
+          prompt: '已识别到核心信息，可以为你生成“方案建议 + 独立协议草案”。'
         },
         detected,
         merged
@@ -321,7 +321,7 @@ function nextStep(state, text = '') {
         state: { ...merged, route: merged.route || 'A', currentBlock: 'final', shortcutResolved: true },
         block: {
           ...BLOCKS.final,
-          prompt: '已识别到人数、出资/角色等核心信息，可以直接生成；如需更精细，也可继续补充。'
+          prompt: '已识别到人数、出资和角色分工，可以直接生成初步方案。'
         },
         detected,
         merged
