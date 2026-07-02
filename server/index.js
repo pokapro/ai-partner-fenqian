@@ -72,8 +72,29 @@ function detectProtocolPackMode(text = '') {
   return { enabled: hits.length > 0, keywords: hits, requested };
 }
 
-function normalizeProtocolPackMarkdown(markdown = '') {
-  const md = String(markdown || '').trim();
+function stripUnrequestedProtocolSections(markdown = '', modeState = {}) {
+  let md = String(markdown || '').trim();
+  const requested = modeState?.requested || {};
+  const start = md.search(/#?\s*〔[^〕]+〕合伙方案建议与协议草案包|#?\s*合伙方案建议与协议草案包/);
+  if (start > 0) md = md.slice(start).trim();
+
+  if (!requested.nominee) {
+    md = md.replace(/\n*(?:#{1,3}\s*)?三[、.．]\s*《股权代持协议》[\s\S]*?(?=\n(?:#{1,3}\s*)?四[、.．]\s*《一致行动人协议》|\n(?:#{1,3}\s*)?五[、.．]\s*强制风险提示|$)/g, '\n');
+  }
+  if (!requested.concert) {
+    md = md.replace(/\n*(?:#{1,3}\s*)?四[、.．]\s*《一致行动人协议》[\s\S]*?(?=\n(?:#{1,3}\s*)?五[、.．]\s*强制风险提示|$)/g, '\n');
+  }
+  if (!requested.nominee && !requested.concert) {
+    md = md.replace(/本协议包包含三份[\s\S]*?(?:\n|$)/g, '');
+    md = md.replace(/.*备用模板提供.*\n?/g, '');
+    md = md.replace(/.*可根据实际情况决定是否签署.*\n?/g, '');
+    md = md.replace(/.*可忽略.*\n?/g, '');
+  }
+  return md.trim();
+}
+
+function normalizeProtocolPackMarkdown(markdown = '', modeState = {}) {
+  const md = stripUnrequestedProtocolSections(markdown, modeState);
   if (!md) return md;
   if (/第一部分[:：].*方案建议报告/.test(md) && /第二部分[:：].*协议正文交付区/.test(md)) return md;
 
@@ -694,7 +715,7 @@ app.post('/api/decision-tree/generate-report', async (req, res) => {
             lastError = `${model}: empty content`;
             continue;
           }
-          markdown = protocolMode.enabled ? normalizeProtocolPackMarkdown(content) : content.trim();
+          markdown = protocolMode.enabled ? normalizeProtocolPackMarkdown(content, protocolMode) : content.trim();
           modelUsed = model;
           decisionTreeReportCache.set(cacheKey, { markdown, modelUsed, createdAt: Date.now() });
           if (decisionTreeReportCache.size > 100) {
