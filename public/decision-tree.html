@@ -430,10 +430,17 @@ function addBotBubble(text, options = null) {
       return `<button class="o" data-idx="${i}"><div style="font-weight:500;">${o.icon ? o.icon+' ' : ''}${escapeHtml(o.label)}</div>${desc}</button>`;
     }).join('');
     body += `<div class="opts${options.length <= 3 ? ' single' : ''}">${btns}</div>`;
+    if (lastUserText && currentBlock && currentBlock.id === 'concern') {
+      body += `<div style="margin-top:0.75rem;"><button class="o final-now" type="button" style="width:100%;border-color:rgba(5,105,92,.32);background:rgba(5,105,92,.08);color:#075f52;font-weight:700;">信息够了，直接生成报告</button></div>`;
+    }
   }
   wrap.innerHTML = `<div class="av">🤖</div><div>${body}</div>`;
   area.appendChild(wrap);
   wrap.querySelectorAll('.o').forEach(btn => {
+    if (btn.classList.contains('final-now')) {
+      btn.addEventListener('click', () => { isFinal = true; showFinalActions(); saveState(); });
+      return;
+    }
     btn.addEventListener('click', () => { const i = parseInt(btn.dataset.idx); selectOption(options[i], btn); });
   });
   scrollBottom();
@@ -526,6 +533,11 @@ function renderDTReport(data) {
   lastReportMd = md;
   const sections = $('report-sections');
   sections.innerHTML = md2html(md);
+  if (data.caseId) {
+    const model = $('model-used');
+    if (model) model.textContent = `内测记录编号：${data.caseId}`;
+  }
+  setTimeout(() => area.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
 }
 function md2html(md) {
   const lines = String(md || '').replace(/\r\n/g, '\n').split('\n');

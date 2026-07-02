@@ -519,10 +519,28 @@ app.post('/api/decision-tree/finalize', async (req, res) => {
 // 输入：决策树 final 块的状态 + 用户补充文字 + 表单数据（partnerCount/partners）
 // 输出：按 L0-L4 五段式生成的 Markdown 报告 + 场景摘要
 app.post('/api/decision-tree/generate-report', async (req, res) => {
+  let caseId = null;
   try {
     const { state = {}, freeText = '', partnerCount = null, partners = [] } = req.body || {};
     const aiInput = decisionTree.buildAiInput(state, freeText);
     const scene = decisionTree.summarizeScene(state);
+    caseId = 'case_' + crypto.randomBytes(12).toString('hex');
+
+    // 测试版也必须先落库：只要用户点生成，原始输入先进入本地数据库。
+    // 后续即使 AI 超时、刷新页面或导出失败，内测样本也不会丢。
+    db.createCase({
+      id: caseId,
+      partnerCount: Number(partnerCount || state.partnerCount) || 0,
+      contact: '',
+      inputJson: {
+        source: 'decision_tree_test',
+        state,
+        freeText,
+        partnerCount,
+        partners,
+        scene
+      }
+    });
 
     const { key: apiKey, warning: keyWarning } = getCleanDeepSeekKey();
     if (keyWarning) console.warn('[decision-tree generate-report]', keyWarning);
@@ -617,9 +635,11 @@ app.post('/api/decision-tree/generate-report', async (req, res) => {
     ];
     const missing = requiredSections.filter(s => !s.pattern.test(markdown)).map(s => s.key);
     const warning = missing.length > 0 ? `AI 输出缺少「${missing.join(' / ')}」段，请关注` : null;
+    db.updateReport(caseId, markdown, 'pending_review');
 
     res.json({
       ok: true,
+      caseId,
       scene,
       aiInput,
       markdown,
@@ -629,8 +649,16 @@ app.post('/api/decision-tree/generate-report', async (req, res) => {
     });
   } catch (err) {
     console.error('[decision-tree generate-report]', err);
+    if (caseId) {
+      try {
+        db.updateReport(caseId, `AI 报告生成失败：${err.message || '未知错误'}\n\n原始输入已保留，可在本地数据库或后台查看。`, 'pending_review');
+      } catch (dbErr) {
+        console.error('[decision-tree generate-report db update]', dbErr);
+      }
+    }
     res.status(500).json({
       ok: false,
+      caseId,
       error: err.message || 'AI 报告生成失败',
       hint: 'DeepSeek 模型可能不可用。已在代码中加了 fallback 链，仍失败请联系管理员'
     });
