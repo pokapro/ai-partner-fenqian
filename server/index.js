@@ -61,7 +61,15 @@ function detectProtocolPackMode(text = '') {
     '协议书', '议事规则'
   ];
   const hits = keywords.filter(k => raw.includes(k));
-  return { enabled: hits.length > 0, keywords: hits };
+  const requested = {
+    shareholder: /股东协议|股东协议书|股东合作协议|股东合作协议书|合伙协议|协议书|起草|草拟/.test(raw),
+    nominee: /代持|隐名股东|显名股东/.test(raw),
+    concert: /一致行动|一致行动人|统一表决|统一意见/.test(raw)
+  };
+  if (hits.length > 0 && !requested.shareholder && !requested.nominee && !requested.concert) {
+    requested.shareholder = true;
+  }
+  return { enabled: hits.length > 0, keywords: hits, requested };
 }
 
 function normalizeProtocolPackMarkdown(markdown = '') {
@@ -575,7 +583,9 @@ app.post('/api/decision-tree/generate-report', async (req, res) => {
     const aiInput = decisionTree.buildAiInput(state, freeText);
     const fullText = [aiInput, freeText].filter(Boolean).join('\n');
     const scene = decisionTree.summarizeScene(state);
-    const protocolMode = detectProtocolPackMode(fullText);
+    const rawFreeText = String(freeText || '').trim();
+    const protocolMode = detectProtocolPackMode(rawFreeText || fullText);
+    const sourceText = protocolMode.enabled ? (rawFreeText || fullText) : fullText;
     caseId = 'case_' + crypto.randomBytes(12).toString('hex');
 
     // 测试版也必须先落库：只要用户点生成，原始输入先进入本地数据库。
@@ -589,6 +599,7 @@ app.post('/api/decision-tree/generate-report', async (req, res) => {
         state,
         freeText,
         fullText,
+        sourceText,
         protocolMode,
         partnerCount,
         partners,
@@ -600,20 +611,20 @@ app.post('/api/decision-tree/generate-report', async (req, res) => {
     if (keyWarning) console.warn('[decision-tree generate-report]', keyWarning);
 
     // ===== 6 维并行扫描（新引擎）=====
-    const dimResult = dimScan(fullText || '');
-    const dimSummary = buildDimensionSummary(dimResult, fullText || '');
+    const dimResult = dimScan(sourceText || '');
+    const dimSummary = buildDimensionSummary(dimResult, sourceText || '');
     if (Object.keys(dimResult).length > 0) {
       console.log(`[decision-tree generate-report] dims=${Object.keys(dimResult).join(',')}`);
     }
 
     // ===== 检测客户主动提及的"框架未覆盖"要素，注入到 prompt =====
-    const gapContext = frameworkGaps.detectGap(fullText || '');
+    const gapContext = frameworkGaps.detectGap(sourceText || '');
     if (gapContext.isGap) {
       console.log(`[decision-tree generate-report] gap detected: hits=${gapContext.hits.join(',')} cat=${gapContext.suggestedCategory}`);
       // 自动记录到 gap 清单（source=auto-detect-from-generate）
       try {
         frameworkGaps.addGap({
-          userInput: (fullText || '').slice(0, 200),
+          userInput: (sourceText || '').slice(0, 200),
           hits: gapContext.hits,
           category: gapContext.suggestedCategory || 'other',
           source: 'auto-detect-from-generate'
@@ -623,8 +634,8 @@ app.post('/api/decision-tree/generate-report', async (req, res) => {
 
     const sysPrompt = protocolMode.enabled ? buildProtocolPackPrompt(protocolMode) : buildDTSystemPrompt();
     const userPrompt = protocolMode.enabled
-      ? buildProtocolPackUserPrompt(fullText, partnerCount || state.partnerCount || dimResult.partnerCount?.value, partners, protocolMode)
-      : buildDTUserPrompt({ ...state, scene, dimSummary }, fullText, partnerCount, partners, gapContext);
+      ? buildProtocolPackUserPrompt(sourceText, partnerCount || state.partnerCount || dimResult.partnerCount?.value, partners, protocolMode)
+      : buildDTUserPrompt({ ...state, scene, dimSummary }, sourceText, partnerCount, partners, gapContext);
 
     // 模型 fallback 链（deepseek-chat 最稳定，放首位）
     const candidateModels = [
@@ -642,7 +653,7 @@ app.post('/api/decision-tree/generate-report', async (req, res) => {
     const cacheKey = crypto
       .createHash('sha256')
       .update(JSON.stringify({
-        fullText,
+        sourceText,
         protocolMode: protocolMode.enabled,
         partnerCount: partnerCount || state.partnerCount || dimResult.partnerCount?.value || null
       }))
