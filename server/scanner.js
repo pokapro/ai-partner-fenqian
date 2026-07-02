@@ -12,7 +12,7 @@ const DIMENSIONS = {
     priority: 1,
     detect: (text) => {
       const map = [
-        { kw: ['餐厅','饭店','餐饮','开店','门店','实体','奶茶','咖啡','美发','美容','超市','便利店'], val: '实体门店', prompt: '门店经营专属条款（备用金/存货/装修折旧）' },
+        { kw: ['餐厅','饭店','餐饮','开店','门店','实体','奶茶','咖啡','美发','美容','超市','便利店','酒店','小酒店','酒馆','民宿'], val: '实体门店', prompt: '门店经营专属条款（备用金/存货/装修折旧）' },
         { kw: ['电商','直播','淘宝','抖音','带货','亚马逊','速卖通','tiktok','shopee'], val: '电商/直播', prompt: '电商/直播专属条款（账号归属/IP/流量分成）' },
         { kw: ['科技','saas','软件','app','小程序','技术','开发','代码','产品','程序员','ai','人工智能','创业'], val: '科技/服务', prompt: '科技服务专属条款（IP归属/技术入股/vesting）' },
         { kw: ['单项目','一单','短期','项目制','承揽','工程'], val: '单项目合伙', prompt: '单项目合伙专属条款（项目周期/收益分配/退出）' },
@@ -32,13 +32,15 @@ const DIMENSIONS = {
     label: '合伙人数',
     priority: 2,
     detect: (text) => {
+      if (/我和三个朋友|我和3个朋友|我跟三个朋友|我跟3个朋友|加上我.*4/.test(text)) return { val: 4, prompt: '4-5人1天使+3执行/均分治理' };
+      if (/我和两个朋友|我和2个朋友|我跟两个朋友|我跟2个朋友|加上我.*3/.test(text)) return { val: 3, prompt: '3人1+2主导/三角色/均分' };
       if (/八个|8人|8个人|八个人|我们八个|8个/.test(text)) return { val: 8, prompt: '6+人平台持股/GP-LP架构' };
       if (/七个|7人|7个人|7个/.test(text)) return { val: 7, prompt: '6+人平台持股/GP-LP架构' };
       if (/六个|6人|6个人|六个人|我们六个|6个/.test(text)) return { val: 6, prompt: '6+人平台持股/GP-LP架构' };
       if (/五个|5人|5个人|五个人|我们五个|5个/.test(text)) return { val: 5, prompt: '4-5人均衡治理/加盟合伙' };
       if (/四个|4人|4个人|四个人|我们四个|4个/.test(text)) return { val: 4, prompt: '4-5人1天使+3执行/均分治理' };
       if (/三个|3人|3个人|三个人|我们三个|3个/.test(text)) return { val: 3, prompt: '3人1+2主导/三角色/均分' };
-      if (/两个|2人|2个人|两个人|我俩|我们俩|我和一个|我和我|我和另|2个|我和朋友|朋友和我|我跟我朋友|我和另一个|两人/.test(text)) return { val: 2, prompt: '2人资金+运营/资金+技术/夫妻' };
+      if (/两个股东|两个合伙人|两个|2人|2个人|两个人|我俩|我们俩|我和一个|我和我|我和另|2个|我和朋友|朋友和我|我跟我朋友|我和另一个|两人/.test(text)) return { val: 2, prompt: '2人资金+运营/资金+技术/夫妻' };
       // 兜底：检测到"好几人|几个人"等模糊人数 → 返回 3 人通用
       if (/好几个人|几个人|多人/.test(text)) return { val: 3, prompt: '3人通用（人数未明确，按3人预估）' };
       return null;
@@ -77,6 +79,7 @@ const DIMENSIONS = {
       if (/ab股|同股不同权|双层股权|投票权分离/.test(text)) hits.push('AB股架构');
       if (/技术入股|资源入股|干股/.test(text)) hits.push('技术/资源入股');
       if (/人力股|动态股权|人力.*股/.test(text)) hits.push('人力股/Vesting');
+      if (/个税|税务|分红税|税收|发票/.test(text)) hits.push('税务与分红合规');
       // 带"投资人"字的，默认触发资本维度
       if (/投资人|投资方/.test(text) && hits.length === 0) hits.push('投资人条款');
       if (hits.length > 0) return { val: hits.join('+'), prompt: hits.join('、') + '展开' };
@@ -97,6 +100,7 @@ const DIMENSIONS = {
       if (/一票否决|否决权/.test(text)) hits.push('一票否决权');
       if (/控制权|投票权|表决权/.test(text)) hits.push('控制权设计');
       if (/竞业|挖客户|保密/.test(text)) hits.push('竞业/保密');
+      if (/资源股|资源入股|客户资源|生源|渠道资源/.test(text)) hits.push('资源股安排');
       if (/离婚|夫妻/.test(text)) hits.push('婚姻对股权影响');
       if (hits.length > 0) return { val: hits.join('+'), prompt: hits.join('、') + '展开' };
       return null;

@@ -126,6 +126,13 @@ const BLOCKS = {
     ]
   },
 
+  out_of_scope: {
+    id: 'out_of_scope',
+    type: BLOCK.FREE_TEXT,
+    prompt: '这条内容暂未识别为合伙分钱、股权、分红、退出或协议问题。请补充合伙人数、出资、分工或你要解决的具体问题。',
+    isFinal: true
+  },
+
   // ===== 终态 =====
   final: {
     id: 'final',
@@ -140,6 +147,7 @@ const SHORTCUTS = [
   { keywords: ['退出', '退股', '不干了', '离职', '想走'], route: 'B', jumpConcern: 'exit', tag: 'exit' },
   { keywords: ['代持', '隐名', '显名股东'], route: 'B', jumpConcern: 'agreement', tag: 'nominee' },
   { keywords: ['竞业', '保密', '挖客户', '挖墙脚'], route: 'B', jumpConcern: 'agreement', tag: 'noncompete' },
+  { keywords: ['个税', '税务', '分红税', '税收'], route: 'D', jumpConcern: 'tax', tag: 'tax' },
   { keywords: ['分红', '分钱', '利润分配', '分钱不均'], route: 'A', jumpConcern: 'dividend', tag: 'dividend' },
   { keywords: ['一票否决', '控制权', '谁说了算', '表决权'], route: 'A', jumpConcern: 'control', tag: 'control' },
   { keywords: ['干股', '技术入股'], route: 'D', jumpConcern: 'dry_share', tag: 'dry_share' },
@@ -153,9 +161,9 @@ function isProtocolRequest(text = '') {
 }
 
 function hasEnoughOneShotInfo(text = '', detected = {}) {
-  const richText = String(text || '').length >= 30;
-  const hasMoney = /出资|投资|出钱|共投|总投资|万|元/.test(text);
-  const hasRole = /负责|管理|运营|营销|资源|董事长|总经理|监事|董事/.test(text);
+  const richText = String(text || '').length >= 12;
+  const hasMoney = /出资|投资|出钱|共投|总投资|万|元|都出钱|只出钱/.test(text);
+  const hasRole = /负责|管理|运营|营销|资源|客户|生源|技术|开发|全职|兼职|董事长|总经理|监事|董事|都出力/.test(text);
   return richText && !!detected.partnerCount && (hasMoney || hasRole || detected.business || detected.concern);
 }
 
@@ -163,6 +171,10 @@ function looksLikeFreshCase(text = '') {
   const s = String(text || '').trim();
   if (s.length < 20) return false;
   return /(我|我们).*(朋友|合伙|股东|协议|出资|投资|负责|开了|准备)|股东协议书|合伙协议|代持协议|一致行动人协议/.test(s);
+}
+
+function hasPartnershipIntent(text = '') {
+  return /合伙|股东|股权|股份|分股|占股|持股|出资|投资|分钱|分红|利润|亏损|退出|退股|协议|合同|条款|代持|一致行动|控制权|表决权|干股|技术入股|资源股|人力股|期权|税务|个税|公司|开店|门店|创业|项目|朋友.*做|一起做/.test(text);
 }
 
 // ============= 文字智能识别 =============
@@ -188,10 +200,11 @@ function detectFromText(text, currentState = {}) {
   }
 
   // 2. 人数
-  if (/我和两个朋友|我和2个朋友|我跟两个朋友|我跟2个朋友|加上我.*3|三个人|3人|三人|我们三个/.test(text)) detected.partnerCount = 3;
-  else if (/我和三个朋友|我和3个朋友|我跟三个朋友|我跟3个朋友|加上我.*4|四个人|4人|四人|五个人|5人|五个/.test(text)) detected.partnerCount = 4;
+  if (/我和三个朋友|我和3个朋友|我跟三个朋友|我跟3个朋友|加上我.*4|四个人|4人|四人/.test(text)) detected.partnerCount = 4;
+  else if (/我和两个朋友|我和2个朋友|我跟两个朋友|我跟2个朋友|加上我.*3|三个人|3人|三人|我们三个/.test(text)) detected.partnerCount = 3;
+  else if (/五个人|5人|五个/.test(text)) detected.partnerCount = 5;
   else if (/六个人|6人|多人|好几个/.test(text)) detected.partnerCount = 6;
-  else if (/我和一个朋友|我跟一个朋友|我和朋友|我跟朋友|我和合伙人|我跟合伙人|两个人|我和我|两人|我们俩|我俩/.test(text)) detected.partnerCount = 2;
+  else if (/我和一个朋友|我跟一个朋友|我和朋友|我跟朋友|我和合伙人|我跟合伙人|两个股东|两个合伙人|两个人|我和我|两人|我们俩|我俩/.test(text)) detected.partnerCount = 2;
 
   // 3. 出资/出力模式（仅 2 人时）
   if (/只出钱|只出资|只投资|不管|不出力|不干活|不参与管理/.test(text)) {
@@ -200,6 +213,8 @@ function detectFromText(text, currentState = {}) {
     detected.funding = 'both_funded_equal';
   } else if (/全职|我干|我运营|我负责/.test(text)) {
     detected.funding = 'investor_operator';
+  } else if (/技术入股|技术股|开发|代码|程序|资源股|资源入股|客户资源|生源|渠道资源/.test(text)) {
+    detected.funding = 'tech_money';
   } else if (detected.partnerCount && detected.partnerCount >= 3 && /出资\d+|投资\d+|出钱\d+|出资[一二三四五六七八九十百千万]+|投资[一二三四五六七八九十百千万]+|出钱[一二三四五六七八九十百千万]+/.test(text)) {
     detected.funding = 'three_roles';
   } else if (/技术|开发|产品|设计师/.test(text)) {
@@ -224,10 +239,13 @@ function detectFromText(text, currentState = {}) {
   if (/联系不上|失联|找不到/.test(text) && !tags.includes('partner_missing')) tags.push('partner_missing');
   if (/怕不公平|心里不平衡|觉得亏/.test(text)) tags.push('perceived_unfair');
   if (/口头|没签|没协议|只有口头/.test(text)) tags.push('no_agreement');
+  if (/资源股|资源入股|客户资源|生源|渠道资源/.test(text)) tags.push('resource_share');
+  if (/个税|税务|分红税|税收/.test(text)) tags.push('tax');
 
   // 6. 核心诉求（默认推断）
   if (!currentState.concern && !detected.concern) {
     if (/退出|退股/.test(text)) detected.concern = 'exit';
+    else if (/个税|税务|分红税|税收/.test(text)) detected.concern = 'tax';
     else if (/分红|分钱|利润/.test(text)) detected.concern = 'dividend';
     else if (/控制|一票|说了算/.test(text)) detected.concern = 'control';
     else if (/协议|合同|条款|董事长|总经理|监事|董事/.test(text)) detected.concern = 'agreement';
@@ -248,6 +266,15 @@ function nextStep(state, text = '') {
   const merged = { ...baseState, ...detected };
   if (baseState !== state && !detected.tags) merged.tags = [];
   const cur = baseState.currentBlock || 'start';
+
+  if (text && cur === 'start' && !hasPartnershipIntent(text)) {
+    return {
+      state: { currentBlock: 'out_of_scope', route: 'OUT_OF_SCOPE' },
+      block: BLOCKS.out_of_scope,
+      detected,
+      merged
+    };
+  }
 
   // 终态不变
   if (cur === 'final') {
@@ -310,8 +337,40 @@ function nextStep(state, text = '') {
         merged
       };
     }
+    if (detected.route === 'D' && String(text || '').length >= 8) {
+      return {
+        state: { ...merged, route: 'D', currentBlock: 'final', shortcutResolved: true },
+        block: {
+          ...BLOCKS.final,
+          prompt: '已识别为合伙相关常识咨询，可以直接生成解释和处理建议。'
+        },
+        detected,
+        merged
+      };
+    }
+    if (detected.route === 'C' && String(text || '').length >= 8) {
+      return {
+        state: { ...merged, route: 'C', currentBlock: 'final', shortcutResolved: true },
+        block: {
+          ...BLOCKS.final,
+          prompt: '已识别为合伙异常/纠纷问题，可以直接生成处理建议和条款草案。'
+        },
+        detected,
+        merged
+      };
+    }
+    if (detected.route === 'A' && hasEnoughOneShotInfo(text, merged)) {
+      return {
+        state: { ...merged, route: 'A', currentBlock: 'final', shortcutResolved: true },
+        block: {
+          ...BLOCKS.final,
+          prompt: '已识别到核心需求，可以直接生成匹配方案。'
+        },
+        detected,
+        merged
+      };
+    }
     if (detected.route === 'A' && merged.partnerCount) {
-      // 已经有 route + 人数 → 直接跳到 concern
       return {
         state: { ...merged, route: 'A', currentBlock: 'concern', shortcutResolved: true },
         block: BLOCKS.concern,
@@ -414,7 +473,7 @@ function summarizeScene(state) {
   const parts = [];
 
   if (state.route) {
-    const routeMap = { A: '方案设计', B: '条款定制', C: '纠纷异常', D: '常识咨询' };
+    const routeMap = { A: '方案设计', B: '条款定制', C: '纠纷异常', D: '常识咨询', OUT_OF_SCOPE: '非合伙问题' };
     parts.push(`线路=${routeMap[state.route] || state.route}`);
   }
 

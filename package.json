@@ -7,7 +7,8 @@
     "start": "./start.sh",
     "dev": "node --watch server/index.js",
     "dev:frontend": "vite",
-    "build": "vite build"
+    "build": "vite build",
+    "test:recognition": "node scripts/test_decision_recognition.js"
   },
   "dependencies": {
     "@copilotkit/react-core": "^1.59.5",
