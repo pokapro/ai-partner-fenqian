@@ -148,6 +148,17 @@ const SHORTCUTS = [
   { keywords: ['僵局', '谈不拢', '吵架'], route: 'C', jumpConcern: null, tag: 'deadlock' }
 ];
 
+function isProtocolRequest(text = '') {
+  return /股东协议|股东协议书|股东合作协议|合伙协议|协议书|起草|草拟|议事规则/.test(text);
+}
+
+function hasEnoughOneShotInfo(text = '', detected = {}) {
+  const richText = String(text || '').length >= 50;
+  const hasMoney = /出资|投资|出钱|共投|总投资|万|元/.test(text);
+  const hasRole = /负责|管理|运营|营销|资源|董事长|总经理|监事|董事/.test(text);
+  return richText && !!detected.partnerCount && (hasMoney || hasRole || detected.business || detected.concern);
+}
+
 // ============= 文字智能识别 =============
 function detectFromText(text, currentState = {}) {
   if (!text) return {};
@@ -170,13 +181,15 @@ function detectFromText(text, currentState = {}) {
   }
 
   // 2. 人数
-  if (/三个人|3人|三人|我们三个/.test(text)) detected.partnerCount = 3;
-  else if (/四个人|4人|四人|五个人|5人|五个/.test(text)) detected.partnerCount = 4;
+  if (/我和两个朋友|我和2个朋友|我跟两个朋友|我跟2个朋友|加上我.*3|三个人|3人|三人|我们三个/.test(text)) detected.partnerCount = 3;
+  else if (/我和三个朋友|我和3个朋友|我跟三个朋友|我跟3个朋友|加上我.*4|四个人|4人|四人|五个人|5人|五个/.test(text)) detected.partnerCount = 4;
   else if (/六个人|6人|多人|好几个/.test(text)) detected.partnerCount = 6;
   else if (/两个人|我和我|两人|我们俩|我俩/.test(text)) detected.partnerCount = 2;
 
   // 3. 出资/出力模式（仅 2 人时）
-  if (/只出钱|只出资|只投资|不管|不出力|不干活/.test(text)) {
+  if (/出资\d+|投资\d+|出钱\d+|出资[一二三四五六七八九十百千万]+|投资[一二三四五六七八九十百千万]+|出钱[一二三四五六七八九十百千万]+/.test(text)) {
+    detected.funding = 'three_roles';
+  } else if (/只出钱|只出资|只投资|不管|不出力|不干活/.test(text)) {
     detected.funding = 'investor_operator';
   } else if (/都出钱|我们.*都出|他.*也出/.test(text)) {
     detected.funding = 'both_funded_equal';
@@ -189,7 +202,7 @@ function detectFromText(text, currentState = {}) {
   }
 
   // 4. 业务模式
-  if (/餐厅|饭店|餐饮|开店|门店|实体|奶茶|咖啡/.test(text)) detected.business = '实体门店';
+  if (/餐厅|饭店|餐饮|开店|门店|实体|奶茶|咖啡|酒店|小酒店|酒馆|小酒馆|民宿/.test(text)) detected.business = '实体门店';
   else if (/直播|电商|淘宝|抖音|小红书|带货/.test(text)) detected.business = '电商/直播';
   else if (/科技|服务|咨询|开发|技术|saas/.test(text)) detected.business = '科技/服务';
   else if (/单项目|一单|短期|项目制/.test(text)) detected.business = '单项目合伙';
@@ -210,7 +223,7 @@ function detectFromText(text, currentState = {}) {
     if (/分红|分钱|利润/.test(text)) detected.concern = 'dividend';
     else if (/退出|退股/.test(text)) detected.concern = 'exit';
     else if (/控制|一票|说了算/.test(text)) detected.concern = 'control';
-    else if (/协议|合同|条款/.test(text)) detected.concern = 'agreement';
+    else if (/协议|合同|条款|董事长|总经理|监事|董事/.test(text)) detected.concern = 'agreement';
     else if (/股权|比例|股份/.test(text)) detected.concern = 'equity';
   }
 
@@ -241,6 +254,18 @@ function nextStep(state, text = '') {
   //    → 直接跳到 final，让用户生成报告。LLM 会在 L1+ 段展开专业内容
   //    不再问"几个合伙人/哪种组合"等用户已说过的信息
   if (text && cur === 'start') {
+    if (isProtocolRequest(text) && hasEnoughOneShotInfo(text, merged)) {
+      return {
+        state: { ...merged, route: 'B', currentBlock: 'final', shortcutResolved: true, protocolIntent: true },
+        block: {
+          ...BLOCKS.final,
+          prompt: '信息已足够，将按“方案建议 + 独立协议草案”生成，不再重复追问已提供的信息。'
+        },
+        detected,
+        merged
+      };
+    }
+
     const gap = frameworkGaps.detectGap(text);
     if (gap.isGap && gap.hits && gap.hits.length >= 2) {
       // 至少 2 个 gap 关键词 → 命中融资/复杂架构场景 → 直接 final
@@ -291,6 +316,18 @@ function nextStep(state, text = '') {
 
   // 2. 按状态推进
   if (cur === 'start') {
+    if (hasEnoughOneShotInfo(text, merged)) {
+      return {
+        state: { ...merged, route: merged.route || 'A', currentBlock: 'final', shortcutResolved: true },
+        block: {
+          ...BLOCKS.final,
+          prompt: '已识别到人数、出资/角色等核心信息，可以直接生成；如需更精细，也可继续补充。'
+        },
+        detected,
+        merged
+      };
+    }
+
     // 第一步根据 route 推进（未指定则默认 A 方案设计）
     const route = merged.route || 'A';
     const next = {

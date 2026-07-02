@@ -43,6 +43,7 @@ const decisionTree = require('./decision_tree');
 const frameworkGaps = require('./framework_gaps');
 const { scan: dimScan, buildDimensionSummary } = require('./scanner');
 const { buildDTSystemPrompt, buildDTUserPrompt } = require('./prompt_dt');
+const { buildProtocolPackPrompt, buildProtocolPackUserPrompt } = require('./prompt_dt_protocol');
 const { seedData } = require('./seed');
 const { seedAdewoAgreement } = require('../scripts/seed_adewo_agreement');
 const { createCopilotKitHandler: setupCopilotKit } = require('./copilotkit');
@@ -50,6 +51,53 @@ const { createCopilotKitHandler: setupCopilotKit } = require('./copilotkit');
 const app = express();
 const PORT = process.env.PORT || 3000;
 const AI_TIMEOUT_MS = Number(process.env.AI_TIMEOUT_MS || 65000);
+
+function detectProtocolPackMode(text = '') {
+  const raw = String(text || '');
+  const keywords = [
+    '股东协议', '股东协议书', '股东合作协议', '股东合作协议书',
+    '合伙协议', '代持协议', '股权代持协议', '一致行动人协议',
+    '帮我起草', '帮我草拟', '帮我整理协议', '帮我生成协议',
+    '协议书', '议事规则'
+  ];
+  const hits = keywords.filter(k => raw.includes(k));
+  return { enabled: hits.length > 0, keywords: hits };
+}
+
+function normalizeProtocolPackMarkdown(markdown = '') {
+  const md = String(markdown || '').trim();
+  if (!md) return md;
+  if (/第一部分[:：].*方案建议报告/.test(md) && /第二部分[:：].*协议正文交付区/.test(md)) return md;
+
+  const firstAgreement = md.search(/##\s*[二三四一]?[、.．]?\s*《?股东.*协议|##\s*《?股东.*协议/);
+  if (firstAgreement > 0) {
+    const advice = md.slice(0, firstAgreement).trim();
+    const agreements = md.slice(firstAgreement).trim();
+    return [
+      '# 合伙方案建议与协议草案包',
+      '',
+      '## 第一部分：方案建议报告（不可作为协议正文直接签署）',
+      '',
+      advice,
+      '',
+      '## 第二部分：协议正文交付区（可复制给律师/合伙人审阅）',
+      '',
+      agreements
+    ].join('\n');
+  }
+
+  return [
+    '# 合伙方案建议与协议草案包',
+    '',
+    '## 第一部分：方案建议报告（不可作为协议正文直接签署）',
+    '',
+    md,
+    '',
+    '## 第二部分：协议正文交付区（可复制给律师/合伙人审阅）',
+    '',
+    '> 当前模型未稳定输出独立协议正文，请重新生成或转人工复核。'
+  ].join('\n');
+}
 
 async function fetchWithTimeout(url, options = {}, timeoutMs = AI_TIMEOUT_MS) {
   const controller = new AbortController();
@@ -96,6 +144,8 @@ app.use(express.static(path.join(__dirname, '..', 'public'), {
 
 // 进度存储（内存 Map，不依赖 SQLite，确保异步读写正确）
 const progressStore = new Map();
+// 内测阶段同一段输入重复生成时复用结果，避免模型随机性导致前后不一致。
+const decisionTreeReportCache = new Map();
 
 function validateInput(body) {
   body = body || {};
@@ -523,7 +573,9 @@ app.post('/api/decision-tree/generate-report', async (req, res) => {
   try {
     const { state = {}, freeText = '', partnerCount = null, partners = [] } = req.body || {};
     const aiInput = decisionTree.buildAiInput(state, freeText);
+    const fullText = [aiInput, freeText].filter(Boolean).join('\n');
     const scene = decisionTree.summarizeScene(state);
+    const protocolMode = detectProtocolPackMode(fullText);
     caseId = 'case_' + crypto.randomBytes(12).toString('hex');
 
     // 测试版也必须先落库：只要用户点生成，原始输入先进入本地数据库。
@@ -536,6 +588,8 @@ app.post('/api/decision-tree/generate-report', async (req, res) => {
         source: 'decision_tree_test',
         state,
         freeText,
+        fullText,
+        protocolMode,
         partnerCount,
         partners,
         scene
@@ -546,20 +600,20 @@ app.post('/api/decision-tree/generate-report', async (req, res) => {
     if (keyWarning) console.warn('[decision-tree generate-report]', keyWarning);
 
     // ===== 6 维并行扫描（新引擎）=====
-    const dimResult = dimScan(freeText || '');
-    const dimSummary = buildDimensionSummary(dimResult, freeText || '');
+    const dimResult = dimScan(fullText || '');
+    const dimSummary = buildDimensionSummary(dimResult, fullText || '');
     if (Object.keys(dimResult).length > 0) {
       console.log(`[decision-tree generate-report] dims=${Object.keys(dimResult).join(',')}`);
     }
 
     // ===== 检测客户主动提及的"框架未覆盖"要素，注入到 prompt =====
-    const gapContext = frameworkGaps.detectGap(freeText || '');
+    const gapContext = frameworkGaps.detectGap(fullText || '');
     if (gapContext.isGap) {
       console.log(`[decision-tree generate-report] gap detected: hits=${gapContext.hits.join(',')} cat=${gapContext.suggestedCategory}`);
       // 自动记录到 gap 清单（source=auto-detect-from-generate）
       try {
         frameworkGaps.addGap({
-          userInput: (freeText || '').slice(0, 200),
+          userInput: (fullText || '').slice(0, 200),
           hits: gapContext.hits,
           category: gapContext.suggestedCategory || 'other',
           source: 'auto-detect-from-generate'
@@ -567,8 +621,10 @@ app.post('/api/decision-tree/generate-report', async (req, res) => {
       } catch (e) { /* 记录失败不影响主流程 */ }
     }
 
-    const sysPrompt = buildDTSystemPrompt();
-    const userPrompt = buildDTUserPrompt({ ...state, scene, dimSummary }, freeText, partnerCount, partners, gapContext);
+    const sysPrompt = protocolMode.enabled ? buildProtocolPackPrompt(protocolMode) : buildDTSystemPrompt();
+    const userPrompt = protocolMode.enabled
+      ? buildProtocolPackUserPrompt(fullText, partnerCount || state.partnerCount || dimResult.partnerCount?.value, partners, protocolMode)
+      : buildDTUserPrompt({ ...state, scene, dimSummary }, fullText, partnerCount, partners, gapContext);
 
     // 模型 fallback 链（deepseek-chat 最稳定，放首位）
     const candidateModels = [
@@ -582,41 +638,62 @@ app.post('/api/decision-tree/generate-report', async (req, res) => {
     let markdown = null;
     let lastError = null;
     let modelUsed = null;
+    let cacheHit = false;
+    const cacheKey = crypto
+      .createHash('sha256')
+      .update(JSON.stringify({
+        fullText,
+        protocolMode: protocolMode.enabled,
+        partnerCount: partnerCount || state.partnerCount || dimResult.partnerCount?.value || null
+      }))
+      .digest('hex');
 
-    for (const model of candidateModels) {
-      triedModels.push(model);
-      try {
-        const res2 = await fetchWithTimeout('https://api.deepseek.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + apiKey
-          },
-          body: JSON.stringify({
-            model,
-            messages: [
-              { role: 'system', content: sysPrompt },
-              { role: 'user', content: userPrompt }
-            ],
-            temperature: 0.6,
-            max_tokens: 8000
-          })
-        });
-        if (!res2.ok) {
-          lastError = `${model}: HTTP ${res2.status}`;
-          continue;
+    const cachedReport = decisionTreeReportCache.get(cacheKey);
+    if (cachedReport?.markdown) {
+      markdown = cachedReport.markdown;
+      modelUsed = cachedReport.modelUsed || 'cache';
+      cacheHit = true;
+    } else {
+      for (const model of candidateModels) {
+        triedModels.push(model);
+        try {
+          const res2 = await fetchWithTimeout('https://api.deepseek.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer ' + apiKey
+            },
+            body: JSON.stringify({
+              model,
+              messages: [
+                { role: 'system', content: sysPrompt },
+                { role: 'user', content: userPrompt }
+              ],
+              temperature: 0.2,
+              max_tokens: 8000
+            })
+          });
+          if (!res2.ok) {
+            lastError = `${model}: HTTP ${res2.status}`;
+            continue;
+          }
+          const data = await res2.json();
+          const content = data.choices?.[0]?.message?.content || '';
+          if (!content) {
+            lastError = `${model}: empty content`;
+            continue;
+          }
+          markdown = protocolMode.enabled ? normalizeProtocolPackMarkdown(content) : content.trim();
+          modelUsed = model;
+          decisionTreeReportCache.set(cacheKey, { markdown, modelUsed, createdAt: Date.now() });
+          if (decisionTreeReportCache.size > 100) {
+            const oldestKey = decisionTreeReportCache.keys().next().value;
+            if (oldestKey) decisionTreeReportCache.delete(oldestKey);
+          }
+          break;
+        } catch (e) {
+          lastError = `${model}: ${e.message}`;
         }
-        const data = await res2.json();
-        const content = data.choices?.[0]?.message?.content || '';
-        if (!content) {
-          lastError = `${model}: empty content`;
-          continue;
-        }
-        markdown = content.trim();
-        modelUsed = model;
-        break;
-      } catch (e) {
-        lastError = `${model}: ${e.message}`;
       }
     }
 
@@ -625,7 +702,11 @@ app.post('/api/decision-tree/generate-report', async (req, res) => {
     }
 
     // 校验「需求响应表 + L0-L4」齐全（缺段补警告，不阻断）
-    const requiredSections = [
+    const requiredSections = protocolMode.enabled ? [
+      { key: '用户原话响应表', pattern: /用户原话响应表/ },
+      { key: '协议正文交付区', pattern: /协议正文交付区|股东合作协议书|股东协议书/ },
+      { key: '签署前法律边界声明', pattern: /法律边界声明|不构成正式法律意见/ }
+    ] : [
       { key: '需求响应表', pattern: /##.*📋\s*需求响应表/ },
       { key: 'L0', pattern: /##.*L0.*场景匹配结论/ },
       { key: 'L1', pattern: /##.*L1.*核心条款正文/ },
@@ -644,6 +725,8 @@ app.post('/api/decision-tree/generate-report', async (req, res) => {
       aiInput,
       markdown,
       modelUsed,
+      cacheHit,
+      protocolMode: protocolMode.enabled,
       branch: state.branch || null,
       warning
     });

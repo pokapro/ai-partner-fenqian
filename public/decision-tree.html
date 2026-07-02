@@ -387,7 +387,9 @@ let currentBlock = null;
 let isProcessing = false;
 let isFinal = false;
 let lastUserText = '';
+let conversationText = '';
 let lastReportMd = '';
+let lastProtocolMode = false;
 
 // ===== 持久化 =====
 const LS_KEY = 'dt_state';
@@ -395,7 +397,7 @@ function saveState() {
   try {
     localStorage.setItem(LS_KEY, JSON.stringify({
       state, currentBlock: currentBlock ? { id: currentBlock.id, isFinal: currentBlock.isFinal } : null,
-      isFinal, lastUserText, lastReportMd, timestamp: Date.now()
+      isFinal, lastUserText, conversationText, lastReportMd, lastProtocolMode, timestamp: Date.now()
     }));
   } catch(e) {}
 }
@@ -408,7 +410,9 @@ function loadState() {
     state = d.state || {};
     if (d.currentBlock) { currentBlock = d.currentBlock; isFinal = d.isFinal || false; }
     lastUserText = d.lastUserText || '';
+    conversationText = d.conversationText || d.lastUserText || '';
     lastReportMd = d.lastReportMd || '';
+    lastProtocolMode = !!d.lastProtocolMode;
     return true;
   } catch(e) { return false; }
 }
@@ -449,6 +453,12 @@ function addUserBubble(text) {
   const a = $('chat-area'); const w = document.createElement('div');
   w.className = 'msg msg-user'; w.innerHTML = `<div class="b">${escapeHtml(text)}</div>`;
   a.appendChild(w); scrollBottom();
+}
+function rememberUserText(text) {
+  const clean = String(text || '').trim();
+  if (!clean) return;
+  lastUserText = clean;
+  conversationText = conversationText ? `${conversationText}\n${clean}` : clean;
 }
 function addTyping() {
   const a = $('chat-area'); const w = document.createElement('div');
@@ -514,7 +524,9 @@ function updateSceneBar(st) {
 
 // ===== 报告生成 =====
 async function doFinalize() {
-  const freeText = lastUserText || $('user-input').value.trim();
+  const pendingText = $('user-input').value.trim();
+  if (pendingText) rememberUserText(pendingText);
+  const freeText = conversationText || lastUserText || pendingText;
   const btn = $('generate-btn');
   btn.disabled = true; btn.textContent = '🤖 AI 推理中...';
   try {
@@ -531,6 +543,7 @@ function renderDTReport(data) {
   $('action-area').classList.add('hidden');
   const md = data.markdown || '';
   lastReportMd = md;
+  lastProtocolMode = !!data.protocolMode;
   const sections = $('report-sections');
   sections.innerHTML = md2html(md);
   if (data.caseId) {
@@ -616,12 +629,13 @@ async function downloadExport(format) {
   if (!markdown) return;
   const btn = format === 'word' ? $('download-word-btn') : $('download-pdf-btn');
   const old = btn.innerHTML;
+  const exportTitle = lastProtocolMode ? 'AI合伙协议草案包' : 'AI合伙方案建议报告';
   btn.disabled = true; btn.innerHTML = '生成中...';
   try {
     const res = await fetch(`/api/decision-tree/export/${format}`, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ markdown, title: 'AI合伙协议方案报告' })
+      body: JSON.stringify({ markdown, title: exportTitle })
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -629,7 +643,7 @@ async function downloadExport(format) {
     }
     const blob = await res.blob();
     const ext = format === 'word' ? 'docx' : 'pdf';
-    downloadFile(`AI合伙协议方案报告-${timestamp()}.${ext}`, blob, blob.type || 'application/octet-stream');
+    downloadFile(`${exportTitle}-${timestamp()}.${ext}`, blob, blob.type || 'application/octet-stream');
     flashBtn(btn, '✅ 已下载');
   } catch (err) {
     alert('下载失败：' + err.message);
@@ -647,12 +661,12 @@ function printReport() { const h=getReportHtml(); if(!h)return; const w=window.o
 
 // ===== 重新开始 =====
 function restartDT() {
-  state={};currentBlock=null;isFinal=false;lastUserText='';lastReportMd='';clearState();
+  state={};currentBlock=null;isFinal=false;lastUserText='';conversationText='';lastReportMd='';clearState();
   $('chat-area').innerHTML='';$('action-area').classList.add('hidden');$('result-area').classList.add('hidden');$('user-input').value='';
 }
 
 // ===== 事件绑定 =====
-$('send-btn').addEventListener('click',()=>{const i=$('user-input'),t=i.value.trim();if(!t||isProcessing)return;addUserBubble(t);lastUserText=t;i.value='';loadNextStep(t);});
+$('send-btn').addEventListener('click',()=>{const i=$('user-input'),t=i.value.trim();if(!t||isProcessing)return;addUserBubble(t);rememberUserText(t);i.value='';loadNextStep(t);});
 $('user-input').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();$('send-btn').click();}});
 $('generate-btn').addEventListener('click',doFinalize);
 $('copy-md-btn')?.addEventListener('click',copyMd);
